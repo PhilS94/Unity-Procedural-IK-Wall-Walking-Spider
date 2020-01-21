@@ -50,9 +50,9 @@ public class CCDIKSolver : MonoBehaviour
 
         if (debugTarget != null && debugTarget.hasChanged)
         {
-            //debugTarget.transform.hasChanged = false;
-            //solveCCD(debugTarget.position);
-            solveJacobianTranspose(debugTarget.position);
+            debugTarget.transform.hasChanged = false;
+            solveCCD(debugTarget.position);
+            //solveJacobianTranspose(debugTarget.position);
         }
     }
 
@@ -60,15 +60,15 @@ public class CCDIKSolver : MonoBehaviour
     {
         for (int i = 0; i < joints.Length - 1; i++)
         {
-            if (joints[i].GetComponent<SwingTwistJoint>() == null)
+            if (joints[i].GetComponent<AHingeJoint>() == null)
             {
-                Debug.LogError("For the CCD chain " + this.name + " the joint number " + joints[i].gameObject.name + " does not have a SwingTwistJoint attached. Please attach one.");
+                Debug.LogError("For the CCD chain " + this.name + " the joint number " + joints[i].gameObject.name + " does not have a AHingeJoint attached. Please attach one.");
                 return false;
             }
         }
-        if (joints[joints.Length - 1].GetComponent<SwingTwistJoint>() != null)
+        if (joints[joints.Length - 1].GetComponent<AHingeJoint>() != null)
         {
-            Debug.Log("For the CCD chain " + this.name + " the last joint " + joints[joints.Length - 1].gameObject.name + " has an attached SwingTwistJoint. The last joint will be used as the foot and therefore is not a joint. You might forgot to add the foot.");
+            Debug.Log("For the CCD chain " + this.name + " the last joint " + joints[joints.Length - 1].gameObject.name + " has an attached AHingeJoint. The last joint will be used as the foot and therefore is not a joint. You might forgot to add the foot.");
         }
         return true;
     }
@@ -105,32 +105,31 @@ public class CCDIKSolver : MonoBehaviour
         Vector3 toTarget;
         Vector3 rotAxis;
         float angle;
-        Quaternion newRotation;
-        SwingTwistJoint swingTwistjoint;
+        AHingeJoint hinge;
 
         while (k < maxIterations && distance > tolerance)
         {
             for (int i = joints.Length - 2; i >= 0; i--) //Starts with last joint, since last element is just the foot
             {
+                hinge = joints[i].gameObject.GetComponent<AHingeJoint>();
+                rotAxis = hinge.getRotationAxis();
                 toEnd = (endPoint.position - joints[i].position).normalized;
-                toTarget = (targetPoint - joints[i].position).normalized;
-                angle = Mathf.Acos(Vector3.Dot(toEnd, toTarget));
-                angle *= weight * weightJoints[i]; //Multiplies the angle by the weight of the joint, should still stay in bounds since i starts with joints.length-2
-                rotAxis = Vector3.Cross(toEnd, toTarget).normalized;
+                toTarget = Vector3.ProjectOnPlane((targetPoint - joints[i].position),hinge.getRotationAxis()).normalized;
 
+                //angle = Mathf.Acos(Vector3.Dot(Vector3.ProjectOnPlane(toEnd, hinge.getRotationAxis()) toTarget));
+                angle = Vector3.SignedAngle(Vector3.ProjectOnPlane(toEnd, rotAxis), Vector3.ProjectOnPlane(toTarget, rotAxis), rotAxis);
+                angle *= weight * weightJoints[i]; //Multiplies the angle by the weight of the joint, should still stay in bounds since i starts with joints.length-2
 
                 Debug.DrawLine(joints[i].position, targetPoint, Color.green);
                 Debug.DrawLine(joints[i].position, joints[i + 1].position, Color.red);
-                Debug.Log("Angle " + angle);
-                if (rotAxis != Vector3.zero)
-                {
-                    Debug.DrawRay(joints[i].position, rotAxis, Color.blue);
-                    joints[i].Rotate(rotAxis, angle, Space.Self);
-                    //newRotation = Quaternion.AngleAxis(angle, rotAxis) * joints[i].localRotation;
-                    //swingTwistjoint = joints[i].gameObject.GetComponent<SwingTwistJoint>();
-                    //swingTwistjoint.SwingTwistJointLimit(ref newRotation); //This limits the rotation using the values in the swingTwistJoint
-                    //joints[i].localRotation = newRotation; //Should do this smoothly via slerp for example
-                }
+
+                hinge.applyRotation(angle);
+
+                //joints[i].Rotate(rotAxis, angle, Space.Self);
+                //newRotation = Quaternion.AngleAxis(angle, rotAxis) * joints[i].localRotation;
+
+                //swingTwistjoint.SwingTwistJointLimit(ref newRotation); //This limits the rotation using the values in the swingTwistJoint
+                //joints[i].localRotation = newRotation; //Should do this smoothly via slerp for example
 
 
             }
@@ -234,7 +233,7 @@ public class CCDIKSolver : MonoBehaviour
         Vector3 m_JJTe = new Vector3(JJTe[0], JJTe[1], JJTe[2]);
 
         //Calc the alpha value
-        float alpha = 10*Vector3.Dot(error, m_JJTe) / Vector3.Dot(m_JJTe, m_JJTe);
+        float alpha = 10 * Vector3.Dot(error, m_JJTe) / Vector3.Dot(m_JJTe, m_JJTe);
 
         //Calc the change in angle
         float[] angleChange = new float[amtAngles];
@@ -258,10 +257,10 @@ public class CCDIKSolver : MonoBehaviour
             }
 
             //joints[col/3].Rotate(rotAxis, angleChange[col], Space.Self);
-            Quaternion newRotation = Quaternion.AngleAxis(angleChange[col], rotAxis) * joints[col/3].localRotation;
-            SwingTwistJoint swingTwistjoint = joints[col/3].gameObject.GetComponent<SwingTwistJoint>();
+            Quaternion newRotation = Quaternion.AngleAxis(angleChange[col], rotAxis) * joints[col / 3].localRotation;
+            SwingTwistJoint swingTwistjoint = joints[col / 3].gameObject.GetComponent<SwingTwistJoint>();
             swingTwistjoint.SwingTwistJointLimit(ref newRotation); //This limits the rotation using the values in the swingTwistJoint
-            joints[col/3].localRotation = newRotation; //Should do this smoothly via slerp for example
+            joints[col / 3].localRotation = newRotation; //Should do this smoothly via slerp for example
         }
 
     }
