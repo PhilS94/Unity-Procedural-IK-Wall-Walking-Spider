@@ -95,33 +95,44 @@ public class CCDIKSolver : MonoBehaviour
         }
     }
 
+    /*
+     * Manipulates the  joint rotations of the chain with the goal of moving the endEffector to the given target point
+     * This is done using the CCD algorithm with respect to the weigths of the given joints
+     * However, for some reason i see rotations that are not restricted to the rotationaxis given in the hingejoint component
+     * being performed which is very odd to me
+     * */
     void solveCCD(Vector3 targetPoint)
     {
         Debug.Log("Solving CCD brb");
-        int k = 0;
-        Transform endPoint = joints[joints.Length - 1];
-        float distance = Vector3.Distance(targetPoint, endPoint.position);
+        int iteration = 0;
+        Transform endEffector = joints[joints.Length - 1];
+        Transform currentJoint;
+        AHingeJoint hinge;
+        float distance = Vector3.Distance(targetPoint, endEffector.position);
         Vector3 toEnd;
         Vector3 toTarget;
         Vector3 rotAxis;
         float angle;
-        AHingeJoint hinge;
 
-        while (k < maxIterations && distance > tolerance)
+
+        while (iteration < maxIterations && distance > tolerance)
         {
             for (int i = joints.Length - 2; i >= 0; i--) //Starts with last joint, since last element is just the foot
             {
-                hinge = joints[i].gameObject.GetComponent<AHingeJoint>();
+                currentJoint = joints[i];
+                hinge = currentJoint.gameObject.GetComponent<AHingeJoint>();
                 rotAxis = hinge.getRotationAxis();
-                toEnd = (endPoint.position - joints[i].position).normalized;
-                toTarget = Vector3.ProjectOnPlane((targetPoint - joints[i].position),hinge.getRotationAxis()).normalized;
+                toEnd = (endEffector.position - hinge.getRotationPoint()).normalized;
+                toTarget = (targetPoint - hinge.getRotationPoint()).normalized;
 
                 //angle = Mathf.Acos(Vector3.Dot(Vector3.ProjectOnPlane(toEnd, hinge.getRotationAxis()) toTarget));
                 angle = Vector3.SignedAngle(Vector3.ProjectOnPlane(toEnd, rotAxis), Vector3.ProjectOnPlane(toTarget, rotAxis), rotAxis);
-                angle *= weight * weightJoints[i]; //Multiplies the angle by the weight of the joint, should still stay in bounds since i starts with joints.length-2
+                //angle = Vector3.SignedAngle(toEnd,toTarget, rotAxis);
+                //angle = Vector3.Angle(Vector3.ProjectOnPlane(toEnd, rotAxis), Vector3.ProjectOnPlane(toTarget, rotAxis));
+                //angle *= weight * weightJoints[i]; //Multiplies the angle by the weight of the joint, should still stay in bounds since i starts with joints.length-2
 
-                Debug.DrawLine(joints[i].position, targetPoint, Color.green);
-                Debug.DrawLine(joints[i].position, joints[i + 1].position, Color.red);
+                //Debug.DrawLine(joints[i].position, targetPoint, Color.green);
+                //Debug.DrawLine(joints[i].position, joints[i + 1].position, Color.red);
 
                 hinge.applyRotation(angle);
 
@@ -134,10 +145,10 @@ public class CCDIKSolver : MonoBehaviour
 
             }
 
-            distance = Vector3.Distance(targetPoint, endPoint.position); //Refresh the distance so we can check if we are already close enough for the while loop check
-            k++;
-            Debug.Log("Completed " + k + "th iteration.");
+            distance = Vector3.Distance(targetPoint, endEffector.position); //Refresh the distance so we can check if we are already close enough for the while loop check
+            iteration++;
         }
+        Debug.Log("Completed CCD with" + iteration + " iterations.");
     }
 
     void solveJacobianTranspose(Vector3 targetPoint)
