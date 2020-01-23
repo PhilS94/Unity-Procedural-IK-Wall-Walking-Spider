@@ -42,9 +42,12 @@ public class AHingeJoint : MonoBehaviour
     private float currentAngle = 0;
 
     // Start is called before the first frame update
-    void Start()
+    void Start() {
+    }
+
+    private void updateValues()
     {
-        if (rotationAxisPosition==RotationAxis.XAxis)
+        if (rotationAxisPosition == RotationAxis.XAxis)
         {
             rotationAxis = transform.right;
             perpendicular = transform.up;
@@ -62,7 +65,7 @@ public class AHingeJoint : MonoBehaviour
         rotPoint = transform.position + rotationPointOffset.x * transform.right + rotationPointOffset.y * transform.up + rotationPointOffset.z * transform.forward;
     }
 
-    // Update is called once per frame
+   // Update is called once per frame
     void Update()
     {
         if (minAngle > maxAngle)
@@ -86,7 +89,7 @@ public class AHingeJoint : MonoBehaviour
      */
     public void applyRotation(float angle) //Würde gern als Parameter Quaternion haben.. Aber dann kann ich nicht wirklich sehen ob es sich um eine rot um die rotations Achse handelt ?
     {
-        Debug.Log(angle);
+        updateValues();
 
         angle = angle % 360; //Jetzt hab ich Winkel zwischen -360 und 360
 
@@ -112,7 +115,6 @@ public class AHingeJoint : MonoBehaviour
         angle = Mathf.Clamp(currentAngle + angle, minAngle, maxAngle) -currentAngle;
         //                  10              -60     -30                    = -30-10
         // Apply the rotation
-        rotPoint = transform.position + rotationPointOffset.x * transform.right + rotationPointOffset.y * transform.up + rotationPointOffset.z * transform.forward;
         //transform.RotateAround(rotPoint, rotationAxis, angle);
         transform.rotation = Quaternion.AngleAxis(angle, rotationAxis) * transform.rotation;
 
@@ -137,14 +139,12 @@ public class AHingeJoint : MonoBehaviour
             return;
         }
 
-
-
         //Maybe update the rotationAxis in the Update or at the Start
 
         // This means that the rotAxis changes as this joint rotates, that is changing its forward, very bad!
         //rotationAxis = Quaternion.Euler(rotationAxisPosition) * transform.forward;
 
-        Start(); //to initialize the rotationaxis and rotpoint
+        updateValues(); //to initialize the rotationaxis and rotpoint
         orientation = Quaternion.AngleAxis(currentOrientation, rotationAxis) * perpendicular;
         minVector = Quaternion.AngleAxis(minAngle, rotationAxis) * orientation;
         maxVector = Quaternion.AngleAxis(maxAngle, rotationAxis) * orientation;

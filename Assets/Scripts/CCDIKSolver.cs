@@ -93,6 +93,12 @@ public class CCDIKSolver : MonoBehaviour
             }
             Debug.Log("Joint Weight " + i + ": " + weightJoints[i]);
         }
+        //Debug, setting weigths individually here
+        weightJoints[0] = 1.0f;
+        weightJoints[1] = 1.0f;
+        weightJoints[2] = 0.4f;
+        weightJoints[3] = 0.1f;
+        weightJoints[4] = 0.01f;
     }
 
     /*
@@ -129,7 +135,7 @@ public class CCDIKSolver : MonoBehaviour
                 angle = Vector3.SignedAngle(Vector3.ProjectOnPlane(toEnd, rotAxis), Vector3.ProjectOnPlane(toTarget, rotAxis), rotAxis);
                 //angle = Vector3.SignedAngle(toEnd,toTarget, rotAxis);
                 //angle = Vector3.Angle(Vector3.ProjectOnPlane(toEnd, rotAxis), Vector3.ProjectOnPlane(toTarget, rotAxis));
-                //angle *= weight * weightJoints[i]; //Multiplies the angle by the weight of the joint, should still stay in bounds since i starts with joints.length-2
+                angle *= weight * weightJoints[i]; //Multiplies the angle by the weight of the joint, should still stay in bounds since i starts with joints.length-2
 
                 //Debug.DrawLine(joints[i].position, targetPoint, Color.green);
                 //Debug.DrawLine(joints[i].position, joints[i + 1].position, Color.red);
