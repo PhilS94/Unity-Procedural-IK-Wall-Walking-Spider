@@ -7,16 +7,7 @@ public class CCDIKSolver : MonoBehaviour
 
     public Transform[] joints; //make sure every element in here has swingtwistjoint script, execpt for last which is the foot
 
-    public enum weigthType
-    {
-        Constant,
-        Decreasing,
-        Increasing,
-    }
-
-    public weigthType weigthTypeJoints = weigthType.Constant;
-
-    private float[] weightJoints;
+    private AHingeJoint[] hingejoints;
 
     public bool useRotationsLimits = true;
 
@@ -31,13 +22,16 @@ public class CCDIKSolver : MonoBehaviour
 
     public Transform debugTarget;
 
+    private float chainLength;
+
+    private Vector3 currentTargetPosition;
+
     private bool validChain = true;
 
     // Start is called before the first frame update
     void Start()
     {
-        validChain = checkJointListValid();
-        initializeJointWeigths();
+        initializeJoints();
     }
 
     // Update is called once per frame
@@ -51,54 +45,38 @@ public class CCDIKSolver : MonoBehaviour
         if (debugTarget != null && debugTarget.hasChanged)
         {
             debugTarget.transform.hasChanged = false;
-            solveCCD(debugTarget.position);
+            setNewTargetPosition(debugTarget.position);
             //solveJacobianTranspose(debugTarget.position);
         }
     }
 
-    bool checkJointListValid()
+    void initializeJoints()
     {
+        hingejoints = new AHingeJoint[joints.Length - 1];   //endeffector doesnt have a hinge joint
+
         for (int i = 0; i < joints.Length - 1; i++)
         {
+            AHingeJoint hinge = joints[i].gameObject.GetComponent<AHingeJoint>();
             if (joints[i].GetComponent<AHingeJoint>() == null)
             {
                 Debug.LogError("For the CCD chain " + this.name + " the joint number " + joints[i].gameObject.name + " does not have a AHingeJoint attached. Please attach one.");
-                return false;
+                validChain = false;
             }
+            hingejoints[i] = hinge;
         }
+
         if (joints[joints.Length - 1].GetComponent<AHingeJoint>() != null)
         {
             Debug.Log("For the CCD chain " + this.name + " the last joint " + joints[joints.Length - 1].gameObject.name + " has an attached AHingeJoint. The last joint will be used as the foot and therefore is not a joint. You might forgot to add the foot.");
         }
-        return true;
-    }
 
-    void initializeJointWeigths()
-    {
-        weightJoints = new float[joints.Length - 1]; //foot doesnt need weigth
-        float weightIncrement = 1.0f / weightJoints.Length;  //We want to set the weigths linearly increasing or decreasing
-        for (int i = 0; i < weightJoints.Length; i++)
+        // Calc Chain Length
+        chainLength = 0;
+
+        for (int i = 0; i < joints.Length - 1; i++)
         {
-            if (weigthTypeJoints == weigthType.Constant)
-            {
-                weightJoints[i] = 1.0f;
-            }
-            if (weigthTypeJoints == weigthType.Increasing)
-            {
-                weightJoints[i] = (i + 1) * weightIncrement; //should range from weightIncrement to 1 linearly
-            }
-            if (weigthTypeJoints == weigthType.Decreasing)
-            {
-                weightJoints[i] = (weightJoints.Length - i) * weightIncrement; //should range from 1 to weightIncrement linearly
-            }
-            Debug.Log("Joint Weight " + i + ": " + weightJoints[i]);
+            chainLength += Vector3.Distance(hingejoints[i].getRotationPoint(), hingejoints[i + 1].getRotationPoint());
         }
-        //Debug, setting weigths individually here
-        weightJoints[0] = 1.0f;
-        weightJoints[1] = 1.0f;
-        weightJoints[2] = 0.4f;
-        weightJoints[3] = 0.1f;
-        weightJoints[4] = 0.01f;
     }
 
     /*
@@ -110,6 +88,8 @@ public class CCDIKSolver : MonoBehaviour
     void solveCCD(Vector3 targetPoint)
     {
         Debug.Log("Solving CCD brb");
+
+        currentTargetPosition = targetPoint;
         int iteration = 0;
         Transform endEffector = joints[joints.Length - 1];
         Transform currentJoint;
@@ -126,28 +106,19 @@ public class CCDIKSolver : MonoBehaviour
             for (int i = joints.Length - 2; i >= 0; i--) //Starts with last joint, since last element is just the foot
             {
                 currentJoint = joints[i];
-                hinge = currentJoint.gameObject.GetComponent<AHingeJoint>();
+                hinge = hingejoints[i];
                 rotAxis = hinge.getRotationAxis();
                 toEnd = (endEffector.position - hinge.getRotationPoint()).normalized;
                 toTarget = (targetPoint - hinge.getRotationPoint()).normalized;
 
-                //angle = Mathf.Acos(Vector3.Dot(Vector3.ProjectOnPlane(toEnd, hinge.getRotationAxis()) toTarget));
                 angle = Vector3.SignedAngle(Vector3.ProjectOnPlane(toEnd, rotAxis), Vector3.ProjectOnPlane(toTarget, rotAxis), rotAxis);
-                //angle = Vector3.SignedAngle(toEnd,toTarget, rotAxis);
-                //angle = Vector3.Angle(Vector3.ProjectOnPlane(toEnd, rotAxis), Vector3.ProjectOnPlane(toTarget, rotAxis));
-                angle *= weight * weightJoints[i]; //Multiplies the angle by the weight of the joint, should still stay in bounds since i starts with joints.length-2
+
+                angle *= weight * hinge.getWeight(); //Multiplies the angle by the weight of the joint, should still stay in bounds since i starts with joints.length-2
 
                 //Debug.DrawLine(joints[i].position, targetPoint, Color.green);
                 //Debug.DrawLine(joints[i].position, joints[i + 1].position, Color.red);
 
                 hinge.applyRotation(angle);
-
-                //joints[i].Rotate(rotAxis, angle, Space.Self);
-                //newRotation = Quaternion.AngleAxis(angle, rotAxis) * joints[i].localRotation;
-
-                //swingTwistjoint.SwingTwistJointLimit(ref newRotation); //This limits the rotation using the values in the swingTwistJoint
-                //joints[i].localRotation = newRotation; //Should do this smoothly via slerp for example
-
 
             }
 
@@ -156,6 +127,7 @@ public class CCDIKSolver : MonoBehaviour
         }
         Debug.Log("Completed CCD with" + iteration + " iterations.");
     }
+
 
     void solveJacobianTranspose(Vector3 targetPoint)
     {
@@ -333,4 +305,23 @@ public class CCDIKSolver : MonoBehaviour
         }
     }
 
+    public float getChainLength()
+    {
+        return chainLength;
+    }
+
+    public AHingeJoint getRootJoint()
+    {
+        return hingejoints[0];
+    }
+
+    public Vector3 getCurrentTargetPosition()
+    {
+        return currentTargetPosition;
+    }
+
+    public void setNewTargetPosition(Vector3 target)
+    {
+        solveCCD(target);
+    }
 }

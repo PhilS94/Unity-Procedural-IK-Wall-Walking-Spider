@@ -13,8 +13,6 @@ public class AHingeJoint : MonoBehaviour
         ZAxis
     }
 
-    public bool showDebug = true;
-
     public RotationAxis rotationAxisPosition = RotationAxis.XAxis;
     public Vector3 rotationPointOffset = Vector3.zero;
     public float currentOrientation = 0;
@@ -25,8 +23,16 @@ public class AHingeJoint : MonoBehaviour
     [Range(-180, 180)]
     public float maxAngle = 90;
 
+    [Range(0.0f, 1.0f)]
+    public float weight;
+
+    public bool showDebug = true;
+
     [Range(-1.0f, 1.0f)]
-    public float debugAngle=0;
+    public float debugAngle = 0;
+
+    [Range(0.1f, 10.0f)]
+    public float debugIconScale = 1.0f;
 
     private Vector3 minVector;
     private Vector3 maxVector;
@@ -34,6 +40,8 @@ public class AHingeJoint : MonoBehaviour
     private Vector3 rotationAxis;
     private Vector3 perpendicular;
     private Vector3 orientation;
+    private Vector3 minOrientation;
+    private Vector3 maxOrientation;
     private Vector3 rotPoint;
 
     //keeps track of the current state of rotation and is important part of the angle clamping
@@ -42,7 +50,8 @@ public class AHingeJoint : MonoBehaviour
     private float currentAngle = 0;
 
     // Start is called before the first frame update
-    void Start() {
+    void Start()
+    {
     }
 
     private void updateValues()
@@ -63,9 +72,12 @@ public class AHingeJoint : MonoBehaviour
             perpendicular = transform.right;
         }
         rotPoint = transform.position + rotationPointOffset.x * transform.right + rotationPointOffset.y * transform.up + rotationPointOffset.z * transform.forward;
+        orientation = Quaternion.AngleAxis(currentOrientation, rotationAxis) * perpendicular;
+        minOrientation = Quaternion.AngleAxis(minAngle - currentAngle, rotationAxis) * orientation;
+        maxOrientation = Quaternion.AngleAxis(maxAngle - currentAngle, rotationAxis) * orientation;
     }
 
-   // Update is called once per frame
+    // Update is called once per frame
     void Update()
     {
         if (minAngle > maxAngle)
@@ -89,7 +101,7 @@ public class AHingeJoint : MonoBehaviour
      */
     public void applyRotation(float angle) //Würde gern als Parameter Quaternion haben.. Aber dann kann ich nicht wirklich sehen ob es sich um eine rot um die rotations Achse handelt ?
     {
-        updateValues();
+        updateValues(); // important to update here since this function is called from the ccdiksolver. However i do think i can do this in update
 
         angle = angle % 360; //Jetzt hab ich Winkel zwischen -360 und 360
 
@@ -112,7 +124,7 @@ public class AHingeJoint : MonoBehaviour
 
         // Example, say angle is 20degrees, and our currentAngle is 60,  but our maxAngle is 70
         // What we want is to get the angle which rotates to the maxAnglePos which is in this case 10degrees
-        angle = Mathf.Clamp(currentAngle + angle, minAngle, maxAngle) -currentAngle;
+        angle = Mathf.Clamp(currentAngle + angle, minAngle, maxAngle) - currentAngle;
         //                  10              -60     -30                    = -30-10
         // Apply the rotation
         //transform.RotateAround(rotPoint, rotationAxis, angle);
@@ -121,6 +133,11 @@ public class AHingeJoint : MonoBehaviour
         // Refresh the current angle
         currentAngle += angle;
 
+    }
+
+    public float getWeight()
+    {
+        return weight;
     }
 
     public Vector3 getRotationAxis()
@@ -139,36 +156,42 @@ public class AHingeJoint : MonoBehaviour
             return;
         }
 
-        //Maybe update the rotationAxis in the Update or at the Start
+        updateValues(); //to refresh all the below values to be drawn
 
-        // This means that the rotAxis changes as this joint rotates, that is changing its forward, very bad!
-        //rotationAxis = Quaternion.Euler(rotationAxisPosition) * transform.forward;
-
-        updateValues(); //to initialize the rotationaxis and rotpoint
-        orientation = Quaternion.AngleAxis(currentOrientation, rotationAxis) * perpendicular;
-        minVector = Quaternion.AngleAxis(minAngle, rotationAxis) * orientation;
-        maxVector = Quaternion.AngleAxis(maxAngle, rotationAxis) * orientation;
-
+        //RotAxis
         Gizmos.color = Color.blue;
-        Gizmos.DrawLine(rotPoint,rotPoint+ 1.0f * rotationAxis.normalized);
+        Gizmos.DrawLine(rotPoint, rotPoint + debugIconScale * rotationAxis);
 
+        //RotPoint
         Gizmos.color = Color.green;
-        Gizmos.DrawSphere(rotPoint, 0.01f);
+        Gizmos.DrawSphere(rotPoint, 0.01f * debugIconScale);
 
-        Gizmos.color = Color.yellow;
-        Vector3 minV = Quaternion.AngleAxis(-currentAngle, rotationAxis) * minVector;
-        Vector3 maxV = Quaternion.AngleAxis(-currentAngle, rotationAxis) * maxVector;
-        Gizmos.DrawLine(rotPoint, rotPoint + 0.2f * minV.normalized);
-        Gizmos.DrawLine(rotPoint, rotPoint + 0.2f * maxV.normalized);
 
+        //Gizmos.color = Color.yellow;
+        //Gizmos.DrawLine(rotPoint, rotPoint + 0.2f * debugIconScale * minOrientation);
+        //Gizmos.DrawLine(rotPoint, rotPoint + 0.2f * debugIconScale * maxOrientation);
+
+        // Rotation Limit Arc
         UnityEditor.Handles.color = Color.yellow;
-        UnityEditor.Handles.DrawSolidArc(rotPoint, rotationAxis, minV, maxAngle - minAngle, 0.2f);
+        UnityEditor.Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, maxAngle - minAngle, 0.2f * debugIconScale);
 
-
+        // Current Rotation Used Arc
         UnityEditor.Handles.color = Color.red;
-        UnityEditor.Handles.DrawSolidArc(rotPoint, rotationAxis, minV, currentAngle-minAngle, 0.1f);
+        UnityEditor.Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, currentAngle - minAngle, 0.1f * debugIconScale);
 
+        // Current Rotation used (same as above) just an additional line to emphasize
         Gizmos.color = Color.red;
-        Gizmos.DrawLine(rotPoint, rotPoint+0.2f*orientation);
+        Gizmos.DrawLine(rotPoint, rotPoint + 0.2f * debugIconScale * orientation);
+    }
+
+    /*
+     * This function fails if minOrientation and maxOrientation have an angle greather than 180
+     * since signedangle returns the smaller angle, which i dont really want, but it suffices right now since i dont have these big of DOF
+     * */
+    public bool isVectorWithinScope(Vector3 v)
+    {
+        float angle1 = Vector3.SignedAngle(minOrientation, v,rotationAxis); // should be clockwise, thus positive
+        float angle2 = Vector3.SignedAngle(v, maxOrientation,rotationAxis); // should also be clockwise, thus positive
+        return (angle1 >= 0 && angle2 >= 0);
     }
 }
