@@ -9,8 +9,6 @@ public class CCDIKSolver : MonoBehaviour
 
     private AHingeJoint[] hingejoints;
 
-    public bool useRotationsLimits = true;
-
     [Range(0, 1)]
     public float weight = 1.0f;
 
@@ -20,18 +18,37 @@ public class CCDIKSolver : MonoBehaviour
     [Range(1, 100)]
     public int maxIterations = 20;
 
+    // By assigning this the CCD IK Solver will use this transfom as target, if unassigned  the IKTargetPredictor is used
     public Transform debugTarget;
 
+    private IKTargetPredictor ikTargetPredictor;
     private float chainLength;
 
     private Vector3 currentTargetPosition;
 
     private bool validChain = true;
 
+    private void Awake()
+    {
+        initializeJoints();
+
+    }
     // Start is called before the first frame update
     void Start()
     {
-        initializeJoints();
+        ikTargetPredictor = GetComponent<IKTargetPredictor>();
+
+        if ((debugTarget == null) && ikTargetPredictor ==null)
+        {
+            Debug.LogError("Please either assign a Target Transform or equip a IKTargetPredictor Component.");
+            validChain = false;
+        }
+
+        // Start by giving one target
+        if (validChain)
+        {
+            setNewTargetPosition(getEndEffector().position);
+        }
     }
 
     // Update is called once per frame
@@ -42,12 +59,26 @@ public class CCDIKSolver : MonoBehaviour
             return;
         }
 
-        if (debugTarget != null && debugTarget.hasChanged)
+        if (debugTarget != null)
         {
-            debugTarget.transform.hasChanged = false;
-            setNewTargetPosition(debugTarget.position);
+            if (debugTarget.hasChanged)
+            {
+                debugTarget.transform.hasChanged = false;
+                setNewTargetPosition(debugTarget.position);
+            }
+            solveCCD(currentTargetPosition);
             //solveJacobianTranspose(debugTarget.position);
         }
+        else
+        {
+            if (!ikTargetPredictor.checkValidTarget())
+            {
+                setNewTargetPosition(ikTargetPredictor.calculateNewTargetPosition());
+            }
+            solveCCD(currentTargetPosition);
+        }
+
+
     }
 
     void initializeJoints()
@@ -73,10 +104,11 @@ public class CCDIKSolver : MonoBehaviour
         // Calc Chain Length
         chainLength = 0;
 
-        for (int i = 0; i < joints.Length - 1; i++)
+        for (int i = 0; i < hingejoints.Length - 1; i++)
         {
             chainLength += Vector3.Distance(hingejoints[i].getRotationPoint(), hingejoints[i + 1].getRotationPoint());
         }
+        Debug.Log("Chain length:" + chainLength);
     }
 
     /*
@@ -315,6 +347,10 @@ public class CCDIKSolver : MonoBehaviour
         return hingejoints[0];
     }
 
+    public Transform getEndEffector()
+    {
+        return joints[joints.Length - 1];
+    }
     public Vector3 getCurrentTargetPosition()
     {
         return currentTargetPosition;

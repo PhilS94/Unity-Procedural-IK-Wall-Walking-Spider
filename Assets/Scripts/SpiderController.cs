@@ -1,7 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-namespace RootMotion {
     public class SpiderController : MonoBehaviour {
 
         public Camera cam;
@@ -190,6 +189,11 @@ namespace RootMotion {
             return Physics.SphereCast(sphereRay.position,sphereRay.radius,sphereRay.direction,out hitInfo,sphereRay.distance,groundedLayer,QueryTriggerInteraction.Ignore);
         }
 
+    public Vector3 getCurrentNormal()
+    {
+        return currentNormal;
+    }
+
         void setupSphereRayDraw(ref GameObject[] sphereRay,int amount) {
             GameObject group = new GameObject();
             group.name = "SphereRay";
@@ -219,4 +223,3 @@ namespace RootMotion {
             Debug.DrawLine(sphereRay.position,endPoint,Color.cyan);
         }
     }
-}

@@ -24,7 +24,7 @@ public class AHingeJoint : MonoBehaviour
     public float maxAngle = 90;
 
     [Range(0.0f, 1.0f)]
-    public float weight;
+    public float weight=1.0f;
 
     public bool showDebug = true;
 
@@ -140,15 +140,6 @@ public class AHingeJoint : MonoBehaviour
         return weight;
     }
 
-    public Vector3 getRotationAxis()
-    {
-        return rotationAxis;
-    }
-
-    public Vector3 getRotationPoint()
-    {
-        return rotPoint;
-    }
     void OnDrawGizmosSelected()
     {
         if (UnityEditor.Selection.activeGameObject != transform.gameObject && !showDebug)
@@ -193,5 +184,27 @@ public class AHingeJoint : MonoBehaviour
         float angle1 = Vector3.SignedAngle(minOrientation, v,rotationAxis); // should be clockwise, thus positive
         float angle2 = Vector3.SignedAngle(v, maxOrientation,rotationAxis); // should also be clockwise, thus positive
         return (angle1 >= 0 && angle2 >= 0);
+    }
+
+
+    public Vector3 getRotationAxis()
+    {
+        return rotationAxis;
+    }
+
+    // Normal i would return rotPoint, but i call this function from the awakre function of CCDiKSolver
+    public Vector3 getRotationPoint()
+    {
+        return transform.position + rotationPointOffset.x * transform.right + rotationPointOffset.y * transform.up + rotationPointOffset.z * transform.forward;
+    }
+
+    public Vector3 getOrientation()
+    {
+        return orientation;
+    }
+
+    public float getAngleRange()
+    {
+        return maxAngle - minAngle;
     }
 }
