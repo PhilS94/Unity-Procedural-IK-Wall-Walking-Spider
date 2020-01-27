@@ -7,15 +7,24 @@ public class IKTargetPredictor : MonoBehaviour
 {
     public SpiderController spidercontroller;
     public bool showDebug;
+
     private CCDIKSolver ccdsolver;
     private Ray targetPredictorRay;
+
+    private float heigth = 2.0f;
+    private float distance = 4.0f;
 
     private Vector3 rootPos;
     private Vector3 lastRootPos;
     private Vector3 rootMoveDir;
 
+    private Vector3 defaultPositionLocal;
+    private GameObject debugDefaultPosition;
+
     private AHingeJoint rootJoint;
     private GameObject debugTargetPoint;
+
+
 
 
     // Start is called before the first frame update
@@ -23,7 +32,12 @@ public class IKTargetPredictor : MonoBehaviour
     {
         ccdsolver = GetComponent<CCDIKSolver>();
         rootJoint = ccdsolver.getRootJoint();
+        rootPos = rootJoint.getRotationPoint();
         lastRootPos = rootJoint.getRotationPoint();
+
+        defaultPositionLocal = spidercontroller.transform.InverseTransformPoint(rootPos + (ccdsolver.getEndEffector().position - rootPos).normalized * 0.5f * ccdsolver.getChainLength());
+        defaultPositionLocal.y = -1.0f * 1.0f/spidercontroller.scale; // Because spider has a 20.0f reference scale
+
         if (showDebug)
         {
             inititalizeDebug();
@@ -32,14 +46,15 @@ public class IKTargetPredictor : MonoBehaviour
 
     void Update()
     {
-        if (showDebug)
-        {
-            debugTargetPoint.transform.position = ccdsolver.getCurrentTargetPosition();
-        }
-
         rootPos = rootJoint.getRotationPoint();
         rootMoveDir = rootPos - lastRootPos;
         lastRootPos = rootPos; // Order is important here, as we use the lastrootPos above
+
+        if (showDebug)
+        {
+            debugTargetPoint.transform.position = ccdsolver.getCurrentTargetPosition();
+            debugDefaultPosition.transform.position = spidercontroller.transform.TransformPoint(defaultPositionLocal);
+        }
     }
 
     void inititalizeDebug()
@@ -52,6 +67,13 @@ public class IKTargetPredictor : MonoBehaviour
         debugTargetPoint.GetComponent<MeshRenderer>().material.color = Color.black;
         debugTargetPoint.transform.localScale = new Vector3(0.1f, 0.1f, 0.1f);
         debugTargetPoint.transform.parent = group.transform;
+
+        debugDefaultPosition = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        debugDefaultPosition.name = "Default Position for" + gameObject.name;
+        Destroy(debugDefaultPosition.GetComponent<SphereCollider>());
+        debugDefaultPosition.GetComponent<MeshRenderer>().material.color = Color.magenta;
+        debugDefaultPosition.transform.localScale = new Vector3(0.1f, 0.1f, 0.1f);
+        debugDefaultPosition.transform.parent = group.transform;
     }
 
     public bool checkValidTarget()
@@ -68,7 +90,7 @@ public class IKTargetPredictor : MonoBehaviour
 
         if (showDebug)
         {
-            Debug.DrawLine(rootPos, rootPos + chainLength*toTarget.normalized, Color.grey);
+            Debug.DrawLine(rootPos, rootPos + chainLength * toTarget.normalized, Color.grey);
             Debug.DrawLine(rootPos, rootPos + toTarget, Color.red);
             //TODO: Draw debug visualization here for the second or case
         }
@@ -114,14 +136,15 @@ public class IKTargetPredictor : MonoBehaviour
 
         //Use linear combination of the two cases using the float value t:
 
-        // If rootJointOrientation and moveDirection parallel then
-        alpha = t * ccdsolver.getChainLength()
-                // If rootJointOrientation and moveDirection orthogonal then use law of cosines to solve 
-                + (1 - t) * Mathf.Sqrt(2 * Mathf.Pow(chainLength, 2) * (1 - Mathf.Cos(Mathf.Deg2Rad * angleRange)));
-        alpha *= 0.9f;
+                                    //If rootJointOrientation and moveDirection orthogonal then use law of cosines to solve    
+        alpha = 0.4f * Mathf.Lerp(  Mathf.Sqrt(2) * chainLength * Mathf.Sqrt(1 - Mathf.Cos(Mathf.Deg2Rad * angleRange)),
+                                    // If rootJointOrientation and moveDirection parallel then
+                                    chainLength,
+                                    t);
 
         Vector3 p = currentTarget + alpha * rootMoveDir.normalized;
-        float heigth = 5.0f;
+
+        float heigth = 2.0f;
         float distance = 2 * heigth;
         Vector3 normal = spidercontroller.getCurrentNormal().normalized;
         //maybe add angle, that is a focus to the ray
@@ -145,6 +168,51 @@ public class IKTargetPredictor : MonoBehaviour
             finalPoint = p;
         }
 
+
+        if (showDebug)
+        {
+            debugTargetPoint.transform.position = finalPoint;
+            Debug.Break();
+        }
         return finalPoint;
+    }
+
+    public targetInfo calculateNewTargetPositionUsingDefaultPos()
+    {
+        Debug.Log("I'm calculating a new target position.");
+
+        Vector3 endeffectorPosition = ccdsolver.getEndEffector().position;
+        Vector3 defaultPosition = spidercontroller.transform.TransformPoint(defaultPositionLocal); //This gives us the defaultPos in World Space
+
+        //Now predict step target
+        float velocityPrediction = 1.5f; //Value of one means the new target will be the defaultpositon, but we want to overshoot it smartly
+        Vector3 prediction = endeffectorPosition + (defaultPosition - endeffectorPosition) * velocityPrediction;
+
+        //Now shoot a ray using the prediction to find an actual point on a surface. Maybe add angle, that is a focus to the ray
+        Vector3 normal = spidercontroller.transform.up;
+        targetPredictorRay = new Ray(prediction + heigth * normal, -normal);
+        targetInfo finalTarget = new targetInfo(defaultPosition, spidercontroller.transform.up); // Initialize the finalTarget as defaultposition such that if no following ray hits, this will be returned as default
+
+        if (showDebug)
+        {
+            Debug.DrawLine(targetPredictorRay.origin, targetPredictorRay.origin + distance * targetPredictorRay.direction, Color.cyan, 1.0f);
+            Debug.DrawLine(endeffectorPosition, endeffectorPosition + (defaultPosition - endeffectorPosition) * velocityPrediction, Color.magenta, 1.0f);
+
+        }
+
+        if (Physics.Raycast(targetPredictorRay, out RaycastHit hitInfo, distance, spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore))
+        {
+            // could check if the normal is acceptable
+            finalTarget.position = hitInfo.point;
+            finalTarget.normal = hitInfo.normal;
+        }
+        //Maybe add more Raycasts
+
+        if (showDebug)
+        {
+            debugTargetPoint.transform.position = prediction;
+            //Debug.Break();
+        }
+        return finalTarget;
     }
 }

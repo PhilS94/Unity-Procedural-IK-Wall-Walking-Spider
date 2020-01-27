@@ -24,9 +24,11 @@ public class AHingeJoint : MonoBehaviour
     public float maxAngle = 90;
 
     [Range(0.0f, 1.0f)]
-    public float weight=1.0f;
+    public float weight = 1.0f;
 
     public bool showDebug = true;
+    public bool useRotationLimits = true;
+    public bool deactivateJoint = false;
 
     [Range(-1.0f, 1.0f)]
     public float debugAngle = 0;
@@ -101,6 +103,11 @@ public class AHingeJoint : MonoBehaviour
      */
     public void applyRotation(float angle) //Würde gern als Parameter Quaternion haben.. Aber dann kann ich nicht wirklich sehen ob es sich um eine rot um die rotations Achse handelt ?
     {
+        if (deactivateJoint)
+        {
+            return;
+        }
+
         updateValues(); // important to update here since this function is called from the ccdiksolver. However i do think i can do this in update
 
         angle = angle % 360; //Jetzt hab ich Winkel zwischen -360 und 360
@@ -122,13 +129,18 @@ public class AHingeJoint : MonoBehaviour
 
         //Jetzt sollte angle in der form (-180,180] sein
 
-        // Example, say angle is 20degrees, and our currentAngle is 60,  but our maxAngle is 70
-        // What we want is to get the angle which rotates to the maxAnglePos which is in this case 10degrees
-        angle = Mathf.Clamp(currentAngle + angle, minAngle, maxAngle) - currentAngle;
-        //                  10              -60     -30                    = -30-10
+
+        if (useRotationLimits)
+        {
+            // Example, say angle is 20degrees, and our currentAngle is 60,  but our maxAngle is 70
+            // What we want is to get the angle which rotates to the maxAnglePos which is in this case 10degrees
+            angle = Mathf.Clamp(currentAngle + angle, minAngle, maxAngle) - currentAngle;
+            //                  10              -60     -30                    = -30-10
+        }
+
         // Apply the rotation
-        //transform.RotateAround(rotPoint, rotationAxis, angle);
-        transform.rotation = Quaternion.AngleAxis(angle, rotationAxis) * transform.rotation;
+        transform.RotateAround(rotPoint, rotationAxis, angle); //Think about using this since i actually do use the rotationPoints in other classes
+        //transform.rotation = Quaternion.AngleAxis(angle, rotationAxis) * transform.rotation;
 
         // Refresh the current angle
         currentAngle += angle;
@@ -181,8 +193,8 @@ public class AHingeJoint : MonoBehaviour
      * */
     public bool isVectorWithinScope(Vector3 v)
     {
-        float angle1 = Vector3.SignedAngle(minOrientation, v,rotationAxis); // should be clockwise, thus positive
-        float angle2 = Vector3.SignedAngle(v, maxOrientation,rotationAxis); // should also be clockwise, thus positive
+        float angle1 = Vector3.SignedAngle(minOrientation, v, rotationAxis); // should be clockwise, thus positive
+        float angle2 = Vector3.SignedAngle(v, maxOrientation, rotationAxis); // should also be clockwise, thus positive
         return (angle1 >= 0 && angle2 >= 0);
     }
 

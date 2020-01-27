@@ -2,6 +2,18 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+public struct targetInfo
+{
+    public Vector3 position;
+    public Vector3 normal;
+
+    public targetInfo(Vector3 pos, Vector3 n)
+    {
+        position = pos;
+        normal = n;
+    }
+}
+
 public class CCDIKSolver : MonoBehaviour
 {
 
@@ -18,13 +30,15 @@ public class CCDIKSolver : MonoBehaviour
     [Range(1, 100)]
     public int maxIterations = 20;
 
+    public bool adjustFootToNormal = false;
+
     // By assigning this the CCD IK Solver will use this transfom as target, if unassigned  the IKTargetPredictor is used
     public Transform debugTarget;
 
     private IKTargetPredictor ikTargetPredictor;
     private float chainLength;
 
-    private Vector3 currentTargetPosition;
+    private targetInfo currentTarget;
 
     private bool validChain = true;
 
@@ -38,7 +52,7 @@ public class CCDIKSolver : MonoBehaviour
     {
         ikTargetPredictor = GetComponent<IKTargetPredictor>();
 
-        if ((debugTarget == null) && ikTargetPredictor ==null)
+        if ((debugTarget == null) && ikTargetPredictor == null)
         {
             Debug.LogError("Please either assign a Target Transform or equip a IKTargetPredictor Component.");
             validChain = false;
@@ -47,7 +61,7 @@ public class CCDIKSolver : MonoBehaviour
         // Start by giving one target
         if (validChain)
         {
-            setNewTargetPosition(getEndEffector().position);
+            setNewTargetPosition(getEndEffector().position, Vector3.up);
         }
     }
 
@@ -64,18 +78,18 @@ public class CCDIKSolver : MonoBehaviour
             if (debugTarget.hasChanged)
             {
                 debugTarget.transform.hasChanged = false;
-                setNewTargetPosition(debugTarget.position);
+                setNewTargetPosition(debugTarget.position, debugTarget.up);
             }
-            solveCCD(currentTargetPosition);
-            //solveJacobianTranspose(debugTarget.position);
+            solveCCD(currentTarget);
+            //solveJacobianTranspose(debugTarget.position,debugTarget.up);
         }
         else
         {
             if (!ikTargetPredictor.checkValidTarget())
             {
-                setNewTargetPosition(ikTargetPredictor.calculateNewTargetPosition());
+                setNewTargetPosition(ikTargetPredictor.calculateNewTargetPositionUsingDefaultPos());
             }
-            solveCCD(currentTargetPosition);
+            solveCCD(currentTarget);
         }
 
 
@@ -117,11 +131,12 @@ public class CCDIKSolver : MonoBehaviour
      * However, for some reason i see rotations that are not restricted to the rotationaxis given in the hingejoint component
      * being performed which is very odd to me
      * */
-    void solveCCD(Vector3 targetPoint)
+    void solveCCD(targetInfo target)
     {
-        Debug.Log("Solving CCD brb");
+        //Debug.Log("Solving CCD brb");
+        currentTarget = target; // Save the new target in currentTarget. This is very important as other functions want to be able to retrieve this information
 
-        currentTargetPosition = targetPoint;
+        Vector3 targetPoint = target.position;
         int iteration = 0;
         Transform endEffector = joints[joints.Length - 1];
         Transform currentJoint;
@@ -143,21 +158,25 @@ public class CCDIKSolver : MonoBehaviour
                 toEnd = (endEffector.position - hinge.getRotationPoint()).normalized;
                 toTarget = (targetPoint - hinge.getRotationPoint()).normalized;
 
-                angle = Vector3.SignedAngle(Vector3.ProjectOnPlane(toEnd, rotAxis), Vector3.ProjectOnPlane(toTarget, rotAxis), rotAxis);
-
-                angle *= weight * hinge.getWeight(); //Multiplies the angle by the weight of the joint, should still stay in bounds since i starts with joints.length-2
-
-                //Debug.DrawLine(joints[i].position, targetPoint, Color.green);
-                //Debug.DrawLine(joints[i].position, joints[i + 1].position, Color.red);
-
+                //This is a special case, where i want the foot, that is the last joint of the chain to adjust to the normal it hit
+                if (i == joints.Length - 2 && adjustFootToNormal)
+                {
+                    //Still Buggy pls fix
+                    angle = 90.0f-Vector3.SignedAngle(Vector3.ProjectOnPlane(target.normal, rotAxis), Vector3.ProjectOnPlane(toEnd, rotAxis), rotAxis); //Here toEnd only works because ill use this only for the last joint. instead you would want to use the vector from joint[i] to joint[i+1]
+                }
+                else
+                {
+                    angle = weight * hinge.getWeight() * Vector3.SignedAngle(Vector3.ProjectOnPlane(toEnd, rotAxis), Vector3.ProjectOnPlane(toTarget, rotAxis), rotAxis);
+                    //Debug.DrawLine(hinge.getRotationPoint(),  hinge.getRotationPoint() + toEnd, Color.green);
+                    //Debug.DrawLine(hinge.getRotationPoint(),  hinge.getRotationPoint() + toTarget, Color.red);
+                }
                 hinge.applyRotation(angle);
-
             }
 
             distance = Vector3.Distance(targetPoint, endEffector.position); //Refresh the distance so we can check if we are already close enough for the while loop check
             iteration++;
         }
-        Debug.Log("Completed CCD with" + iteration + " iterations.");
+        //Debug.Log("Completed CCD with" + iteration + " iterations.");
     }
 
 
@@ -353,11 +372,24 @@ public class CCDIKSolver : MonoBehaviour
     }
     public Vector3 getCurrentTargetPosition()
     {
-        return currentTargetPosition;
+        return currentTarget.position;
     }
 
-    public void setNewTargetPosition(Vector3 target)
+    public Vector3 getCurrentTargetNormal()
     {
-        solveCCD(target);
+        return currentTarget.normal;
+    }
+
+    public void setNewTargetPosition(targetInfo target)
+    {
+        currentTarget = target;
+        //In Theory i want to call solveCCD here but it runs every frame anyway so i wont for now
+    }
+
+    public void setNewTargetPosition(Vector3 position, Vector3 normal)
+    {
+        currentTarget.position = position;
+        currentTarget.normal = position;
+        //In Theory i want to call solveCCD here but it runs every frame anyway so i wont for now
     }
 }
