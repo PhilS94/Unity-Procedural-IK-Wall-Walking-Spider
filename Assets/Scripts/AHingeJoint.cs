@@ -215,6 +215,16 @@ public class AHingeJoint : MonoBehaviour
         return orientation;
     }
 
+    public Vector3 getMinOrientation()
+    {
+        return minOrientation;
+    }
+
+    public Vector3 getMaxOrientation()
+    {
+        return maxOrientation;
+    }
+
     public float getAngleRange()
     {
         return maxAngle - minAngle;

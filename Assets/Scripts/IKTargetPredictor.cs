@@ -35,8 +35,8 @@ public class IKTargetPredictor : MonoBehaviour
         rootPos = rootJoint.getRotationPoint();
         lastRootPos = rootJoint.getRotationPoint();
 
-        defaultPositionLocal = spidercontroller.transform.InverseTransformPoint(rootPos + (ccdsolver.getEndEffector().position - rootPos).normalized * 0.5f * ccdsolver.getChainLength());
-        defaultPositionLocal.y = -1.0f * 1.0f/spidercontroller.scale; // Because spider has a 20.0f reference scale
+        defaultPositionLocal = spidercontroller.transform.InverseTransformPoint(rootPos + (ccdsolver.getEndEffector().position - rootPos).normalized * 0.75f * ccdsolver.getChainLength());
+        defaultPositionLocal.y = -1.0f * 1.0f / spidercontroller.scale; // Because spider has a 20.0f reference scale
 
         if (showDebug)
         {
@@ -90,14 +90,36 @@ public class IKTargetPredictor : MonoBehaviour
 
         if (showDebug)
         {
+            //Debug for the distance of the target
             Debug.DrawLine(rootPos, rootPos + chainLength * toTarget.normalized, Color.grey);
             Debug.DrawLine(rootPos, rootPos + toTarget, Color.red);
-            //TODO: Draw debug visualization here for the second or case
+
+            //Debug for the scope of the target
+            float heigth = 1.0f;
+            float length = 2.0f;
+            Vector3 p = rootPos + spidercontroller.transform.up * heigth;
+            Vector3 x1 = rootPos + rootJoint.getMinOrientation() * length;
+            Vector3 x2 = p + rootJoint.getMinOrientation() * length;
+            Vector3 y1 = rootPos + rootJoint.getMaxOrientation() * length;
+            Vector3 y2 = p + rootJoint.getMaxOrientation() * length;
+            Debug.DrawLine(rootPos, p, Color.red);
+
+            Debug.DrawLine(rootPos, x1, Color.red);
+            Debug.DrawLine(p, x2, Color.red);
+            Debug.DrawLine(x1, x2, Color.red);
+            Debug.DrawLine(p, x1, Color.red);
+            Debug.DrawLine(rootPos, x2, Color.red);
+
+            Debug.DrawLine(rootPos, y1, Color.red);
+            Debug.DrawLine(p, y2, Color.red);
+            Debug.DrawLine(y1, y2, Color.red);
+            Debug.DrawLine(p, y1, Color.red);
+            Debug.DrawLine(rootPos, y2, Color.red);
         }
 
         //      if targetposition is farther away from the root joint than the whole chainlength
         //OR    if targetposition is not within the valid angle scope of the root joint
-        //      This can cause trouble if we want the leg to be able to move e.g. beneath the spider
+        //      This can cause trouble if we want the leg to be able to move e.g. beneath the spider since the scope does not allow the target to be behind the rootjoint
         if (Vector3.Magnitude(toTarget) > chainLength)
         {
             Debug.Log("Target too far away too reach.");
@@ -108,6 +130,8 @@ public class IKTargetPredictor : MonoBehaviour
             Debug.Log("Target not in scope");
             return false;
         }
+
+        //Maybe add if the target is too close for comfort
 
         return true;
     }
@@ -136,8 +160,8 @@ public class IKTargetPredictor : MonoBehaviour
 
         //Use linear combination of the two cases using the float value t:
 
-                                    //If rootJointOrientation and moveDirection orthogonal then use law of cosines to solve    
-        alpha = 0.4f * Mathf.Lerp(  Mathf.Sqrt(2) * chainLength * Mathf.Sqrt(1 - Mathf.Cos(Mathf.Deg2Rad * angleRange)),
+        //If rootJointOrientation and moveDirection orthogonal then use law of cosines to solve    
+        alpha = 0.4f * Mathf.Lerp(Mathf.Sqrt(2) * chainLength * Mathf.Sqrt(1 - Mathf.Cos(Mathf.Deg2Rad * angleRange)),
                                     // If rootJointOrientation and moveDirection parallel then
                                     chainLength,
                                     t);

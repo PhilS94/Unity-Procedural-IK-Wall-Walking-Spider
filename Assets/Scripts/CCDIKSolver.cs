@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEditor;
 
 public struct targetInfo
 {
@@ -14,10 +15,17 @@ public struct targetInfo
     }
 }
 
+public enum TargetMode
+{
+    targetPredictor,
+    debugTarget,
+    debugTargetRay
+}
+
 public class CCDIKSolver : MonoBehaviour
 {
 
-    public Transform[] joints; //make sure every element in here has swingtwistjoint script, execpt for last which is the foot
+    public Transform[] joints; //make sure every element in here has Ahingejoint script, execpt for last which is the endeffector
 
     private AHingeJoint[] hingejoints;
 
@@ -32,14 +40,14 @@ public class CCDIKSolver : MonoBehaviour
 
     public bool adjustFootToNormal = false;
 
-    // By assigning this the CCD IK Solver will use this transfom as target, if unassigned  the IKTargetPredictor is used
+    public TargetMode targetMode;
+
+    // By assigning one of these the CCD IK Solver will use one of these transfoms as target, if unassigned  the IKTargetPredictor is used
     public Transform debugTarget;
 
     private IKTargetPredictor ikTargetPredictor;
     private float chainLength;
-
     private targetInfo currentTarget;
-
     private bool validChain = true;
 
     private void Awake()
@@ -47,14 +55,20 @@ public class CCDIKSolver : MonoBehaviour
         initializeJoints();
 
     }
-    // Start is called before the first frame update
+
     void Start()
     {
         ikTargetPredictor = GetComponent<IKTargetPredictor>();
 
-        if ((debugTarget == null) && ikTargetPredictor == null)
+        if ((debugTarget == null) && ((targetMode == TargetMode.debugTarget) || (targetMode == TargetMode.debugTargetRay)))
         {
-            Debug.LogError("Please either assign a Target Transform or equip a IKTargetPredictor Component.");
+            Debug.LogError("Please assign a Target Transform when using this mode");
+            validChain = false;
+        }
+
+        if ((ikTargetPredictor == null) && (targetMode == TargetMode.targetPredictor))
+        {
+            Debug.LogError("Please assign a IKTargetPredictor Component when using this mode");
             validChain = false;
         }
 
@@ -73,26 +87,39 @@ public class CCDIKSolver : MonoBehaviour
             return;
         }
 
-        if (debugTarget != null)
+        switch (targetMode)
         {
-            if (debugTarget.hasChanged)
-            {
-                debugTarget.transform.hasChanged = false;
+            case TargetMode.debugTarget:
                 setNewTargetPosition(debugTarget.position, debugTarget.up);
-            }
-            solveCCD(currentTarget);
-            //solveJacobianTranspose(debugTarget.position,debugTarget.up);
-        }
-        else
-        {
-            if (!ikTargetPredictor.checkValidTarget())
-            {
-                setNewTargetPosition(ikTargetPredictor.calculateNewTargetPositionUsingDefaultPos());
-            }
-            solveCCD(currentTarget);
-        }
+                solveCCD(currentTarget);
+                //solveJacobianTranspose(debugTarget.position,debugTarget.up);
+                break;
 
+            case TargetMode.debugTargetRay:
+                float heigth = 1.0f;
+                float distance = 1.1f;
+                Ray debugRay = new Ray(debugTarget.position + heigth * Vector3.up, Vector3.down);
+                Debug.DrawLine(debugRay.origin, debugRay.origin + distance * debugRay.direction, Color.green);
 
+                if (Physics.Raycast(debugRay, out RaycastHit rayHit, distance, ikTargetPredictor.spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore))
+                {
+                    setNewTargetPosition(rayHit.point, rayHit.normal);
+                }
+                else
+                {
+                    setNewTargetPosition(debugTarget.position, debugTarget.up);
+                }
+                solveCCD(currentTarget);
+                break;
+
+            case TargetMode.targetPredictor:
+                if (!ikTargetPredictor.checkValidTarget())
+                {
+                    setNewTargetPosition(ikTargetPredictor.calculateNewTargetPositionUsingDefaultPos());
+                }
+                solveCCD(currentTarget);
+                break;
+        }
     }
 
     void initializeJoints()
@@ -150,7 +177,7 @@ public class CCDIKSolver : MonoBehaviour
 
         while (iteration < maxIterations && distance > tolerance)
         {
-            for (int i = joints.Length - 2; i >= 0; i--) //Starts with last joint, since last element is just the foot
+            for (int i = 0; i < joints.Length-1; i++) //Starts with root joint and ends before the last element, since this is the endeffector
             {
                 currentJoint = joints[i];
                 hinge = hingejoints[i];
@@ -161,14 +188,11 @@ public class CCDIKSolver : MonoBehaviour
                 //This is a special case, where i want the foot, that is the last joint of the chain to adjust to the normal it hit
                 if (i == joints.Length - 2 && adjustFootToNormal)
                 {
-                    //Still Buggy pls fix
-                    angle = 90.0f-Vector3.SignedAngle(Vector3.ProjectOnPlane(target.normal, rotAxis), Vector3.ProjectOnPlane(toEnd, rotAxis), rotAxis); //Here toEnd only works because ill use this only for the last joint. instead you would want to use the vector from joint[i] to joint[i+1]
+                    angle = 90.0f - Vector3.SignedAngle(Vector3.ProjectOnPlane(target.normal, rotAxis), Vector3.ProjectOnPlane(toEnd, rotAxis), rotAxis); //Here toEnd only works because ill use this only for the last joint. instead you would want to use the vector from joint[i] to joint[i+1]
                 }
                 else
                 {
                     angle = weight * hinge.getWeight() * Vector3.SignedAngle(Vector3.ProjectOnPlane(toEnd, rotAxis), Vector3.ProjectOnPlane(toTarget, rotAxis), rotAxis);
-                    //Debug.DrawLine(hinge.getRotationPoint(),  hinge.getRotationPoint() + toEnd, Color.green);
-                    //Debug.DrawLine(hinge.getRotationPoint(),  hinge.getRotationPoint() + toTarget, Color.red);
                 }
                 hinge.applyRotation(angle);
             }
@@ -176,6 +200,8 @@ public class CCDIKSolver : MonoBehaviour
             distance = Vector3.Distance(targetPoint, endEffector.position); //Refresh the distance so we can check if we are already close enough for the while loop check
             iteration++;
         }
+        // At the end apply the adjusting normal again
+        //hingejoints[hingejoints.Length-1].applyRotation(90.0f - Vector3.SignedAngle(Vector3.ProjectOnPlane(target.normal, hingejoints[hingejoints.Length - 1].getRotationAxis()), Vector3.ProjectOnPlane((endEffector.position - hingejoints[hingejoints.Length - 1].getRotationPoint()).normalized, hingejoints[hingejoints.Length - 1].getRotationAxis()), hingejoints[hingejoints.Length - 1].getRotationAxis()));
         //Debug.Log("Completed CCD with" + iteration + " iterations.");
     }
 
@@ -389,7 +415,7 @@ public class CCDIKSolver : MonoBehaviour
     public void setNewTargetPosition(Vector3 position, Vector3 normal)
     {
         currentTarget.position = position;
-        currentTarget.normal = position;
+        currentTarget.normal = normal;
         //In Theory i want to call solveCCD here but it runs every frame anyway so i wont for now
     }
 }
