@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 
-public struct targetInfo
+public struct TargetInfo
 {
     public Vector3 position;
     public Vector3 normal;
 
-    public targetInfo(Vector3 pos, Vector3 n)
+    public TargetInfo(Vector3 pos, Vector3 n)
     {
         position = pos;
         normal = n;
@@ -47,7 +47,7 @@ public class CCDIKSolver : MonoBehaviour
 
     private IKTargetPredictor ikTargetPredictor;
     private float chainLength;
-    private targetInfo currentTarget;
+    private TargetInfo currentTarget;
     private bool validChain = true;
 
     private void Awake()
@@ -75,7 +75,7 @@ public class CCDIKSolver : MonoBehaviour
         // Start by giving one target
         if (validChain)
         {
-            setNewTargetPosition(getEndEffector().position, Vector3.up);
+            setTarget(getEndEffector().position, Vector3.up);
         }
     }
 
@@ -87,39 +87,41 @@ public class CCDIKSolver : MonoBehaviour
             return;
         }
 
+        TargetInfo newTarget =currentTarget;
+
         switch (targetMode)
         {
             case TargetMode.debugTarget:
-                setNewTargetPosition(debugTarget.position, debugTarget.up);
-                solveCCD(currentTarget);
-                //solveJacobianTranspose(debugTarget.position,debugTarget.up);
+
+                newTarget = new TargetInfo(debugTarget.position, debugTarget.up);
                 break;
 
             case TargetMode.debugTargetRay:
-                float heigth = 1.0f;
+                float height = 1.0f;
                 float distance = 1.1f;
-                Ray debugRay = new Ray(debugTarget.position + heigth * Vector3.up, Vector3.down);
+                Ray debugRay = new Ray(debugTarget.position + height * Vector3.up, Vector3.down);
                 Debug.DrawLine(debugRay.origin, debugRay.origin + distance * debugRay.direction, Color.green);
 
                 if (Physics.Raycast(debugRay, out RaycastHit rayHit, distance, ikTargetPredictor.spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore))
                 {
-                    setNewTargetPosition(rayHit.point, rayHit.normal);
+                    newTarget = new TargetInfo(rayHit.point, rayHit.normal);
                 }
                 else
                 {
-                    setNewTargetPosition(debugTarget.position, debugTarget.up);
+                    newTarget = new TargetInfo(debugTarget.position, debugTarget.up);
                 }
-                solveCCD(currentTarget);
                 break;
 
             case TargetMode.targetPredictor:
-                if (!ikTargetPredictor.checkValidTarget())
-                {
-                    setNewTargetPosition(ikTargetPredictor.calculateNewTargetPositionUsingDefaultPos());
-                }
-                solveCCD(currentTarget);
                 break;
         }
+
+        if (!ikTargetPredictor.checkValidTarget(newTarget))
+        {
+            newTarget = ikTargetPredictor.calcNewTarget();
+        }
+        setTarget(newTarget);
+        solveCCD();
     }
 
     void initializeJoints()
@@ -158,12 +160,11 @@ public class CCDIKSolver : MonoBehaviour
      * However, for some reason i see rotations that are not restricted to the rotationaxis given in the hingejoint component
      * being performed which is very odd to me
      * */
-    void solveCCD(targetInfo target)
+    void solveCCD()
     {
         //Debug.Log("Solving CCD brb");
-        currentTarget = target; // Save the new target in currentTarget. This is very important as other functions want to be able to retrieve this information
 
-        Vector3 targetPoint = target.position;
+        Vector3 targetPoint = currentTarget.position;
         int iteration = 0;
         Transform endEffector = joints[joints.Length - 1];
         Transform currentJoint;
@@ -188,7 +189,7 @@ public class CCDIKSolver : MonoBehaviour
                 //This is a special case, where i want the foot, that is the last joint of the chain to adjust to the normal it hit
                 if (i == joints.Length - 2 && adjustFootToNormal)
                 {
-                    angle = 90.0f - Vector3.SignedAngle(Vector3.ProjectOnPlane(target.normal, rotAxis), Vector3.ProjectOnPlane(toEnd, rotAxis), rotAxis); //Here toEnd only works because ill use this only for the last joint. instead you would want to use the vector from joint[i] to joint[i+1]
+                    angle = 90.0f - Vector3.SignedAngle(Vector3.ProjectOnPlane(currentTarget.normal, rotAxis), Vector3.ProjectOnPlane(toEnd, rotAxis), rotAxis); //Here toEnd only works because ill use this only for the last joint. instead you would want to use the vector from joint[i] to joint[i+1]
                 }
                 else
                 {
@@ -396,23 +397,20 @@ public class CCDIKSolver : MonoBehaviour
     {
         return joints[joints.Length - 1];
     }
-    public Vector3 getCurrentTargetPosition()
+
+    public TargetInfo getTarget()
     {
-        return currentTarget.position;
+        return currentTarget;
     }
 
-    public Vector3 getCurrentTargetNormal()
-    {
-        return currentTarget.normal;
-    }
-
-    public void setNewTargetPosition(targetInfo target)
+    // Use these setters to set the target for the CCD algorithm. The CCD runs with every frame update and uses this target.
+    public void setTarget(TargetInfo target)
     {
         currentTarget = target;
         //In Theory i want to call solveCCD here but it runs every frame anyway so i wont for now
     }
 
-    public void setNewTargetPosition(Vector3 position, Vector3 normal)
+    public void setTarget(Vector3 position, Vector3 normal)
     {
         currentTarget.position = position;
         currentTarget.normal = normal;

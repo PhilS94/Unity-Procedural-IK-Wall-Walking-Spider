@@ -26,7 +26,6 @@ public class AHingeJoint : MonoBehaviour
     [Range(0.0f, 1.0f)]
     public float weight = 1.0f;
 
-    public bool showDebug = true;
     public bool useRotationLimits = true;
     public bool deactivateJoint = false;
 
@@ -50,6 +49,11 @@ public class AHingeJoint : MonoBehaviour
     //However i feel like this doesnt update sufficiently well, plus whenever im in a bad rotation state
     //i dont notice this
     private float currentAngle = 0;
+
+    private void Awake()
+    {
+        updateValues();
+    }
 
     // Start is called before the first frame update
     void Start()
@@ -154,7 +158,7 @@ public class AHingeJoint : MonoBehaviour
 
     void OnDrawGizmosSelected()
     {
-        if (UnityEditor.Selection.activeGameObject != transform.gameObject && !showDebug)
+        if (!UnityEditor.Selection.Contains(transform.gameObject))
         {
             return;
         }
@@ -223,6 +227,11 @@ public class AHingeJoint : MonoBehaviour
     public Vector3 getMaxOrientation()
     {
         return maxOrientation;
+    }
+
+    public Vector3 getMidOrientation()
+    {
+        return (maxOrientation + minOrientation).normalized;
     }
 
     public float getAngleRange()
