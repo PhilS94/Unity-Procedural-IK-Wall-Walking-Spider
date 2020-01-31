@@ -2,24 +2,29 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-[RequireComponent(typeof(CCDIKSolver))]
-public class IKTargetPredictor : MonoBehaviour
+[RequireComponent(typeof(IKChain))]
+public class IKStepper : MonoBehaviour
 {
-    public SpiderController spidercontroller;
+    public IKStepper asyncChain; // Implement this
+
     public bool showDebug;
 
     [Range(0.01f, 1.0f)]
     public float debugIconScale = 0.1f;
 
-    private CCDIKSolver ccdsolver;
-
     [Range(1.0f, 2.0f)]
     public float velocityPrediction = 1.5f;
+
+    [Range(0, 10.0f)]
+    public float stepTime;
 
     [Range(0.0f, 10.0f)]
     public float stepHeight;
 
     public AnimationCurve stepAnimation;
+
+    private IKChain ikChain;
+    private SpiderController spidercontroller;
 
     private bool isStepping = false;
 
@@ -27,14 +32,9 @@ public class IKTargetPredictor : MonoBehaviour
     private float maxDistance;
     private float height;
 
-    private Vector3 rootPos;
-    private Vector3 lastRootPos;
-    private Vector3 rootMoveDir;
-
-    private Vector3 defaultPositionLocal;
-
     private AHingeJoint rootJoint;
-
+    private Vector3 rootPos;
+    private Vector3 defaultPositionLocal;
     private Vector3 prediction;
     private Vector3 lastEndEffectorPos;
 
@@ -42,12 +42,12 @@ public class IKTargetPredictor : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        ccdsolver = GetComponent<CCDIKSolver>();
-        rootJoint = ccdsolver.getRootJoint();
+        ikChain = GetComponent<IKChain>();
+        spidercontroller = ikChain.spiderController;
+        rootJoint = ikChain.getRootJoint();
         rootPos = rootJoint.getRotationPoint();
-        lastRootPos = rootJoint.getRotationPoint();
 
-        float chainLength = ccdsolver.getChainLength();
+        float chainLength = ikChain.getChainLength();
         maxDistance = chainLength;
         minDistance = 0.3f * chainLength;
         height = 1.5f;
@@ -55,16 +55,21 @@ public class IKTargetPredictor : MonoBehaviour
         defaultPositionLocal.y = -1.0f * 1.0f / spidercontroller.scale; // Because spider has a 20.0f reference scale
     }
 
-
     void Update()
     {
         rootPos = rootJoint.getRotationPoint();
-        rootMoveDir = rootPos - lastRootPos;
-        lastRootPos = rootPos; // Order is important here, as we use the lastrootPos above
 
         if (showDebug)
         {
-            DebugShapes.DrawPoint(ccdsolver.getTarget().position, Color.cyan, debugIconScale);
+            if (isStepping)
+            {
+                DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, debugIconScale,stepTime);
+            }
+            else
+            {
+
+                DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, debugIconScale);
+            }
             DebugShapes.DrawPoint(spidercontroller.transform.TransformPoint(defaultPositionLocal), Color.magenta, debugIconScale);
             DebugShapes.DrawPoint(prediction, Color.black, debugIconScale);
             DebugShapes.DrawPoint(lastEndEffectorPos, Color.gray, debugIconScale);
@@ -117,71 +122,6 @@ public class IKTargetPredictor : MonoBehaviour
     }
 
     /*
-     * Takes a current position and the direction the joint is currently moving and calculates a new position on a surface using Raycasts.
-     * For vertical joint movement, that is in the same dir as the joint is facing, i want to move maximally chainlength
-     * For horizontal joint movement, that is the joint and moveDir are orthogonal to eachother, i want to move maximally by law of cosines
-     */
-    public Vector3 calculateNewTargetPosition()
-    {
-        Debug.Log("I'm calculating a new target position.");
-
-        // Rootjoint variables
-        Vector3 rootOrient = rootJoint.getOrientation();
-        float angleRange = rootJoint.getAngleRange();
-
-        //CCD Solver variables
-        float chainLength = ccdsolver.getChainLength();
-        Vector3 currentTarget = ccdsolver.getTarget().position;
-
-        float alpha; //calc this smartly
-
-        // Value between 0 and 1, where 0 if they are orthogonal and 1 if they are parallel
-        float t = Mathf.Abs(Vector3.Dot(rootMoveDir.normalized, rootOrient.normalized));
-
-        //Use linear combination of the two cases using the float value t:
-
-        //If rootJointOrientation and moveDirection orthogonal then use law of cosines to solve    
-        alpha = 0.4f * Mathf.Lerp(Mathf.Sqrt(2) * chainLength * Mathf.Sqrt(1 - Mathf.Cos(Mathf.Deg2Rad * angleRange)),
-                                    // If rootJointOrientation and moveDirection parallel then
-                                    chainLength,
-                                    t);
-
-        Vector3 p = currentTarget + alpha * rootMoveDir.normalized;
-
-        float heigth = 2.0f;
-        float distance = 2 * heigth;
-        Vector3 normal = spidercontroller.getCurrentNormal().normalized;
-        //maybe add angle, that is a focus to the ray
-
-        Vector3 finalPoint;
-        Ray findTargetRay = new Ray(p + heigth * normal, -normal);
-
-        if (showDebug)
-        {
-            Debug.DrawLine(findTargetRay.origin, findTargetRay.origin + distance * findTargetRay.direction, Color.cyan, 5.0f);
-        }
-
-        if (Physics.Raycast(findTargetRay, out RaycastHit hitInfo, distance, spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore))
-        {
-            // could check if the normal is acceptable
-            finalPoint = hitInfo.point;
-        }
-        else
-        {
-            // might want to use a standard relaxed point in the air, or try a differnt ray here, but for now ill just do nothing
-            finalPoint = p;
-        }
-
-
-        if (showDebug)
-        {
-            //DebugShapes.DrawPoint(finalPoint, Color.black, 0.1f);
-            //Debug.Break();
-        }
-        return finalPoint;
-    }
-
-    /*
      * Calculates a new target using the endeffector Position and a default position defined in this class.
      * The new target position is a movement towards the default position but overshoots the default position using the velocity prediction
      */
@@ -189,7 +129,7 @@ public class IKTargetPredictor : MonoBehaviour
     {
         Debug.Log("I'm calculating a new target position.");
 
-        Vector3 endeffectorPosition = ccdsolver.getEndEffector().position;
+        Vector3 endeffectorPosition = ikChain.getEndEffector().position;
         Vector3 defaultPosition = spidercontroller.transform.TransformPoint(defaultPositionLocal); //This gives us the defaultPos in World Space
 
         //Now predict step target and for debug purposes set the debug target point to the prediction(this will be overridden with the actual target in the update, so use the break if needed)
@@ -244,26 +184,42 @@ public class IKTargetPredictor : MonoBehaviour
         return finalTarget;
     }
 
+    public void step(TargetInfo target)
+    {
+        if (isStepping)
+        {
+            return;
+        }
+        IEnumerator coroutineStepping = Step(target);
+        StartCoroutine(coroutineStepping);
+    }
+
+    public bool getIsStepping()
+    {
+        return isStepping;
+    }
+
     /*
      * Coroutine for stepping since i want to actually see the stepping process instead of it happening all within one frame
      * */
-    IEnumerator Step(TargetInfo newTarget, float timeForStep)
+    private IEnumerator Step(TargetInfo newTarget)
     {
+        Debug.Log("Stepping");
         // should probably move the targets while im moving so that i dont outrun them, however this is stupid because then im no longer at the surface point i want
         isStepping = true;
-        TargetInfo lastTarget = ccdsolver.getTarget();
+        TargetInfo lastTarget = ikChain.getTarget();
         TargetInfo lerpTarget;
         float time = 0;
-        while (time < timeForStep)
+        while (time < stepTime)
         {
-            lerpTarget.position = Vector3.Lerp(lastTarget.position, newTarget.position,time/timeForStep) + stepHeight * stepAnimation.Evaluate(time / timeForStep)*spidercontroller.transform.up;
-            lerpTarget.normal = Vector3.Lerp(lastTarget.normal, newTarget.normal,time/timeForStep);
+            lerpTarget.position = Vector3.Lerp(lastTarget.position, newTarget.position, time / stepTime) + stepHeight * stepAnimation.Evaluate(time / stepTime) * spidercontroller.transform.up;
+            lerpTarget.normal = Vector3.Lerp(lastTarget.normal, newTarget.normal, time / stepTime);
 
-            ccdsolver.setTarget(lerpTarget);
             time += Time.deltaTime;
+            ikChain.setTarget(lerpTarget);
+            yield return null;
         }
-        ccdsolver.setTarget(newTarget);
+        ikChain.setTarget(newTarget);
         isStepping = false;
-        yield return null;
     }
 }

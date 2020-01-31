@@ -51,7 +51,7 @@ public class DebugShapes : MonoBehaviour
         Debug.DrawLine(points[3], points[0], col);
     }
 
-    public static void DrawPoint(Vector3 pos, Color col, float scale)
+    public static void DrawPoint(Vector3 pos, Color col, float scale, float duration=0.0f)
     {
         Vector3[] points = new Vector3[]
         {
@@ -63,24 +63,24 @@ public class DebugShapes : MonoBehaviour
             pos - (Vector3.forward * scale)
         };
 
-        Debug.DrawLine(points[0], points[1], col);
-        Debug.DrawLine(points[2], points[3], col);
-        Debug.DrawLine(points[4], points[5], col);
+        Debug.DrawLine(points[0], points[1], col, duration);
+        Debug.DrawLine(points[2], points[3], col, duration);
+        Debug.DrawLine(points[4], points[5], col, duration);
 
-        Debug.DrawLine(points[0], points[2], col);
-        Debug.DrawLine(points[0], points[3], col);
-        Debug.DrawLine(points[0], points[4], col);
-        Debug.DrawLine(points[0], points[5], col);
+        Debug.DrawLine(points[0], points[2], col, duration);
+        Debug.DrawLine(points[0], points[3], col, duration);
+        Debug.DrawLine(points[0], points[4], col, duration);
+        Debug.DrawLine(points[0], points[5], col, duration);
 
-        Debug.DrawLine(points[1], points[2], col);
-        Debug.DrawLine(points[1], points[3], col);
-        Debug.DrawLine(points[1], points[4], col);
-        Debug.DrawLine(points[1], points[5], col);
+        Debug.DrawLine(points[1], points[2], col, duration);
+        Debug.DrawLine(points[1], points[3], col, duration);
+        Debug.DrawLine(points[1], points[4], col, duration);
+        Debug.DrawLine(points[1], points[5], col, duration);
 
-        Debug.DrawLine(points[4], points[2], col);
-        Debug.DrawLine(points[4], points[3], col);
-        Debug.DrawLine(points[5], points[2], col);
-        Debug.DrawLine(points[5], points[3], col);
+        Debug.DrawLine(points[4], points[2], col, duration);
+        Debug.DrawLine(points[4], points[3], col, duration);
+        Debug.DrawLine(points[5], points[2], col, duration);
+        Debug.DrawLine(points[5], points[3], col, duration);
 
     }
 
