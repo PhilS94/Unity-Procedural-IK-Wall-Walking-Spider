@@ -5,6 +5,7 @@ using UnityEngine;
 [RequireComponent(typeof(IKChain))]
 public class IKStepper : MonoBehaviour
 {
+    public SpiderController spidercontroller;
     public IKStepper asyncChain; // Implement this
 
     public bool showDebug;
@@ -21,10 +22,11 @@ public class IKStepper : MonoBehaviour
     [Range(0.0f, 10.0f)]
     public float stepHeight;
 
+    public Vector3 focusPoint;
+
     public AnimationCurve stepAnimation;
 
     private IKChain ikChain;
-    private SpiderController spidercontroller;
 
     private bool isStepping = false;
 
@@ -50,7 +52,7 @@ public class IKStepper : MonoBehaviour
         float chainLength = ikChain.getChainLength();
         maxDistance = chainLength;
         minDistance = 0.3f * chainLength;
-        height = 1.5f;
+        height = 2.0f;
         defaultPositionLocal = spidercontroller.transform.InverseTransformPoint(rootPos + (minDistance + 0.5f * (maxDistance - minDistance)) * rootJoint.getMidOrientation());
         defaultPositionLocal.y = -1.0f * 1.0f / spidercontroller.scale; // Because spider has a 20.0f reference scale
     }
@@ -63,7 +65,7 @@ public class IKStepper : MonoBehaviour
         {
             if (isStepping)
             {
-                DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, debugIconScale,stepTime);
+                DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, debugIconScale, stepTime);
             }
             else
             {
@@ -131,63 +133,111 @@ public class IKStepper : MonoBehaviour
 
         Vector3 endeffectorPosition = ikChain.getEndEffector().position;
         Vector3 defaultPosition = spidercontroller.transform.TransformPoint(defaultPositionLocal); //This gives us the defaultPos in World Space
-
-        //Now predict step target and for debug purposes set the debug target point to the prediction(this will be overridden with the actual target in the update, so use the break if needed)
-        prediction = endeffectorPosition + (defaultPosition - endeffectorPosition) * velocityPrediction;
-        lastEndEffectorPos = endeffectorPosition;
-
-        //Now shoot a ray using the prediction to find an actual point on a surface. Maybe add angle, that is a focus to the ray
         Vector3 normal = spidercontroller.transform.up;
-        Ray targetPredictorRay = new Ray(prediction + height * normal, -normal);
+
+        //Now predict step target
+        prediction = Vector3.Project(transform.position, normal) + Vector3.ProjectOnPlane(endeffectorPosition + (defaultPosition - endeffectorPosition) * velocityPrediction, normal);
+        if (showDebug)
+        {
+            Debug.DrawLine(endeffectorPosition, prediction, Color.magenta, 1.0f);
+        }
+        lastEndEffectorPos = endeffectorPosition; //Update this so it can be debug drawn in update function
+
+
+
+        //Now shoot a rays using the prediction to find an actual point on a surface.
         RaycastHit hitInfo;
-        float rayDist = 2 * height;
-        TargetInfo finalTarget = new TargetInfo(defaultPosition, normal); // Initialize the finalTarget as defaultposition such that if the following ray hit is not valid, this will be returned as default
+
+
+        //Straight down through prediction point
+        if (shootRay(prediction + height * normal, -normal, 2 * height, out hitInfo))
+        {
+            return new TargetInfo(hitInfo.point, hitInfo.normal);
+        }
+
+        // From focus point to prediction
+        else if (shootRay(spidercontroller.transform.TransformPoint(focusPoint), prediction, out hitInfo))
+        {
+            Debug.Log("Shot Focus Ray");
+            //Debug.Break();
+            return new TargetInfo(hitInfo.point, hitInfo.normal);
+        }
+
+        // Straight down through default position
+        else if (shootRay(defaultPosition + height * normal, -normal, 2 * height, out hitInfo))
+        {
+            Debug.Log("Shot from default");
+            //Debug.Break();
+            return new TargetInfo(hitInfo.point, hitInfo.normal);
+        }
+
+        // Return default position
+        else
+        {
+            Debug.Log("Had to return default");
+            //Debug.Break();
+            return new TargetInfo(defaultPosition, normal);
+        }
+    }
+
+    private bool shootRay(Vector3 origin, Vector3 end, out RaycastHit hitInfo)
+    {
+        Vector3 v = end - origin;
+        return shootRay(origin, v.normalized, v.magnitude, out hitInfo);
+
+    }
+
+    private bool shootRay(Vector3 origin, Vector3 direction, float distance, out RaycastHit hitInfo)
+    {
+        direction = direction.normalized;
 
         if (showDebug)
         {
-            Debug.DrawLine(targetPredictorRay.origin, targetPredictorRay.origin + rayDist * targetPredictorRay.direction, Color.cyan, 1.0f);
-            Debug.DrawLine(endeffectorPosition, endeffectorPosition + (defaultPosition - endeffectorPosition) * velocityPrediction, Color.magenta, 1.0f);
+            Debug.DrawLine(origin, origin + distance * direction, Color.cyan, 1.0f);
         }
 
-        if (Physics.Raycast(targetPredictorRay, out hitInfo, rayDist, spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore))
+        if (Physics.Raycast(origin, direction, out hitInfo, distance, spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore))
         {
             // could check if the normal is acceptable
-            finalTarget.position = hitInfo.point;
-            finalTarget.normal = hitInfo.normal;
+            if (checkValidTarget(new TargetInfo(hitInfo.point, hitInfo.normal)))
+            {
+                return true;
+            }
         }
+        return false;
+    }
 
-        if (checkValidTarget(finalTarget))
+    private bool shootSphere(Vector3 origin, Vector3 direction, float distance, float radius, out RaycastHit hitInfo)
+    {
+        direction = direction.normalized;
+
+        if (showDebug)
         {
-            return finalTarget;
+            DebugShapes.DrawSphere(origin, debugIconScale, 24, 12, Color.cyan);
+            DebugShapes.DrawSphere(origin + distance / 2 * direction, debugIconScale, 24, 12, Color.cyan);
+            DebugShapes.DrawSphere(origin + distance * direction, debugIconScale, 24, 12, Color.cyan);
         }
 
-        //Might want to test more rays now
-
-        //Since predictor Ray didnt work, we try a ray from default position
-        Ray defaultRay = new Ray(defaultPosition + height * normal, -normal);
-
-        if (Physics.Raycast(defaultRay, out hitInfo, rayDist, spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore))
+        if (Physics.SphereCast(origin, radius, direction, out hitInfo, distance, spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore))
         {
             // could check if the normal is acceptable
-            finalTarget.position = hitInfo.point;
-            finalTarget.normal = hitInfo.normal;
+            if (checkValidTarget(new TargetInfo(hitInfo.point, hitInfo.normal)))
+            {
+                return true;
+            }
         }
-
-        if (checkValidTarget(finalTarget))
-        {
-            return finalTarget;
-        }
-
-        // Now even the default ray didnt find a valid target, therefore we simply return the default position
-        finalTarget = new TargetInfo(defaultPosition, normal);
-
-        return finalTarget;
+        return false;
     }
 
     public void step(TargetInfo target)
     {
         if (isStepping)
         {
+            return;
+        }
+        if (asyncChain != null && asyncChain.getIsStepping())
+        {
+            // Maybe do something here. Do i want a chain to potentialy have an invalid target for a while?
             return;
         }
         IEnumerator coroutineStepping = Step(target);
@@ -221,5 +271,15 @@ public class IKStepper : MonoBehaviour
         }
         ikChain.setTarget(newTarget);
         isStepping = false;
+    }
+
+    void OnDrawGizmosSelected()
+    {
+        if (!UnityEditor.Selection.Contains(transform.gameObject))
+        {
+            return;
+        }
+
+        DebugShapes.DrawPoint(spidercontroller.transform.TransformPoint(focusPoint), Color.green, debugIconScale);
     }
 }

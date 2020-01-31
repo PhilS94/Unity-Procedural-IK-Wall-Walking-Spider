@@ -25,6 +25,54 @@ public class DebugShapes : MonoBehaviour
         Debug.DrawLine(points[3], points[0], col);
     }
 
+    public static void DrawSphere(Vector3 pos, float radius, int sectorCount, int stackCount, Color col)
+    {
+        float x, y, z, xy;                              // vertex position
+
+        float sectorStep = 2 * Mathf.PI / sectorCount;
+        float stackStep = Mathf.PI / stackCount;
+        float sectorAngle, stackAngle;
+
+        Vector3[,] p = new Vector3[stackCount + 1, sectorCount + 1];
+
+        for (int i = 0; i <= stackCount; ++i)
+        {
+            stackAngle = Mathf.PI / 2 - i * stackStep;        // starting from pi/2 to -pi/2
+            xy = radius * Mathf.Cos(stackAngle);             // r * cos(u)
+            z = radius * Mathf.Sin(stackAngle);              // r * sin(u)
+
+            // add (sectorCount+1) vertices per stack
+            // the first and last vertices have same position and normal, but different tex coords
+            for (int j = 0; j <= sectorCount; ++j)
+            {
+                sectorAngle = j * sectorStep;           // starting from 0 to 2pi
+
+                // vertex position (x, y, z)
+                x = xy * Mathf.Cos(sectorAngle);             // r * cos(u) * cos(v)
+                y = xy * Mathf.Sin(sectorAngle);             // r * cos(u) * sin(v)
+
+                p[i, j] = new Vector3(x, y, z);
+            }
+        }
+
+        for (int i = 0; i <= stackCount; ++i)
+        {
+            for (int j = 0; j <= sectorCount - 1; ++j)
+            {
+                Debug.DrawLine(p[i, j], p[i, j + 1], col);
+            }
+        }
+
+        for (int j = 0; j <= sectorCount; ++j)
+        {
+            for (int i = 0; i <= stackCount-1; ++i)
+            {
+
+                Debug.DrawLine(p[i, j], p[i+1, j], col);
+            }
+        }
+    }
+
     public static void DrawRect(Rect rect, Color col)
     {
         Vector3 pos = new Vector3(rect.x + rect.width / 2, rect.y + rect.height / 2, 0.0f);
@@ -51,7 +99,7 @@ public class DebugShapes : MonoBehaviour
         Debug.DrawLine(points[3], points[0], col);
     }
 
-    public static void DrawPoint(Vector3 pos, Color col, float scale, float duration=0.0f)
+    public static void DrawPoint(Vector3 pos, Color col, float scale, float duration = 0.0f)
     {
         Vector3[] points = new Vector3[]
         {

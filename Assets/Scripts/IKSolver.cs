@@ -18,7 +18,7 @@ public class IKSolver : MonoBehaviour
 {
 
     private static int maxIterations = 10;
-    private static float tolerance = 0.01f;
+    private static float tolerance = 0.1f;
     private static float weight = 1.0f;
 
     /*
@@ -39,6 +39,7 @@ public class IKSolver : MonoBehaviour
         int iteration = 0;
         float error = Vector3.Distance(target.position, endEffector.position);
 
+        //If only the normal changes but my error is within tolerance, i will not adjust the normal here, maybe fix this
         while (iteration < maxIterations && error > tolerance)
         {
             for (int i = 0; i < joints.Length; i++) //How do i smartly configure the foor loop to start with joints.length-1, then 0 to joints.length-2?
@@ -64,13 +65,12 @@ public class IKSolver : MonoBehaviour
                 {
                     angle = weight * joint.getWeight() * Vector3.SignedAngle(Vector3.ProjectOnPlane(toEnd, rotAxis), Vector3.ProjectOnPlane(toTarget, rotAxis), rotAxis);
                 }
-                Debug.Break();
                 joint.applyRotation(angle);
             }
             error = Vector3.Distance(target.position, endEffector.position); //Refresh the error so we can check if we are already close enough for the while loop check
             iteration++;
         }
-        if (iteration > 0) Debug.Log("Completed CCD with" + iteration + " iterations.");
+        //if (iteration > 0) Debug.Log("Completed CCD with" + iteration + " iterations.");
     }
 
 
