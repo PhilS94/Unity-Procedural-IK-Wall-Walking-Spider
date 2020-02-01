@@ -2,20 +2,17 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public struct TargetInfo
-{
+public struct TargetInfo {
     public Vector3 position;
     public Vector3 normal;
 
-    public TargetInfo(Vector3 pos, Vector3 n)
-    {
+    public TargetInfo(Vector3 pos, Vector3 n) {
         position = pos;
         normal = n;
     }
 }
 
-public class IKSolver : MonoBehaviour
-{
+public class IKSolver : MonoBehaviour {
 
     private static int maxIterations = 10;
     private static float tolerance = 0.1f;
@@ -28,8 +25,7 @@ public class IKSolver : MonoBehaviour
      * @param3 target:       The target information the algorithm should solve for.
      * @param4 hasFoot:      If set to true, the last joint will adjust to the normal given by the target. 
      */
-    public static void solveCCD(ref AHingeJoint[] joints, Transform endEffector, TargetInfo target, bool hasFoot = false)
-    {
+    public static void solveCCD(ref AHingeJoint[] joints, Transform endEffector, TargetInfo target, bool hasFoot = false) {
         AHingeJoint joint;
         Vector3 toEnd;
         Vector3 toTarget;
@@ -40,8 +36,7 @@ public class IKSolver : MonoBehaviour
         float error = Vector3.Distance(target.position, endEffector.position);
 
         //If only the normal changes but my error is within tolerance, i will not adjust the normal here, maybe fix this
-        while (iteration < maxIterations && error > tolerance)
-        {
+        while (iteration < maxIterations && error > tolerance) {
             for (int i = 0; i < joints.Length; i++) //How do i smartly configure the foor loop to start with joints.length-1, then 0 to joints.length-2?
             {
 
@@ -57,12 +52,10 @@ public class IKSolver : MonoBehaviour
                 toTarget = (target.position - joint.getRotationPoint()).normalized;
 
                 //This is a special case, where i want the foot, that is the last joint of the chain to adjust to the normal it hit
-                if (k == joints.Length - 1 && hasFoot)
-                {
+                if (k == joints.Length - 1 && hasFoot) {
                     angle = 90.0f - Vector3.SignedAngle(Vector3.ProjectOnPlane(target.normal, rotAxis), Vector3.ProjectOnPlane(toEnd, rotAxis), rotAxis); //Here toEnd only works because ill use this only for the last joint. instead you would want to use the vector from joint[i] to joint[i+1]
                 }
-                else
-                {
+                else {
                     angle = weight * joint.getWeight() * Vector3.SignedAngle(Vector3.ProjectOnPlane(toEnd, rotAxis), Vector3.ProjectOnPlane(toTarget, rotAxis), rotAxis);
                 }
                 joint.applyRotation(angle);
@@ -83,8 +76,7 @@ public class IKSolver : MonoBehaviour
 
 
     // Have to fix all of this
-    public static void solveJacobianTranspose(ref AHingeJoint[] hingeJoints, Transform endEffector, TargetInfo target, bool hasFoot = false)
-    {
+    public static void solveJacobianTranspose(ref AHingeJoint[] hingeJoints, Transform endEffector, TargetInfo target, bool hasFoot = false) {
         Vector3 error = target.position - endEffector.position;
 
         int amtAngles = (hingeJoints.Length - 1) * 3; //For every joint, except the endEffector we have three angles
@@ -99,8 +91,7 @@ public class IKSolver : MonoBehaviour
         //  *   *   *   *   *   *   *   *   *   *   *   *
         //  *   *   *   *   *   *   *   *   *   *   *   *
 
-        for (int col = 0; col < amtAngles; col++)
-        {
+        for (int col = 0; col < amtAngles; col++) {
             if (col % 3 == 0) //X-Rotation angle
             {
                 rotAxis = hingeJoints[col / 3].transform.right;
@@ -122,10 +113,8 @@ public class IKSolver : MonoBehaviour
 
         //Print Jacobian:
         string jacobianString = "";
-        for (int row = 0; row < 3; row++)
-        {
-            for (int col = 0; col < amtAngles; col++)
-            {
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < amtAngles; col++) {
 
                 jacobianString += J[row, col] + " ";
             }
@@ -151,8 +140,7 @@ public class IKSolver : MonoBehaviour
 
         float[,] JT = new float[amtAngles, 3];
 
-        for (int row = 0; row < amtAngles; row++)
-        {
+        for (int row = 0; row < amtAngles; row++) {
             JT[row, 0] = J[0, row];
             JT[row, 1] = J[1, row];
             JT[row, 2] = J[2, row];
@@ -183,8 +171,7 @@ public class IKSolver : MonoBehaviour
         multiply(ref angleChange, alpha);
 
 
-        for (int col = 0; col < amtAngles; col++)
-        {
+        for (int col = 0; col < amtAngles; col++) {
             if (col % 3 == 0) //X-Rotation angle
             {
                 rotAxis = hingeJoints[col / 3].transform.right;
@@ -207,22 +194,17 @@ public class IKSolver : MonoBehaviour
 
     }
 
-    private static void multiply(ref float[,] A, ref float[,] B, ref float[,] result)
-    {
-        if (A.GetLength(1) != B.GetLength(0) || result.GetLength(0) != A.GetLength(0) || result.GetLength(1) != B.GetLength(1))
-        {
+    private static void multiply(ref float[,] A, ref float[,] B, ref float[,] result) {
+        if (A.GetLength(1) != B.GetLength(0) || result.GetLength(0) != A.GetLength(0) || result.GetLength(1) != B.GetLength(1)) {
             Debug.Log("Can't multiply these matrices.");
             return;
         }
 
-        for (int row = 0; row < result.GetLength(0); row++)
-        {
-            for (int col = 0; col < result.GetLength(1); col++)
-            {
+        for (int row = 0; row < result.GetLength(0); row++) {
+            for (int col = 0; col < result.GetLength(1); col++) {
                 float sum = 0;
 
-                for (int k = 0; k < A.GetLength(1); k++)
-                {
+                for (int k = 0; k < A.GetLength(1); k++) {
                     sum += A[row, k] * B[k, col];
                 }
                 result[row, col] = sum;
@@ -230,38 +212,31 @@ public class IKSolver : MonoBehaviour
         }
 
     }
-    private static void multiply(ref float[,] A, ref float[] B, ref float[] result)
-    {
-        if (A.GetLength(1) != B.Length || result.Length != A.GetLength(0))
-        {
+    private static void multiply(ref float[,] A, ref float[] B, ref float[] result) {
+        if (A.GetLength(1) != B.Length || result.Length != A.GetLength(0)) {
             Debug.Log("Can't multiply these matrices.");
             return;
         }
 
-        for (int row = 0; row < result.GetLength(0); row++)
-        {
+        for (int row = 0; row < result.GetLength(0); row++) {
             float sum = 0;
 
-            for (int k = 0; k < A.GetLength(1); k++)
-            {
+            for (int k = 0; k < A.GetLength(1); k++) {
                 sum += A[row, k] * B[k];
             }
             result[row] = sum;
         }
     }
 
-    private static void multiply(ref float[] A, float a)
-    {
-        for (int k = 0; k < A.Length; k++)
-        {
+    private static void multiply(ref float[] A, float a) {
+        for (int k = 0; k < A.Length; k++) {
             A[k] *= a;
         }
     }
 
     // Implemented this, since the % operator in C# returns the remainder, which can be negative if n is.
     // This functions returns the modulo, that is a positive number.
-    private static int mod(int n, int m)
-    {
+    private static int mod(int n, int m) {
         return ((n % m) + m) % m;
     }
 

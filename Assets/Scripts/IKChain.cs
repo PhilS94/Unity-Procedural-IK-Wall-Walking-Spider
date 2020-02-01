@@ -3,15 +3,13 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
 
-public enum TargetMode
-{
+public enum TargetMode {
     targetPredictor,
     debugTarget,
     debugTargetRay
 }
 
-public class IKChain : MonoBehaviour
-{
+public class IKChain : MonoBehaviour {
     public SpiderController spiderController;
     public AHingeJoint[] joints;
     public Transform endEffector;
@@ -28,8 +26,7 @@ public class IKChain : MonoBehaviour
     private TargetInfo currentTarget;
     private bool validChain;
 
-    private void Awake()
-    {
+    private void Awake() {
         ikStepper = GetComponent<IKStepper>();
         initializeChain();
         validChain = isValidChain();
@@ -37,33 +34,27 @@ public class IKChain : MonoBehaviour
         setTarget(new TargetInfo(getEndEffector().position, Vector3.up));
     }
 
-    void initializeChain()
-    {
-        if (endEffector.GetComponent<AHingeJoint>() != null)
-        {
+    void initializeChain() {
+        if (endEffector.GetComponent<AHingeJoint>() != null) {
             Debug.Log("For the CCD chain " + this.name + " the end effector " + endEffector.gameObject.name + " has an attached AHingeJoint but is not a joint. The component should be removed.");
         }
 
         // Calc Chain Length
         chainLength = 0;
 
-        for (int i = 0; i < joints.Length - 1; i++)
-        {
+        for (int i = 0; i < joints.Length - 1; i++) {
             chainLength += Vector3.Distance(joints[i].getRotationPoint(), joints[i + 1].getRotationPoint());
         }
         Debug.Log("Chain length for the chain " + gameObject.name + ": " + chainLength);
     }
 
-    bool isValidChain()
-    {
-        if ((debugTarget == null) && ((targetMode == TargetMode.debugTarget) || (targetMode == TargetMode.debugTargetRay)))
-        {
+    bool isValidChain() {
+        if ((debugTarget == null) && ((targetMode == TargetMode.debugTarget) || (targetMode == TargetMode.debugTargetRay))) {
             Debug.LogError("Please assign a Target Transform when using this mode.");
             return false;
         }
 
-        if ((ikStepper == null) && (targetMode == TargetMode.targetPredictor))
-        {
+        if ((ikStepper == null) && (targetMode == TargetMode.targetPredictor)) {
             Debug.LogError("Please assign a IKTargetPredictor Component when using this mode.");
             return false;
         }
@@ -72,27 +63,22 @@ public class IKChain : MonoBehaviour
 
 
     // Update is called once per frame
-    void Update()
-    {
-        if (deactivate)
-        {
+    void Update() {
+        if (deactivate) {
             return;
         }
 
-        if (!validChain)
-        {
+        if (!validChain) {
             return;
         }
 
-        if (ikStepper.getIsStepping())
-        {
+        if (ikStepper.getIsStepping()) {
             return;
         }
 
         TargetInfo newTarget = currentTarget;
 
-        switch (targetMode)
-        {
+        switch (targetMode) {
             case TargetMode.debugTarget:
 
                 newTarget = new TargetInfo(debugTarget.position, debugTarget.up);
@@ -104,20 +90,17 @@ public class IKChain : MonoBehaviour
                 Ray debugRay = new Ray(debugTarget.position + height * Vector3.up, Vector3.down);
                 Debug.DrawLine(debugRay.origin, debugRay.origin + distance * debugRay.direction, Color.green);
 
-                if (Physics.Raycast(debugRay, out RaycastHit rayHit, distance, spiderController.groundedLayer, QueryTriggerInteraction.Ignore))
-                {
+                if (Physics.Raycast(debugRay, out RaycastHit rayHit, distance, spiderController.groundedLayer, QueryTriggerInteraction.Ignore)) {
                     newTarget = new TargetInfo(rayHit.point, rayHit.normal);
                 }
-                else
-                {
+                else {
                     newTarget = new TargetInfo(debugTarget.position, debugTarget.up);
                 }
                 break;
 
             case TargetMode.targetPredictor:
 
-                if (!ikStepper.checkValidTarget(currentTarget))
-                {
+                if (!ikStepper.checkValidTarget(currentTarget)) {
                     ikStepper.step(ikStepper.calcNewTarget());
                 }
                 break;
@@ -125,41 +108,33 @@ public class IKChain : MonoBehaviour
         setTarget(newTarget);
     }
 
-    private void LateUpdate()
-    {
-        if (deactivate)
-        {
+    private void LateUpdate() {
+        if (deactivate) {
             return;
         }
 
         IKSolver.solveCCD(ref joints, endEffector, currentTarget, true);
     }
 
-    public float getChainLength()
-    {
+    public float getChainLength() {
         return chainLength;
     }
 
-    public AHingeJoint getRootJoint()
-    {
+    public AHingeJoint getRootJoint() {
         return joints[0];
     }
 
-    public Transform getEndEffector()
-    {
+    public Transform getEndEffector() {
         return endEffector;
     }
 
-    public TargetInfo getTarget()
-    {
+    public TargetInfo getTarget() {
         return currentTarget;
     }
 
     // Use these setters to set the target for the CCD algorithm. The CCD runs with every frame update and uses this target.
-    public void setTarget(TargetInfo target)
-    {
-        if ((targetMode == TargetMode.debugTarget) || (targetMode == TargetMode.debugTargetRay))
-        {
+    public void setTarget(TargetInfo target) {
+        if ((targetMode == TargetMode.debugTarget) || (targetMode == TargetMode.debugTargetRay)) {
             debugTarget.position = target.position;
             debugTarget.rotation = Quaternion.LookRotation(debugTarget.forward, target.normal);
         }

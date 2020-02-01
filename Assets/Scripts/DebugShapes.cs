@@ -1,10 +1,8 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-public class DebugShapes : MonoBehaviour
-{
-    public static void DrawCube(Vector3 pos, Color col, Vector3 scale)
-    {
+public class DebugShapes : MonoBehaviour {
+    public static void DrawCube(Vector3 pos, Color col, Vector3 scale) {
         Vector3 halfScale = scale * 0.5f;
 
         Vector3[] points = new Vector3[]
@@ -25,8 +23,7 @@ public class DebugShapes : MonoBehaviour
         Debug.DrawLine(points[3], points[0], col);
     }
 
-    public static void DrawSphere(Vector3 pos, float radius, int sectorCount, int stackCount, Color col)
-    {
+    public static void DrawSphere(Vector3 pos, float radius, int sectorCount, int stackCount, Color col) {
         float x, y, z, xy;                              // vertex position
 
         float sectorStep = 2 * Mathf.PI / sectorCount;
@@ -35,16 +32,14 @@ public class DebugShapes : MonoBehaviour
 
         Vector3[,] p = new Vector3[stackCount + 1, sectorCount + 1];
 
-        for (int i = 0; i <= stackCount; ++i)
-        {
+        for (int i = 0; i <= stackCount; ++i) {
             stackAngle = Mathf.PI / 2 - i * stackStep;        // starting from pi/2 to -pi/2
             xy = radius * Mathf.Cos(stackAngle);             // r * cos(u)
             z = radius * Mathf.Sin(stackAngle);              // r * sin(u)
 
             // add (sectorCount+1) vertices per stack
             // the first and last vertices have same position and normal, but different tex coords
-            for (int j = 0; j <= sectorCount; ++j)
-            {
+            for (int j = 0; j <= sectorCount; ++j) {
                 sectorAngle = j * sectorStep;           // starting from 0 to 2pi
 
                 // vertex position (x, y, z)
@@ -55,34 +50,28 @@ public class DebugShapes : MonoBehaviour
             }
         }
 
-        for (int i = 0; i <= stackCount; ++i)
-        {
-            for (int j = 0; j <= sectorCount - 1; ++j)
-            {
+        for (int i = 0; i <= stackCount; ++i) {
+            for (int j = 0; j <= sectorCount - 1; ++j) {
                 Debug.DrawLine(p[i, j], p[i, j + 1], col);
             }
         }
 
-        for (int j = 0; j <= sectorCount; ++j)
-        {
-            for (int i = 0; i <= stackCount-1; ++i)
-            {
+        for (int j = 0; j <= sectorCount; ++j) {
+            for (int i = 0; i <= stackCount - 1; ++i) {
 
-                Debug.DrawLine(p[i, j], p[i+1, j], col);
+                Debug.DrawLine(p[i, j], p[i + 1, j], col);
             }
         }
     }
 
-    public static void DrawRect(Rect rect, Color col)
-    {
+    public static void DrawRect(Rect rect, Color col) {
         Vector3 pos = new Vector3(rect.x + rect.width / 2, rect.y + rect.height / 2, 0.0f);
         Vector3 scale = new Vector3(rect.width, rect.height, 0.0f);
 
         DebugShapes.DrawRect(pos, col, scale);
     }
 
-    public static void DrawRect(Vector3 pos, Color col, Vector3 scale)
-    {
+    public static void DrawRect(Vector3 pos, Color col, Vector3 scale) {
         Vector3 halfScale = scale * 0.5f;
 
         Vector3[] points = new Vector3[]
@@ -99,8 +88,7 @@ public class DebugShapes : MonoBehaviour
         Debug.DrawLine(points[3], points[0], col);
     }
 
-    public static void DrawPoint(Vector3 pos, Color col, float scale, float duration = 0.0f)
-    {
+    public static void DrawPoint(Vector3 pos, Color col, float scale, float duration = 0.0f) {
         Vector3[] points = new Vector3[]
         {
             pos + (Vector3.up * scale),
@@ -132,10 +120,8 @@ public class DebugShapes : MonoBehaviour
 
     }
 
-    public static void DrawScope(Vector3 pos, Vector3 minVector, Vector3 maxVector, Vector3 normal, float minDistance, float maxDistance, float heigth, int subDivisions, Color col)
-    {
-        if (subDivisions < 0)
-        {
+    public static void DrawScope(Vector3 pos, Vector3 minVector, Vector3 maxVector, Vector3 normal, float minDistance, float maxDistance, float heigth, int subDivisions, Color col) {
+        if (subDivisions < 0) {
             Debug.LogError("Negative values for subDivsions not allowed.");
         }
 
@@ -155,8 +141,7 @@ public class DebugShapes : MonoBehaviour
         // k=2 2*min + 2*max = min
         // k=3 1*min + 3*max = min
         // k=4 0*min + 4*max = min
-        for (int k = 0; k < l; k++)
-        {
+        for (int k = 0; k < l; k++) {
             v[k] = ((l - 1 - k) * minVector + k * maxVector).normalized;
             p[k] = pos + minDistance * v[k];
             p_up[k] = p[k] + normal * heigth;
@@ -167,27 +152,23 @@ public class DebugShapes : MonoBehaviour
         }
 
         //Connect the p's
-        for (int k = 0; k < l - 1; k++)
-        {
+        for (int k = 0; k < l - 1; k++) {
             Debug.DrawLine(p[k], p[k + 1], col);
             Debug.DrawLine(p_up[k], p_up[k + 1], col);
             Debug.DrawLine(p_down[k], p_down[k + 1], col);
             Debug.DrawLine(p_up[k], p_down[k], col);
         }
-        for (int k = 0; k < l; k++)
-        {
+        for (int k = 0; k < l; k++) {
             Debug.DrawLine(p_up[k], p_down[k], col);
         }
 
         //Connect the q's
-        for (int k = 0; k < l - 1; k++)
-        {
+        for (int k = 0; k < l - 1; k++) {
             Debug.DrawLine(q[k], q[k + 1], col);
             Debug.DrawLine(q_up[k], q_up[k + 1], col);
             Debug.DrawLine(q_down[k], q_down[k + 1], col);
         }
-        for (int k = 0; k < l; k++)
-        {
+        for (int k = 0; k < l; k++) {
             Debug.DrawLine(q_up[k], q_down[k], col);
         }
 
@@ -203,8 +184,7 @@ public class DebugShapes : MonoBehaviour
         Debug.DrawLine(p_down[l - 1], q_down[l - 1], col);
 
         //Connect the p's with q's  Top and Bottom
-        for (int k = 0; k < l; k++)
-        {
+        for (int k = 0; k < l; k++) {
             Debug.DrawLine(p_up[k], q_up[k], col);
             Debug.DrawLine(p_down[k], q_down[k], col);
         }

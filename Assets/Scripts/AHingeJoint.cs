@@ -3,11 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 
-public class AHingeJoint : MonoBehaviour
-{
+public class AHingeJoint : MonoBehaviour {
 
-    public enum RotationAxis
-    {
+    public enum RotationAxis {
         XAxis,
         YAxis,
         ZAxis
@@ -44,30 +42,24 @@ public class AHingeJoint : MonoBehaviour
     //i dont notice this
     private float currentAngle = 0;
 
-    private void Awake()
-    {
+    private void Awake() {
         updateValues();
     }
 
     // Start is called before the first frame update
-    void Start()
-    {
+    void Start() {
     }
 
-    private void updateValues()
-    {
-        if (rotationAxisPosition == RotationAxis.XAxis)
-        {
+    private void updateValues() {
+        if (rotationAxisPosition == RotationAxis.XAxis) {
             rotationAxis = transform.right;
             perpendicular = transform.up;
         }
-        if (rotationAxisPosition == RotationAxis.YAxis)
-        {
+        if (rotationAxisPosition == RotationAxis.YAxis) {
             rotationAxis = transform.up;
             perpendicular = transform.forward;
         }
-        if (rotationAxisPosition == RotationAxis.ZAxis)
-        {
+        if (rotationAxisPosition == RotationAxis.ZAxis) {
             rotationAxis = transform.forward;
             perpendicular = transform.right;
         }
@@ -78,10 +70,8 @@ public class AHingeJoint : MonoBehaviour
     }
 
     // Update is called once per frame
-    void Update()
-    {
-        if (minAngle > maxAngle)
-        {
+    void Update() {
+        if (minAngle > maxAngle) {
             Debug.LogError("The minimum hinge angle on " + gameObject.name + " is larger than the maximum hinge angle.");
             maxAngle = minAngle;
         }
@@ -94,8 +84,7 @@ public class AHingeJoint : MonoBehaviour
      */
     public void applyRotation(float angle) //Würde gern als Parameter Quaternion haben.. Aber dann kann ich nicht wirklich sehen ob es sich um eine rot um die rotations Achse handelt ?
     {
-        if (deactivateJoint)
-        {
+        if (deactivateJoint) {
             return;
         }
 
@@ -103,26 +92,22 @@ public class AHingeJoint : MonoBehaviour
 
         angle = angle % 360; //Jetzt hab ich Winkel zwischen -360 und 360
 
-        if (angle == -180)
-        {
+        if (angle == -180) {
             angle = 180;
         }
 
-        if (angle > 180)
-        {
+        if (angle > 180) {
             angle -= 360;
         }
 
-        if (angle < -180)
-        {
+        if (angle < -180) {
             angle += 360;
         }
 
         //Jetzt sollte angle in der form (-180,180] sein
 
 
-        if (useRotationLimits)
-        {
+        if (useRotationLimits) {
             // Example, say angle is 20degrees, and our currentAngle is 60,  but our maxAngle is 70
             // What we want is to get the angle which rotates to the maxAnglePos which is in this case 10degrees
             angle = Mathf.Clamp(currentAngle + angle, minAngle, maxAngle) - currentAngle;
@@ -138,15 +123,12 @@ public class AHingeJoint : MonoBehaviour
 
     }
 
-    public float getWeight()
-    {
+    public float getWeight() {
         return weight;
     }
 
-    void OnDrawGizmosSelected()
-    {
-        if (!UnityEditor.Selection.Contains(transform.gameObject))
-        {
+    void OnDrawGizmosSelected() {
+        if (!UnityEditor.Selection.Contains(transform.gameObject)) {
             return;
         }
 
@@ -182,47 +164,39 @@ public class AHingeJoint : MonoBehaviour
      * This function fails if minOrientation and maxOrientation have an angle greather than 180
      * since signedangle returns the smaller angle, which i dont really want, but it suffices right now since i dont have these big of DOF
      * */
-    public bool isVectorWithinScope(Vector3 v)
-    {
+    public bool isVectorWithinScope(Vector3 v) {
         float angle1 = Vector3.SignedAngle(minOrientation, v, rotationAxis); // should be clockwise, thus positive
         float angle2 = Vector3.SignedAngle(v, maxOrientation, rotationAxis); // should also be clockwise, thus positive
         return (angle1 >= 0 && angle2 >= 0);
     }
 
 
-    public Vector3 getRotationAxis()
-    {
+    public Vector3 getRotationAxis() {
         return rotationAxis;
     }
 
     // Normal i would return rotPoint, but i call this function from the awakre function of CCDiKSolver
-    public Vector3 getRotationPoint()
-    {
+    public Vector3 getRotationPoint() {
         return transform.position + rotationPointOffset.x * transform.right + rotationPointOffset.y * transform.up + rotationPointOffset.z * transform.forward;
     }
 
-    public Vector3 getOrientation()
-    {
+    public Vector3 getOrientation() {
         return orientation;
     }
 
-    public Vector3 getMinOrientation()
-    {
+    public Vector3 getMinOrientation() {
         return minOrientation;
     }
 
-    public Vector3 getMaxOrientation()
-    {
+    public Vector3 getMaxOrientation() {
         return maxOrientation;
     }
 
-    public Vector3 getMidOrientation()
-    {
+    public Vector3 getMidOrientation() {
         return (maxOrientation + minOrientation).normalized;
     }
 
-    public float getAngleRange()
-    {
+    public float getAngleRange() {
         return maxAngle - minAngle;
     }
 }
