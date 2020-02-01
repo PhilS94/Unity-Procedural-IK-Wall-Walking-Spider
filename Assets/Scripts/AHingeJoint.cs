@@ -29,14 +29,8 @@ public class AHingeJoint : MonoBehaviour
     public bool useRotationLimits = true;
     public bool deactivateJoint = false;
 
-    [Range(-1.0f, 1.0f)]
-    public float debugAngle = 0;
-
     [Range(0.1f, 10.0f)]
     public float debugIconScale = 1.0f;
-
-    private Vector3 minVector;
-    private Vector3 maxVector;
 
     private Vector3 rotationAxis;
     private Vector3 perpendicular;
@@ -91,13 +85,6 @@ public class AHingeJoint : MonoBehaviour
             Debug.LogError("The minimum hinge angle on " + gameObject.name + " is larger than the maximum hinge angle.");
             maxAngle = minAngle;
         }
-
-        //Just for debugging
-        if (debugAngle != 0)
-        {
-            applyRotation(debugAngle);
-        }
-
     }
 
 

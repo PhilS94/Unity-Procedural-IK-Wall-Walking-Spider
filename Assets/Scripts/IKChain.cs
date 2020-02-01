@@ -16,6 +16,8 @@ public class IKChain : MonoBehaviour
     public AHingeJoint[] joints;
     public Transform endEffector;
 
+    public bool deactivate = false;
+
     public TargetMode targetMode;
 
     // By assigning one of these the CCD IK Solver will use one of these transfoms as target, if unassigned  the IKTargetPredictor is used
@@ -37,7 +39,6 @@ public class IKChain : MonoBehaviour
 
     void initializeChain()
     {
-
         if (endEffector.GetComponent<AHingeJoint>() != null)
         {
             Debug.Log("For the CCD chain " + this.name + " the end effector " + endEffector.gameObject.name + " has an attached AHingeJoint but is not a joint. The component should be removed.");
@@ -73,6 +74,11 @@ public class IKChain : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        if (deactivate)
+        {
+            return;
+        }
+
         if (!validChain)
         {
             return;
@@ -109,23 +115,23 @@ public class IKChain : MonoBehaviour
                 break;
 
             case TargetMode.targetPredictor:
+
+                if (!ikStepper.checkValidTarget(currentTarget))
+                {
+                    ikStepper.step(ikStepper.calcNewTarget());
+                }
                 break;
         }
-
-        // Dont indefinitely step if the new  calced target is still not valid (happens in debug mode e.g)
-        if (!ikStepper.checkValidTarget(newTarget))
-        {
-            newTarget = ikStepper.calcNewTarget();
-            ikStepper.step(newTarget);
-        }
-        else
-        {
-            setTarget(newTarget);
-        }
+        setTarget(newTarget);
     }
 
     private void LateUpdate()
     {
+        if (deactivate)
+        {
+            return;
+        }
+
         IKSolver.solveCCD(ref joints, endEffector, currentTarget, true);
     }
 

@@ -6,7 +6,7 @@ using UnityEngine;
 public class IKStepper : MonoBehaviour
 {
     public SpiderController spidercontroller;
-    public IKStepper asyncChain; // Implement this
+    public IKStepper asyncChain;
 
     public bool showDebug;
 
@@ -22,6 +22,10 @@ public class IKStepper : MonoBehaviour
     [Range(0.0f, 10.0f)]
     public float stepHeight;
 
+    [Range(0.0f, 5.0f)]
+    public float stepCooldown = 0.5f;
+    private float timeSinceLastStep;
+
     public Vector3 focusPoint;
 
     public AnimationCurve stepAnimation;
@@ -32,7 +36,7 @@ public class IKStepper : MonoBehaviour
 
     private float minDistance;
     private float maxDistance;
-    private float height;
+    private float height = 2.5f;
 
     private AHingeJoint rootJoint;
     private Vector3 rootPos;
@@ -52,9 +56,9 @@ public class IKStepper : MonoBehaviour
         float chainLength = ikChain.getChainLength();
         maxDistance = chainLength;
         minDistance = 0.3f * chainLength;
-        height = 2.0f;
         defaultPositionLocal = spidercontroller.transform.InverseTransformPoint(rootPos + (minDistance + 0.5f * (maxDistance - minDistance)) * rootJoint.getMidOrientation());
         defaultPositionLocal.y = -1.0f * 1.0f / spidercontroller.scale; // Because spider has a 20.0f reference scale
+        timeSinceLastStep = 2*stepCooldown;
     }
 
     void Update()
@@ -76,7 +80,10 @@ public class IKStepper : MonoBehaviour
             DebugShapes.DrawPoint(prediction, Color.black, debugIconScale);
             DebugShapes.DrawPoint(lastEndEffectorPos, Color.gray, debugIconScale);
             Debug.DrawLine(lastEndEffectorPos, prediction, Color.black);
+            DebugShapes.DrawScope(rootPos, Vector3.ProjectOnPlane(rootJoint.getMinOrientation(), spidercontroller.transform.up), Vector3.ProjectOnPlane(rootJoint.getMaxOrientation(), spidercontroller.transform.up), spidercontroller.transform.up, minDistance, maxDistance, height, 3, Color.red);
+
         }
+        timeSinceLastStep += Time.deltaTime;
     }
 
     public bool checkValidTarget(TargetInfo target)
@@ -91,7 +98,6 @@ public class IKStepper : MonoBehaviour
 
         if (showDebug)
         {
-            DebugShapes.DrawScope(rootPos, Vector3.ProjectOnPlane(rootJoint.getMinOrientation(), spidercontroller.transform.up), Vector3.ProjectOnPlane(rootJoint.getMaxOrientation(), spidercontroller.transform.up), spidercontroller.transform.up, minDistance, maxDistance, height, 3, Color.red);
             Debug.DrawLine(rootPos, rootPos + horiz, Color.green);
             Debug.DrawLine(rootPos + horiz, rootPos + horiz + vert, Color.green);
         }
@@ -132,22 +138,34 @@ public class IKStepper : MonoBehaviour
         Debug.Log("I'm calculating a new target position.");
 
         Vector3 endeffectorPosition = ikChain.getEndEffector().position;
-        Vector3 defaultPosition = spidercontroller.transform.TransformPoint(defaultPositionLocal); //This gives us the defaultPos in World Space
-        Vector3 normal = spidercontroller.transform.up;
+        Vector3 defaultPosition = spidercontroller.transform.TransformPoint(defaultPositionLocal);
+        lastEndEffectorPos = endeffectorPosition; //Update this so it can be debug drawn in update function
 
         //Now predict step target
-        prediction = Vector3.Project(transform.position, normal) + Vector3.ProjectOnPlane(endeffectorPosition + (defaultPosition - endeffectorPosition) * velocityPrediction, normal);
+
+        // Option 1: Include spider movement in the prediction process: prediction += SpiderMoveVector * stepTime
+        //      Problem:    Spider might stop moving while stepping, if this happens i will over predict
+        //                  Spider might change direction while stepping, if this happens i could predict out of range
+        //      Solution:   Keep the stepTime short such that not much will happenS
+
+        // Option 2: Dynamically update the prediction in a the stepping coroutine where i keep up with the spider with its local coordinates
+        //      Problem:    I will only know if the foot lands on a surface point after the stepping is already done
+        //                  This means the foot could land in a bump on the ground or in the air, and i will have to look what i will do from there
+        //                  Update the position within the last frame (unrealistic) or start another different stepping coroutine?
+        //                  Or shoot more rays in the stepping process to somewhat adjust to the terrain changes?
+
+        // For now I choose Option 1:
+        // But i dont allow prediction out of valid range, need to fix that. Every shootray method checks if retrieved value is within range.
+        prediction = predict(endeffectorPosition, defaultPosition) + spidercontroller.getMovement() * stepTime;
+
         if (showDebug)
         {
             Debug.DrawLine(endeffectorPosition, prediction, Color.magenta, 1.0f);
         }
-        lastEndEffectorPos = endeffectorPosition; //Update this so it can be debug drawn in update function
-
-
 
         //Now shoot a rays using the prediction to find an actual point on a surface.
         RaycastHit hitInfo;
-
+        Vector3 normal = spidercontroller.transform.up;
 
         //Straight down through prediction point
         if (shootRay(prediction + height * normal, -normal, 2 * height, out hitInfo))
@@ -178,6 +196,12 @@ public class IKStepper : MonoBehaviour
             //Debug.Break();
             return new TargetInfo(defaultPosition, normal);
         }
+    }
+
+    private Vector3 predict(Vector3 from, Vector3 to)
+    {
+        Vector3 normal = spidercontroller.transform.up;
+        return Vector3.Project(transform.position, normal) + Vector3.ProjectOnPlane(from + (to - from) * velocityPrediction, normal);
     }
 
     private bool shootRay(Vector3 origin, Vector3 end, out RaycastHit hitInfo)
@@ -246,7 +270,7 @@ public class IKStepper : MonoBehaviour
 
     public bool getIsStepping()
     {
-        return isStepping;
+        return ((isStepping) || (timeSinceLastStep < stepCooldown)); 
     }
 
     /*
@@ -256,6 +280,7 @@ public class IKStepper : MonoBehaviour
     {
         Debug.Log("Stepping");
         // should probably move the targets while im moving so that i dont outrun them, however this is stupid because then im no longer at the surface point i want
+        // otherwise i could increase the velocity prediction in the first place, However in this case an invalid prediction may not be invalid after stepping
         isStepping = true;
         TargetInfo lastTarget = ikChain.getTarget();
         TargetInfo lerpTarget;
@@ -271,7 +296,50 @@ public class IKStepper : MonoBehaviour
         }
         ikChain.setTarget(newTarget);
         isStepping = false;
+        timeSinceLastStep = 0.0f;
     }
+
+    // Testing Option 2 of predicting
+    private IEnumerator stepDynamically(Vector3 prediction)
+    {
+
+        TargetInfo lastTarget = ikChain.getTarget();
+
+        Vector3 predictionLocal = spidercontroller.transform.InverseTransformPoint(prediction);
+        Vector3 lastTargetPositionLocal = spidercontroller.transform.InverseTransformPoint(lastTarget.position);
+
+        TargetInfo lerpTarget = lastTarget; //Initialize since its possibly unassigned later
+        lerpTarget.normal = lastTarget.normal;
+        float time = 0;
+        while (time < stepTime)
+        {
+            Vector3 target = spidercontroller.transform.TransformPoint(lastTargetPositionLocal);
+            Vector3 naivPred = spidercontroller.transform.TransformPoint(predictionLocal);
+
+            // Lerp locally + Height 
+            lerpTarget.position = Vector3.Lerp(target, naivPred, time / stepTime)
+                                    + stepHeight * stepAnimation.Evaluate(time / stepTime) * spidercontroller.transform.up;
+            time += Time.deltaTime;
+            ikChain.setTarget(lerpTarget);
+            yield return null;
+        }
+        // Now im at the provisorical prediction and moved with the spider movement.
+        // I dont have a surface point though so now i need to raycast
+        RaycastHit hitInfo;
+
+        //Straight down through prediction point
+        Vector3 normal = spidercontroller.transform.up;
+        if (shootSphere(lerpTarget.position + height * normal, -normal, 2 * height, 0.01f, out hitInfo))
+        {
+            ikChain.setTarget(new TargetInfo(hitInfo.point, hitInfo.normal));
+        }
+        else
+        {
+            //Use default if the above didnt work
+            ikChain.setTarget(new TargetInfo(spidercontroller.transform.TransformPoint(defaultPositionLocal), normal));
+        }
+    }
+
 
     void OnDrawGizmosSelected()
     {
