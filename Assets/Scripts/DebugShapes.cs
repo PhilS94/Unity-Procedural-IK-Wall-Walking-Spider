@@ -120,9 +120,133 @@ public class DebugShapes : MonoBehaviour {
 
     }
 
-    public static void DrawScope(Vector3 pos, Vector3 minVector, Vector3 maxVector, Vector3 normal, float minDistance, float maxDistance, float heigth, int subDivisions, Color col) {
+    public static void DrawCircle(Vector3 pos, Vector3 normal, float radius, int subDivisions, Color col) {
+
+        int l = subDivisions + 4;
+
         if (subDivisions < 0) {
-            Debug.LogError("Negative values for subDivsions not allowed.");
+            Debug.LogWarning("Subdivisions not allowed to be negative.");
+            return;
+        }
+
+        //Choose a perpendicular vector
+        Vector3 perpendicular;
+        perpendicular = Vector3.ProjectOnPlane(Vector3.forward, normal);
+        if (perpendicular == Vector3.zero) {
+            perpendicular = Vector3.ProjectOnPlane(Vector3.right, normal);
+        }
+        perpendicular = perpendicular.normalized;
+
+
+        Vector3[] p = new Vector3[l];
+
+        //Lerping is problematic with an angle greater than 180
+        for (int k = 0; k < l; k++) {
+            p[k] = pos + Quaternion.AngleAxis(360.0f * k / l, normal) * perpendicular * radius;
+        }
+
+        // Draw circle
+        for (int k = 0; k < l - 1; k++) {
+            Debug.DrawLine(p[k], p[k + 1], col);
+        }
+        Debug.DrawLine(p[l - 1], p[0], col);
+    }
+
+    public static void DrawCircleSection(Vector3 pos, Vector3 min, Vector3 max, float minRadius, float maxRadius, int subDivisions, Color col) {
+
+        if (subDivisions < 0) {
+            Debug.LogWarning("Subdivisions not allowed to be negative.");
+            return;
+        }
+
+        if (min == Vector3.zero || max == Vector3.zero) {
+            Debug.LogWarning("Min and Max Vector not allowed to be zero.");
+            return;
+        }
+        Vector3 normal = Vector3.Cross(min, max).normalized;
+
+        if (normal == Vector3.zero) {
+            Debug.LogWarning("Min and Max Vector not allowed to be parallel.");
+            return;
+        }
+
+        Vector3 projMin = Vector3.ProjectOnPlane(min, normal).normalized;
+        Vector3 projMax = Vector3.ProjectOnPlane(max, normal).normalized;
+
+        if (projMin == Vector3.zero || projMax == Vector3.zero) {
+            Debug.LogWarning("Can't Draw Circle Section since one of the two Vectors are parallel to the normal.");
+        }
+
+        int l = subDivisions + 3;
+        Vector3[] p = new Vector3[l];
+        Vector3[] P = new Vector3[l];
+
+        float angle = Vector3.Angle(projMin, projMax);
+
+        for (int k = 0; k < l; k++) {
+            p[k] = pos + Quaternion.AngleAxis(angle * k / (l - 1), normal) * projMin * minRadius;
+            P[k] = pos + Quaternion.AngleAxis(angle * k / (l - 1), normal) * projMin * maxRadius;
+        }
+
+        // Draw circles
+        for (int k = 0; k < l - 1; k++) {
+            Debug.DrawLine(p[k], p[k + 1], col);
+            Debug.DrawLine(P[k], P[k + 1], col);
+        }
+
+        // Connect inner to outer circle 
+        Debug.DrawLine(p[0], P[0], col);
+        Debug.DrawLine(p[l - 1], P[l - 1], col);
+    }
+
+    public static void DrawSphereSection(Vector3 pos, Vector3 lowLeft, Vector3 lowRight, Vector3 upLeft, Vector3 upRight, float minRadius, float maxRadius, int subDivisions, Color col) {
+
+        int l = subDivisions + 3;
+
+        // Make surecorners make sense
+        // Make sure every vector is normalized
+
+        Vector3[] v = new Vector3[l];
+        Vector3[] w = new Vector3[l];
+
+        for (int k = 0; k < l; k++) {
+            v[k] = Vector3.Lerp(lowLeft, upLeft, (float)k / (l - 1)).normalized;
+            w[k] = Vector3.Lerp(lowRight, upRight, (float)k / (l - 1)).normalized;
+            DrawCircleSection(pos, v[k], w[k], minRadius, maxRadius, subDivisions, col);
+        }
+
+
+        for (int k = 0; k < l - 1; k++) {
+            Debug.DrawLine(pos + minRadius * v[k], pos + minRadius * v[k + 1], col);
+            Debug.DrawLine(pos + maxRadius * v[k], pos + maxRadius * v[k + 1], col);
+            Debug.DrawLine(pos + minRadius * w[k], pos + minRadius * w[k + 1], col);
+            Debug.DrawLine(pos + maxRadius * w[k], pos + maxRadius * w[k + 1], col);
+        }
+
+    }
+
+    public static void DrawCylinderSection(Vector3 pos, Vector3 min, Vector3 max, Vector3 normal, float minDistance, float maxDistance, float lowHeight, float highHeight, int subDivisions, Color col) {
+
+        if (subDivisions < 0) {
+            Debug.LogWarning("Subdivisions not allowed to be negative.");
+            return;
+        }
+
+        if (min == Vector3.zero || max == Vector3.zero) {
+            Debug.LogWarning("Min and Max Vector not allowed to be zero.");
+            return;
+        }
+
+        if (normal == Vector3.zero) {
+            Debug.LogWarning("Normal not allowed to be zero.");
+            return;
+        }
+
+        Vector3 projMin = Vector3.ProjectOnPlane(min, normal).normalized;
+        Vector3 projMax = Vector3.ProjectOnPlane(max, normal).normalized;
+
+        if (projMin == Vector3.zero || projMax == Vector3.zero) {
+            Debug.LogWarning("Can't Draw since one of the two Vectors are parallel to the normal.");
         }
 
         int l = subDivisions + 2;
@@ -135,20 +259,14 @@ public class DebugShapes : MonoBehaviour {
         Vector3[] q_up = new Vector3[l];
         Vector3[] q_down = new Vector3[l];
 
-        // Beispiel subdiv=3, also length=5, step=1/5,
-        // k=0 4*min + 0*max = min
-        // k=1 3*min + 1*max = min
-        // k=2 2*min + 2*max = min
-        // k=3 1*min + 3*max = min
-        // k=4 0*min + 4*max = min
         for (int k = 0; k < l; k++) {
-            v[k] = ((l - 1 - k) * minVector + k * maxVector).normalized;
+            v[k] = Vector3.Lerp(projMin, projMax, (float)k / (l - 1)).normalized;
             p[k] = pos + minDistance * v[k];
-            p_up[k] = p[k] + normal * heigth;
-            p_down[k] = p[k] - normal * heigth;
+            p_up[k] = p[k] + normal * highHeight;
+            p_down[k] = p[k] - normal * lowHeight;
             q[k] = p[k] + v[k] * (maxDistance - minDistance);
-            q_up[k] = q[k] + normal * heigth;
-            q_down[k] = q[k] - normal * heigth;
+            q_up[k] = q[k] + normal * highHeight;
+            q_down[k] = q[k] - normal * lowHeight;
         }
 
         //Connect the p's
@@ -156,11 +274,14 @@ public class DebugShapes : MonoBehaviour {
             Debug.DrawLine(p[k], p[k + 1], col);
             Debug.DrawLine(p_up[k], p_up[k + 1], col);
             Debug.DrawLine(p_down[k], p_down[k + 1], col);
-            Debug.DrawLine(p_up[k], p_down[k], col);
         }
+        /*
         for (int k = 0; k < l; k++) {
             Debug.DrawLine(p_up[k], p_down[k], col);
         }
+        */
+        Debug.DrawLine(p_up[0], p_down[0], col);
+        Debug.DrawLine(p_up[l-1], p_down[l-1], col);
 
         //Connect the q's
         for (int k = 0; k < l - 1; k++) {
@@ -168,9 +289,13 @@ public class DebugShapes : MonoBehaviour {
             Debug.DrawLine(q_up[k], q_up[k + 1], col);
             Debug.DrawLine(q_down[k], q_down[k + 1], col);
         }
+        /*
         for (int k = 0; k < l; k++) {
             Debug.DrawLine(q_up[k], q_down[k], col);
         }
+        */
+        Debug.DrawLine(q_up[0], q_down[0], col);
+        Debug.DrawLine(q_up[l - 1], q_down[l - 1], col);
 
 
         //Connect the p's with q's  Sides
@@ -183,10 +308,12 @@ public class DebugShapes : MonoBehaviour {
         Debug.DrawLine(p_down[0], q_down[0], col);
         Debug.DrawLine(p_down[l - 1], q_down[l - 1], col);
 
+        /*
         //Connect the p's with q's  Top and Bottom
         for (int k = 0; k < l; k++) {
             Debug.DrawLine(p_up[k], q_up[k], col);
             Debug.DrawLine(p_down[k], q_down[k], col);
         }
+        */
     }
 }

@@ -74,127 +74,96 @@ public class IKSolver : MonoBehaviour {
 
 
 
-
-    // Have to fix all of this
-    public static void solveJacobianTranspose(ref AHingeJoint[] hingeJoints, Transform endEffector, TargetInfo target, bool hasFoot = false) {
+    // Slighly messy since Unity does not provide Matrix class so i had to work with two dimensional arrays and convert to Vector3 if needed
+    public static void solveJacobianTranspose(ref AHingeJoint[] joints, Transform endEffector, TargetInfo target, bool hasFoot = false) {
         Vector3 error = target.position - endEffector.position;
-
-        int amtAngles = (hingeJoints.Length - 1) * 3; //For every joint, except the endEffector we have three angles
-
-        float[,] J = new float[3, amtAngles];
-
-        Vector3 rotAxis = Vector3.zero;
-
-        // Jacobian Form:
-        //  a1  a2  a3  a4  a4  a6  a7  a8  a9  a10 a11 a12     Angles 1-12 sorted like this : a1 = Xrot angle1, a2 = Yrot angle1, a3 = Zrot angle1, a4 = Xrot angle2, ..
-        //  *   *   *   *   *   *   *   *   *   *   *   *
-        //  *   *   *   *   *   *   *   *   *   *   *   *
-        //  *   *   *   *   *   *   *   *   *   *   *   *
-
-        for (int col = 0; col < amtAngles; col++) {
-            if (col % 3 == 0) //X-Rotation angle
-            {
-                rotAxis = hingeJoints[col / 3].transform.right;
-            }
-            if (col % 3 == 1) //Y-Rotation angle
-            {
-                rotAxis = hingeJoints[col / 3].transform.up;
-            }
-            if (col % 3 == 2) //Z-Rotation angle
-            {
-                rotAxis = hingeJoints[col / 3].transform.forward;
-            }
-            Vector3 cross = Vector3.Cross(rotAxis, endEffector.position - hingeJoints[col / 3].transform.position); //Always use rotationPoint instead of position
-
-            J[0, col] = cross.x;
-            J[1, col] = cross.y;
-            J[2, col] = cross.z;
-        }
-
-        //Print Jacobian:
-        string jacobianString = "";
-        for (int row = 0; row < 3; row++) {
-            for (int col = 0; col < amtAngles; col++) {
-
-                jacobianString += J[row, col] + " ";
-            }
-            jacobianString += "\n";
-        }
-        Debug.Log(jacobianString);
-
-
-        // Jacobian Transpose Form:
-
-        //  *   *   *       a1
-        //  *   *   *       a2
-        //  *   *   *       a3  
-        //  *   *   *       a4
-        //  *   *   *       a5
-        //  *   *   *
-        //  *   *   *
-        //  *   *   *
-        //  *   *   *
-        //  *   *   *
-        //  *   *   *
-        //  *   *   *
-
-        float[,] JT = new float[amtAngles, 3];
-
-        for (int row = 0; row < amtAngles; row++) {
-            JT[row, 0] = J[0, row];
-            JT[row, 1] = J[1, row];
-            JT[row, 2] = J[2, row];
-        }
-
-        // Jacobian times Jacobian Transpose has Form:
-
-        //  *   *   *
-        //  *   *   *
-        //  *   *   *
-
-        float[,] JJT = new float[3, 3];
-        multiply(ref J, ref JT, ref JJT);
-
-        // Calculate needed multiplications
         float[] err = new float[] { error.x, error.y, error.z };
+        float[,] J = new float[3, joints.Length];
+        float[,] JT = new float[joints.Length, 3];
+        float[,] JJT = new float[3, 3];
         float[] JJTe = new float[3];
-        multiply(ref JJT, ref err, ref JJTe);
+        float[] angleChange = new float[joints.Length];
+        float alpha;
 
-        Vector3 m_JJTe = new Vector3(JJTe[0], JJTe[1], JJTe[2]);
+        int iteration = 0;
+        while (iteration < maxIterations || error.magnitude < tolerance) {
 
-        //Calc the alpha value
-        float alpha = 10 * Vector3.Dot(error, m_JJTe) / Vector3.Dot(m_JJTe, m_JJTe);
-
-        //Calc the change in angle
-        float[] angleChange = new float[amtAngles];
-        multiply(ref JT, ref err, ref angleChange);
-        multiply(ref angleChange, alpha);
-
-
-        for (int col = 0; col < amtAngles; col++) {
-            if (col % 3 == 0) //X-Rotation angle
-            {
-                rotAxis = hingeJoints[col / 3].transform.right;
-            }
-            if (col % 3 == 1) //Y-Rotation angle
-            {
-                rotAxis = hingeJoints[col / 3].transform.up;
-            }
-            if (col % 3 == 2) //Z-Rotation angle
-            {
-                rotAxis = hingeJoints[col / 3].transform.forward;
+            // Jacobian Form:
+            //  a1  a2  a3  a4  a4 
+            //  *   *   *   *   *   
+            //  *   *   *   *   *  
+            //  *   *   *   *   * 
+            for (int k = 0; k < joints.Length; k++) {
+                Vector3 rotAxis = joints[k].getRotationAxis();
+                Vector3 cross = Vector3.Cross(rotAxis, endEffector.position - joints[k].getRotationPoint());
+                J[0, k] = cross.x;
+                J[1, k] = cross.y;
+                J[2, k] = cross.z;
             }
 
-            //joints[col/3].Rotate(rotAxis, angleChange[col], Space.Self);
-            Quaternion newRotation = Quaternion.AngleAxis(angleChange[col], rotAxis) * hingeJoints[col / 3].transform.localRotation;
-            SwingTwistJoint swingTwistjoint = hingeJoints[col / 3].gameObject.GetComponent<SwingTwistJoint>();
-            swingTwistjoint.SwingTwistJointLimit(ref newRotation); //This limits the rotation using the values in the swingTwistJoint
-            hingeJoints[col / 3].transform.localRotation = newRotation; //Should do this smoothly via slerp for example
+            //Print Jacobian:
+            string jacobianString = "";
+            for (int i = 0; i < 3; i++) {
+                for (int k = 0; k < joints.Length; k++) {
+                    jacobianString += J[i, k] + " ";
+                }
+                jacobianString += "\n";
+            }
+            Debug.Log(jacobianString);
+
+
+            // Jacobian Transpose Form:
+            //  *   *   *       a1
+            //  *   *   *       a2
+            //  *   *   *       a3  
+            //  *   *   *       a4
+            //  *   *   *       a5
+            Transpose(J, ref JT);
+
+            // Jacobian times Jacobian Transpose has Form:
+            //  *   *   *
+            //  *   *   *
+            //  *   *   *
+            multiply(J, JT, ref JJT);
+
+            // Calculate needed multiplications
+            multiply(JJT, err, ref JJTe);
+            Vector3 m_JJTe = new Vector3(JJTe[0], JJTe[1], JJTe[2]);
+
+            //Calc the alpha value
+            alpha = Vector3.Dot(error, m_JJTe) / Vector3.Dot(m_JJTe, m_JJTe);
+
+            //Calc the change in angle
+            multiply(JT, err, ref angleChange);
+            multiply(ref angleChange, alpha);
+
+            // Now apply the angle rotations
+            for (int k = 0; k < joints.Length; k++) {
+                joints[k].applyRotation(angleChange[k]);
+            }
+
+            error = target.position - endEffector.position; //Refresh the error so we can check if we are already close enough for the while loop check
+            iteration++;
         }
-
     }
 
-    private static void multiply(ref float[,] A, ref float[,] B, ref float[,] result) {
+    // Multiplies A with its Transpose Matrix and saves the product in result
+    private static void Transpose(float[,] A, ref float[,] result) {
+
+        if (A.GetLength(1) != result.GetLength(0) || A.GetLength(0) != result.GetLength(1)) {
+            Debug.Log("Transpose matrix not the right dimensions.");
+            return;
+        }
+
+        for (int col = 0; col < A.GetLength(0); col++) {
+            for (int row = 0; row < A.GetLength(1); row++) {
+                result[row, col] = A[col, row];
+            }
+        }
+    }
+
+    // Matrix Multiplication
+    private static void multiply(float[,] A, float[,] B, ref float[,] result) {
         if (A.GetLength(1) != B.GetLength(0) || result.GetLength(0) != A.GetLength(0) || result.GetLength(1) != B.GetLength(1)) {
             Debug.Log("Can't multiply these matrices.");
             return;
@@ -212,7 +181,9 @@ public class IKSolver : MonoBehaviour {
         }
 
     }
-    private static void multiply(ref float[,] A, ref float[] B, ref float[] result) {
+
+    // Matrix - Vector Multiplication
+    private static void multiply(float[,] A, float[] B, ref float[] result) {
         if (A.GetLength(1) != B.Length || result.Length != A.GetLength(0)) {
             Debug.Log("Can't multiply these matrices.");
             return;
@@ -228,6 +199,7 @@ public class IKSolver : MonoBehaviour {
         }
     }
 
+    // Vector - Scalar Multiplication
     private static void multiply(ref float[] A, float a) {
         for (int k = 0; k < A.Length; k++) {
             A[k] *= a;

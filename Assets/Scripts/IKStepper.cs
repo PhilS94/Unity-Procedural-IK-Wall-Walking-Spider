@@ -74,8 +74,7 @@ public class IKStepper : MonoBehaviour {
             DebugShapes.DrawPoint(prediction, Color.black, debugIconScale);
             DebugShapes.DrawPoint(lastEndEffectorPos, Color.gray, debugIconScale);
             Debug.DrawLine(lastEndEffectorPos, prediction, Color.black);
-            DebugShapes.DrawScope(rootPos, Vector3.ProjectOnPlane(rootJoint.getMinOrientation(), spidercontroller.transform.up), Vector3.ProjectOnPlane(rootJoint.getMaxOrientation(), spidercontroller.transform.up), spidercontroller.transform.up, minDistance, maxDistance, height, 3, Color.red);
-
+            DebugShapes.DrawCylinderSection(rootPos, rootJoint.getMinOrientation(),rootJoint.getMaxOrientation(),spidercontroller.transform.up, minDistance, maxDistance, height, height, 3, Color.red);
         }
         timeSinceLastStep += Time.deltaTime;
     }

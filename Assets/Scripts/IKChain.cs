@@ -10,11 +10,13 @@ public enum TargetMode {
 }
 
 public class IKChain : MonoBehaviour {
+
+    public bool deactivate = false;
+
     public SpiderController spiderController;
     public AHingeJoint[] joints;
     public Transform endEffector;
 
-    public bool deactivate = false;
 
     public TargetMode targetMode;
 
@@ -102,6 +104,7 @@ public class IKChain : MonoBehaviour {
 
                 if (!ikStepper.checkValidTarget(currentTarget)) {
                     ikStepper.step(ikStepper.calcNewTarget());
+                    Debug.Break();
                 }
                 break;
         }
