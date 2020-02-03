@@ -15,7 +15,7 @@ public struct TargetInfo {
 public class IKSolver : MonoBehaviour {
 
     private static int maxIterations = 10;
-    private static float tolerance = 0.1f;
+    private static float tolerance = 0.01f;
     private static float weight = 1.0f;
 
     /*

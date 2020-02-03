@@ -78,7 +78,7 @@ public class SpiderController : MonoBehaviour {
 
 
         //** Rotation to normal **//
-        Vector3 newNormal = Vector3.Lerp(currentNormal, grdInfo.groundNormal, Time.deltaTime);
+        Vector3 newNormal = Vector3.Lerp(currentNormal, grdInfo.groundNormal, 5*Time.deltaTime);
         float angle = Vector3.Angle(currentNormal, newNormal);
         currentNormal = newNormal;
         Vector3 right = Vector3.ProjectOnPlane(transform.right, currentNormal);

@@ -2,6 +2,16 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+public enum targetValidity {
+    valid = 0,
+    tooFar,
+    tooClose,
+    tooHigh,
+    tooLow,
+    tooMin,
+    tooMax
+}
+
 [RequireComponent(typeof(IKChain))]
 public class IKStepper : MonoBehaviour {
     public SpiderController spidercontroller;
@@ -42,6 +52,7 @@ public class IKStepper : MonoBehaviour {
     private Vector3 defaultPositionLocal;
     private Vector3 prediction;
     private Vector3 lastEndEffectorPos;
+    private Vector3 defaultDebugPos;
 
 
     // Start is called before the first frame update
@@ -62,29 +73,28 @@ public class IKStepper : MonoBehaviour {
     void Update() {
         rootPos = rootJoint.getRotationPoint();
 
-        if (showDebug) {
-            if (isStepping) {
-                DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, debugIconScale, stepTime);
-            }
-            else {
-
-                DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, debugIconScale);
-            }
-            DebugShapes.DrawPoint(spidercontroller.transform.TransformPoint(defaultPositionLocal), Color.magenta, debugIconScale);
-            DebugShapes.DrawPoint(prediction, Color.black, debugIconScale);
-            DebugShapes.DrawPoint(lastEndEffectorPos, Color.gray, debugIconScale);
-            Debug.DrawLine(lastEndEffectorPos, prediction, Color.black);
-            DebugShapes.DrawCylinderSection(rootPos, rootJoint.getMinOrientation(),rootJoint.getMaxOrientation(),spidercontroller.transform.up, minDistance, maxDistance, height, height, 3, Color.red);
-        }
         timeSinceLastStep += Time.deltaTime;
     }
 
-    public bool checkValidTarget(TargetInfo target) {
+    private void LateUpdate() {
+        if (showDebug) {
+            drawDebug();
+        }
+    }
+
+    /*
+     * Checks if the target is invalid or not.
+     * Returns 0 if the target is valid.
+     * If the target is invalid returns
+     * 
+     */
+    public targetValidity checkInvalidTarget(TargetInfo target) {
         Vector3 toTarget = target.position - rootPos;
 
         // Calculate current distances
-        Vector3 horiz = Vector3.ProjectOnPlane(toTarget, spidercontroller.transform.up);
-        Vector3 vert = Vector3.Project(toTarget, spidercontroller.transform.up);
+        Vector3 normal = rootJoint.getRotationAxis();
+        Vector3 horiz = Vector3.ProjectOnPlane(toTarget, normal);
+        Vector3 vert = Vector3.Project(toTarget, normal);
         float horizontalDistance = Vector3.Magnitude(horiz);
         float verticalDistance = Vector3.Magnitude(vert);
 
@@ -93,27 +103,41 @@ public class IKStepper : MonoBehaviour {
             Debug.DrawLine(rootPos + horiz, rootPos + horiz + vert, Color.green);
         }
 
-        //      if targetposition projected onto the plane the spider is standing on, is farther away from the root joint than the whole chainlength
-        //OR    if targetposition is not within the valid angle scope of the root joint
-        //      This can cause trouble if we want the leg to be able to move e.g. beneath the spider since the scope does not allow the target to be behind the rootjoint
-        if (horizontalDistance > maxDistance) {
-            Debug.Log("Target too far away too reach.");
-            return false;
+        // Check if target is within cylinder section
+
+        // First check Scope
+        int scope = rootJoint.isVectorWithinScope(toTarget);
+        if (scope == 1) {
+            Debug.Log("Target above my max angle.");
+            return targetValidity.tooMax;
         }
-        else if (horizontalDistance < minDistance) {
-            Debug.Log("Target too close for comfort.");
-            return false;
-        }
-        else if (verticalDistance > height) {
-            Debug.Log("Target too high or low too reach.");
-            return false;
-        }
-        else if (!rootJoint.isVectorWithinScope(toTarget)) {
-            Debug.Log("Target not in scope");
-            return false;
+        else if (scope == -1) {
+            Debug.Log("Target below my min angle.");
+            return targetValidity.tooMin;
         }
 
-        return true;
+        //Then check horizontal distance
+        if (horizontalDistance > maxDistance) {
+            Debug.Log("Target too far away too reach.");
+            return targetValidity.tooFar;
+        }
+        if (horizontalDistance < minDistance) {
+            Debug.Log("Target too close for comfort.");
+            return targetValidity.tooClose;
+        }
+
+        //Then check vertical distance (height)
+        if (verticalDistance > height) {
+            if (Vector3.Dot(normal, vert) >= 0) {
+                Debug.Log("Target too high.");
+                return targetValidity.tooHigh;
+            }
+            else {
+                Debug.Log("Target too low.");
+                return targetValidity.tooLow;
+            }
+        }
+        return targetValidity.valid;
     }
 
     /*
@@ -121,7 +145,6 @@ public class IKStepper : MonoBehaviour {
      * The new target position is a movement towards the default position but overshoots the default position using the velocity prediction
      */
     public TargetInfo calcNewTarget() {
-        Debug.Log("I'm calculating a new target position.");
 
         Vector3 endeffectorPosition = ikChain.getEndEffector().position;
         Vector3 defaultPosition = spidercontroller.transform.TransformPoint(defaultPositionLocal);
@@ -141,12 +164,7 @@ public class IKStepper : MonoBehaviour {
         //                  Or shoot more rays in the stepping process to somewhat adjust to the terrain changes?
 
         // For now I choose Option 1:
-        // But i dont allow prediction out of valid range, need to fix that. Every shootray method checks if retrieved value is within range.
         prediction = predict(endeffectorPosition, defaultPosition) + spidercontroller.getMovement() * stepTime;
-
-        if (showDebug) {
-            Debug.DrawLine(endeffectorPosition, prediction, Color.magenta, 1.0f);
-        }
 
         //Now shoot a rays using the prediction to find an actual point on a surface.
         RaycastHit hitInfo;
@@ -179,6 +197,24 @@ public class IKStepper : MonoBehaviour {
         }
     }
 
+    // Immediately sets down target position and stops any stepping process going on.
+    // Not used yet since if i do it gets called whenever i actually want to start a step
+    public void setTargetDown() {
+        Debug.Log("Had to stet Target Down, since i overpredicted.");
+        StopAllCoroutines();
+        isStepping = false;
+        timeSinceLastStep = 0.0f;
+        Vector3 normal = spidercontroller.transform.up;
+        Vector3 origin = Vector3.Project(transform.position, normal) + Vector3.ProjectOnPlane(ikChain.getTarget().position, normal);
+        if (shootRay(origin + height * normal, -normal, 2 * height, out RaycastHit hitInfo)) {
+            ikChain.setTarget(new TargetInfo(hitInfo.point, hitInfo.normal));
+        }
+        else {
+            Vector3 defaultPosition = spidercontroller.transform.TransformPoint(defaultPositionLocal);
+            ikChain.setTarget(new TargetInfo(defaultPosition, normal));
+        }
+    }
+
     private Vector3 predict(Vector3 from, Vector3 to) {
         Vector3 normal = spidercontroller.transform.up;
         return Vector3.Project(transform.position, normal) + Vector3.ProjectOnPlane(from + (to - from) * velocityPrediction, normal);
@@ -194,14 +230,12 @@ public class IKStepper : MonoBehaviour {
         direction = direction.normalized;
 
         if (showDebug) {
-            Debug.DrawLine(origin, origin + distance * direction, Color.cyan, 1.0f);
+            Debug.DrawLine(origin, origin + distance * direction, Color.cyan);
         }
 
         if (Physics.Raycast(origin, direction, out hitInfo, distance, spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore)) {
             // could check if the normal is acceptable
-            if (checkValidTarget(new TargetInfo(hitInfo.point, hitInfo.normal))) {
-                return true;
-            }
+            return true;
         }
         return false;
     }
@@ -217,27 +251,40 @@ public class IKStepper : MonoBehaviour {
 
         if (Physics.SphereCast(origin, radius, direction, out hitInfo, distance, spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore)) {
             // could check if the normal is acceptable
-            if (checkValidTarget(new TargetInfo(hitInfo.point, hitInfo.normal))) {
-                return true;
-            }
+            return true;
         }
         return false;
     }
 
+    // If im walking so fast that  one legs keeps wanna step after step complete, one leg might not step at all since its never able to
+    // Could implement a some sort of a queue where i enqueue chains that want to step next?
     public void step(TargetInfo target) {
+
         if (isStepping) {
             return;
         }
-        if (asyncChain != null && asyncChain.getIsStepping()) {
-            // Maybe do something here. Do i want a chain to potentialy have an invalid target for a while?
+
+        if (!allowedToStep()) {
             return;
         }
+
         IEnumerator coroutineStepping = Step(target);
         StartCoroutine(coroutineStepping);
     }
 
+    public bool allowedToStep() {
+        if (asyncChain != null && asyncChain.getIsStepping()) {
+            return false;
+        }
+        return true;
+    }
+
     public bool getIsStepping() {
         return ((isStepping) || (timeSinceLastStep < stepCooldown));
+    }
+
+    public TargetInfo getDefault() {
+        return new TargetInfo(spidercontroller.transform.TransformPoint(defaultPositionLocal), spidercontroller.transform.up);
     }
 
     /*
@@ -301,12 +348,35 @@ public class IKStepper : MonoBehaviour {
         }
     }
 
+    void drawDebug() {
+        //Target Point
+        if (isStepping) DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, debugIconScale, stepTime);
+        // Target Point while Stepping
+        else DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, debugIconScale);
+
+        // Default Position
+        DebugShapes.DrawPoint(spidercontroller.transform.TransformPoint(defaultPositionLocal), Color.magenta, debugIconScale);
+
+        //Prediction Point
+        DebugShapes.DrawPoint(prediction, Color.black, debugIconScale);
+
+        // Last Position the End effector had
+        DebugShapes.DrawPoint(lastEndEffectorPos, Color.gray, debugIconScale);
+
+        // Line From the last end effector position to the prediction
+        Debug.DrawLine(lastEndEffectorPos, prediction, Color.black);
+
+        // The cylinder section of viable target positions
+        DebugShapes.DrawCylinderSection(rootPos, rootJoint.getMinOrientation(), rootJoint.getMaxOrientation(), rootJoint.getRotationAxis(), minDistance, maxDistance, height, height, 3, Color.red);
+    }
 
     void OnDrawGizmosSelected() {
+#if UNITY_EDITOR
         if (!UnityEditor.Selection.Contains(transform.gameObject)) {
             return;
         }
 
         DebugShapes.DrawPoint(spidercontroller.transform.TransformPoint(focusPoint), Color.green, debugIconScale);
+#endif
     }
 }

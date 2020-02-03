@@ -32,10 +32,13 @@ public class IKChain : MonoBehaviour {
         ikStepper = GetComponent<IKStepper>();
         initializeChain();
         validChain = isValidChain();
-        // Assign a starting target
-        setTarget(new TargetInfo(getEndEffector().position, Vector3.up));
     }
 
+    private void Start() {
+        // Assign a starting target
+        setTarget(ikStepper.getDefault());
+        solve();
+    }
     void initializeChain() {
         if (endEffector.GetComponent<AHingeJoint>() != null) {
             Debug.Log("For the CCD chain " + this.name + " the end effector " + endEffector.gameObject.name + " has an attached AHingeJoint but is not a joint. The component should be removed.");
@@ -74,7 +77,7 @@ public class IKChain : MonoBehaviour {
             return;
         }
 
-        if (ikStepper.getIsStepping()) {
+        if (!ikStepper.allowedToStep()) {
             return;
         }
 
@@ -84,6 +87,8 @@ public class IKChain : MonoBehaviour {
             case TargetMode.debugTarget:
 
                 newTarget = new TargetInfo(debugTarget.position, debugTarget.up);
+                ikStepper.checkInvalidTarget(newTarget); //Just for Debug Prints
+                setTarget(newTarget);
                 break;
 
             case TargetMode.debugTargetRay:
@@ -98,27 +103,38 @@ public class IKChain : MonoBehaviour {
                 else {
                     newTarget = new TargetInfo(debugTarget.position, debugTarget.up);
                 }
+                setTarget(newTarget);
                 break;
 
             case TargetMode.targetPredictor:
 
-                if (!ikStepper.checkValidTarget(currentTarget)) {
-                    ikStepper.step(ikStepper.calcNewTarget());
-                    Debug.Break();
+                if (ikStepper.getIsStepping()) {
+
+                    // Causes problems if walking backwards. Need to maybe save the current problem while stepping and ignore it?
+                    //if (valid == targetValidity.tooMin) {
+                    //  ikStepper.setTargetDown();
+                    //}
+                }
+                else {
+                    targetValidity valid = ikStepper.checkInvalidTarget(currentTarget);
+                    if (valid != targetValidity.valid) {
+                        ikStepper.step(ikStepper.calcNewTarget());
+                    }
                 }
                 break;
         }
-        setTarget(newTarget);
     }
 
     private void LateUpdate() {
         if (deactivate) {
             return;
         }
-
-        IKSolver.solveCCD(ref joints, endEffector, currentTarget, true);
+        solve();
     }
 
+    private void solve() {
+        IKSolver.solveCCD(ref joints, endEffector, currentTarget, true);
+    }
     public float getChainLength() {
         return chainLength;
     }

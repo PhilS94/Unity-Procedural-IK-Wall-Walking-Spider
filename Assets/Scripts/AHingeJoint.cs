@@ -5,37 +5,45 @@ using UnityEngine;
 
 public class AHingeJoint : MonoBehaviour {
 
-    public enum RotationAxis {
-        XAxis,
-        YAxis,
-        ZAxis
+    public bool deactivateJoint = false;
+    public bool useRotationLimits = true;
+
+    public Transform root;
+    public enum rotationAxisMode {
+        RootX,
+        RootY,
+        RootZ,
+        LocalX,
+        LocalY,
+        LocalZ
     }
 
-    public RotationAxis rotationAxisPosition = RotationAxis.XAxis;
+    public rotationAxisMode rotMode;
+    public bool negative = false;
+    public Vector3 rotationAxisOrientation;
     public Vector3 rotationPointOffset = Vector3.zero;
-    public float currentOrientation = 0;
 
-    // Current Stage
     [Range(-180, 180)]
+    public float startOrientation = 0;
+    [Range(-90, 90)]
     public float minAngle = -90;
-    [Range(-180, 180)]
+    [Range(-90, 90)]
     public float maxAngle = 90;
 
     [Range(0.0f, 1.0f)]
     public float weight = 1.0f;
 
-    public bool useRotationLimits = true;
-    public bool deactivateJoint = false;
-
-    [Range(0.1f, 10.0f)]
+    [Range(0.1f, 20.0f)]
     public float debugIconScale = 1.0f;
 
     private Vector3 rotationAxis;
     private Vector3 perpendicular;
+    private Vector3 rotPoint;
+
+    private Vector3 defaultOrientation;
     private Vector3 orientation;
     private Vector3 minOrientation;
     private Vector3 maxOrientation;
-    private Vector3 rotPoint;
 
     //keeps track of the current state of rotation and is important part of the angle clamping
     //However i feel like this doesnt update sufficiently well, plus whenever im in a bad rotation state
@@ -51,26 +59,61 @@ public class AHingeJoint : MonoBehaviour {
     }
 
     private void updateValues() {
-        if (rotationAxisPosition == RotationAxis.XAxis) {
-            rotationAxis = transform.right;
-            perpendicular = transform.up;
+        Vector3 r = Vector3.zero;
+        Vector3 p = Vector3.zero; // Just for unassigned error, will never be zero vector
+
+        if (rotMode == rotationAxisMode.RootX) {
+            r = root.right;
+            p = root.forward;
         }
-        if (rotationAxisPosition == RotationAxis.YAxis) {
-            rotationAxis = transform.up;
-            perpendicular = transform.forward;
+        else if (rotMode == rotationAxisMode.RootY) {
+            r = root.up;
+            p = root.right;
         }
-        if (rotationAxisPosition == RotationAxis.ZAxis) {
-            rotationAxis = transform.forward;
-            perpendicular = transform.right;
+        else if (rotMode == rotationAxisMode.RootZ) {
+            r = root.forward;
+            p = root.up;
         }
-        rotPoint = transform.position + rotationPointOffset.x * transform.right + rotationPointOffset.y * transform.up + rotationPointOffset.z * transform.forward;
-        orientation = Quaternion.AngleAxis(currentOrientation, rotationAxis) * perpendicular;
-        minOrientation = Quaternion.AngleAxis(minAngle - currentAngle, rotationAxis) * orientation;
-        maxOrientation = Quaternion.AngleAxis(maxAngle - currentAngle, rotationAxis) * orientation;
+        else if (rotMode == rotationAxisMode.LocalX) {
+            r = transform.right;
+            p = transform.forward;
+        }
+        else if (rotMode == rotationAxisMode.LocalY) {
+            r = transform.up;
+            p = transform.right;
+        }
+        else if (rotMode == rotationAxisMode.LocalZ) {
+            r = transform.forward;
+            p = transform.right;
+        }
+        if (negative) {
+            r = -r;
+            p = -p;
+        }
+
+        rotationAxis = transform.TransformVector(Quaternion.Euler(rotationAxisOrientation) * transform.InverseTransformVector(r)).normalized;
+        perpendicular = transform.TransformVector(Quaternion.Euler(rotationAxisOrientation) * transform.InverseTransformVector(p)).normalized;
+        rotPoint = getRotationPoint();
+
+        if ((rotMode == rotationAxisMode.LocalX) || (rotMode == rotationAxisMode.LocalY) || (rotMode == rotationAxisMode.LocalZ)) {
+            orientation = Quaternion.AngleAxis(startOrientation, rotationAxis) * perpendicular;
+            defaultOrientation = Quaternion.AngleAxis(-currentAngle, rotationAxis) * orientation;
+            minOrientation = Quaternion.AngleAxis(minAngle - currentAngle, rotationAxis) * orientation;
+            maxOrientation = Quaternion.AngleAxis(maxAngle - currentAngle, rotationAxis) * orientation;
+        }
+        else {
+            defaultOrientation = Quaternion.AngleAxis(startOrientation, rotationAxis) * perpendicular;
+            orientation = Quaternion.AngleAxis(currentAngle, rotationAxis) * defaultOrientation;
+            minOrientation = Quaternion.AngleAxis(minAngle, rotationAxis) * defaultOrientation;
+            maxOrientation = Quaternion.AngleAxis(maxAngle, rotationAxis) * defaultOrientation;
+        }
+
     }
 
     // Update is called once per frame
     void Update() {
+        updateValues(); //to refresh all the values, since they are all dependant on the rotation axis which changes as the spider rotates
+
         if (minAngle > maxAngle) {
             Debug.LogError("The minimum hinge angle on " + gameObject.name + " is larger than the maximum hinge angle.");
             maxAngle = minAngle;
@@ -104,23 +147,22 @@ public class AHingeJoint : MonoBehaviour {
             angle += 360;
         }
 
-        //Jetzt sollte angle in der form (-180,180] sein
+        //Now angle is of the form (-180,180]
 
 
         if (useRotationLimits) {
             // Example, say angle is 20degrees, and our currentAngle is 60,  but our maxAngle is 70
-            // What we want is to get the angle which rotates to the maxAnglePos which is in this case 10degrees
+            // What we want is to get the angle which rotates to the maxAnglePos which is in this example is 10 degrees
             angle = Mathf.Clamp(currentAngle + angle, minAngle, maxAngle) - currentAngle;
             //                  10              -60     -30                    = -30-10
         }
 
         // Apply the rotation
-        transform.RotateAround(rotPoint, rotationAxis, angle); //Think about using this since i actually do use the rotationPoints in other classes
+        transform.RotateAround(rotPoint, rotationAxis, angle);
         //transform.rotation = Quaternion.AngleAxis(angle, rotationAxis) * transform.rotation;
 
-        // Refresh the current angle
+        // Update the current angle
         currentAngle += angle;
-
     }
 
     public float getWeight() {
@@ -128,6 +170,7 @@ public class AHingeJoint : MonoBehaviour {
     }
 
     void OnDrawGizmosSelected() {
+#if UNITY_EDITOR
         if (!UnityEditor.Selection.Contains(transform.gameObject)) {
             return;
         }
@@ -142,11 +185,6 @@ public class AHingeJoint : MonoBehaviour {
         Gizmos.color = Color.green;
         Gizmos.DrawSphere(rotPoint, 0.01f * debugIconScale);
 
-
-        //Gizmos.color = Color.yellow;
-        //Gizmos.DrawLine(rotPoint, rotPoint + 0.2f * debugIconScale * minOrientation);
-        //Gizmos.DrawLine(rotPoint, rotPoint + 0.2f * debugIconScale * maxOrientation);
-
         // Rotation Limit Arc
         UnityEditor.Handles.color = Color.yellow;
         UnityEditor.Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, maxAngle - minAngle, 0.2f * debugIconScale);
@@ -158,16 +196,31 @@ public class AHingeJoint : MonoBehaviour {
         // Current Rotation used (same as above) just an additional line to emphasize
         Gizmos.color = Color.red;
         Gizmos.DrawLine(rotPoint, rotPoint + 0.2f * debugIconScale * orientation);
+
+        // Default Rotation
+        Gizmos.color = Color.magenta;
+        Gizmos.DrawLine(rotPoint, rotPoint + 0.2f * debugIconScale * defaultOrientation);
+#endif
     }
 
     /*
      * This function fails if minOrientation and maxOrientation have an angle greather than 180
      * since signedangle returns the smaller angle, which i dont really want, but it suffices right now since i dont have these big of DOF
+     * Returns -1 if v is to the left of Min, +1 if v is to the right of Max and 0 if v is between min and max
      * */
-    public bool isVectorWithinScope(Vector3 v) {
+    public int isVectorWithinScope(Vector3 v) {
         float angle1 = Vector3.SignedAngle(minOrientation, v, rotationAxis); // should be clockwise, thus positive
         float angle2 = Vector3.SignedAngle(v, maxOrientation, rotationAxis); // should also be clockwise, thus positive
-        return (angle1 >= 0 && angle2 >= 0);
+
+        if (angle1 >= 0 && angle2 >= 0) return 0;
+        else if (angle1 < 0 && angle2 < 0) {
+            // in the negative scope, therefore use midOrientation to solve this scenario
+            float angle3 = Vector3.SignedAngle(getMidOrientation(), v, rotationAxis);
+            if (angle3 > 0) return +1;
+            else return -1;
+        }
+        else if (angle1 < 0) return -1;
+        else return +1;
     }
 
 
@@ -193,7 +246,7 @@ public class AHingeJoint : MonoBehaviour {
     }
 
     public Vector3 getMidOrientation() {
-        return (maxOrientation + minOrientation).normalized;
+        return (minOrientation + maxOrientation).normalized;
     }
 
     public float getAngleRange() {
