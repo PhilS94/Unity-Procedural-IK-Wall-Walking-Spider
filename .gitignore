@@ -61,3 +61,7 @@ sysinfo.txt
 
 # Crashlytics generated file
 crashlytics-build.properties
+Assets/Scenes/IKSpiderTestScene/LightingData.asset
+*.exr
+Assets/Scenes/IKSpiderTestScene/LightingData.asset.meta
+Assets/Scenes/IKSpiderTestScene/ReflectionProbe-0.exr.meta
