@@ -35,8 +35,8 @@ public class IKChain : MonoBehaviour {
     }
 
     private void Start() {
-        // Assign a starting target
-        setTarget(ikStepper.getDefault());
+        // Assign a starting target. Would assign default but the default position is calculated in the Start function of IKStepper and uses the IKChain length :         setTarget(ikStepper.getDefault());
+        setTarget(new TargetInfo(getEndEffector().position, Vector3.up));
         solve();
     }
     void initializeChain() {

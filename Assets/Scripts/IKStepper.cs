@@ -12,6 +12,20 @@ public enum targetValidity {
     tooMax
 }
 
+public struct Line {
+    public Vector3 origin;
+    public Vector3 end;
+
+    public Line(Vector3 p, Vector3 q) {
+        origin = p;
+        end = q;
+    }
+    public Line(Vector3 p, Vector3 direction, float length) {
+        origin = p;
+        end = p + direction * length; ;
+    }
+}
+
 [RequireComponent(typeof(IKChain))]
 public class IKStepper : MonoBehaviour {
     public SpiderController spidercontroller;
@@ -35,7 +49,8 @@ public class IKStepper : MonoBehaviour {
     public float stepCooldown = 0.5f;
     private float timeSinceLastStep;
 
-    public Vector3 focusPoint;
+    public Vector3 originPointOutwardsRay;
+    public Vector3 endPointInwardsRay;
 
     public AnimationCurve stepAnimation;
 
@@ -47,12 +62,18 @@ public class IKStepper : MonoBehaviour {
     private float maxDistance;
     private float height = 2.5f;
 
+    private Line lineDown;
+    private Line lineOutward;
+    private Line lineInwards;
+    private Line lineDefaultDown;
+    private Line lineDefaultOutward;
+    private Line lineDefaultInward;
+
     private AHingeJoint rootJoint;
     private Vector3 rootPos;
     private Vector3 defaultPositionLocal;
     private Vector3 prediction;
     private Vector3 lastEndEffectorPos;
-    private Vector3 defaultDebugPos;
 
 
     // Start is called before the first frame update
@@ -64,9 +85,9 @@ public class IKStepper : MonoBehaviour {
 
         float chainLength = ikChain.getChainLength();
         maxDistance = chainLength;
-        minDistance = 0.3f * chainLength;
+        minDistance = 0.2f * chainLength;
         defaultPositionLocal = spidercontroller.transform.InverseTransformPoint(rootPos + (minDistance + 0.5f * (maxDistance - minDistance)) * rootJoint.getMidOrientation());
-        defaultPositionLocal.y = -1.0f * 1.0f / spidercontroller.scale; // Because spider has a 20.0f reference scale
+        defaultPositionLocal.y = -1.0f / spidercontroller.scale; // Because spider has a 20.0f reference scale
         timeSinceLastStep = 2 * stepCooldown;
     }
 
@@ -149,13 +170,14 @@ public class IKStepper : MonoBehaviour {
         Vector3 endeffectorPosition = ikChain.getEndEffector().position;
         Vector3 defaultPosition = spidercontroller.transform.TransformPoint(defaultPositionLocal);
         lastEndEffectorPos = endeffectorPosition; //Update this so it can be debug drawn in update function
+        Vector3 normal = spidercontroller.transform.up;
 
         //Now predict step target
 
         // Option 1: Include spider movement in the prediction process: prediction += SpiderMoveVector * stepTime
         //      Problem:    Spider might stop moving while stepping, if this happens i will over predict
         //                  Spider might change direction while stepping, if this happens i could predict out of range
-        //      Solution:   Keep the stepTime short such that not much will happenS
+        //      Solution:   Keep the stepTime short such that not much will happen
 
         // Option 2: Dynamically update the prediction in a the stepping coroutine where i keep up with the spider with its local coordinates
         //      Problem:    I will only know if the foot lands on a surface point after the stepping is already done
@@ -164,37 +186,75 @@ public class IKStepper : MonoBehaviour {
         //                  Or shoot more rays in the stepping process to somewhat adjust to the terrain changes?
 
         // For now I choose Option 1:
-        prediction = predict(endeffectorPosition, defaultPosition) + spidercontroller.getMovement() * stepTime;
+
+        prediction = Vector3.ProjectOnPlane(endeffectorPosition + (defaultPosition - endeffectorPosition) * velocityPrediction, normal)
+                        + spidercontroller.getMovement() * stepTime;
+
+        // The following just adjusts the prediction such that is lies on the same plane as the defaultposition
+        prediction = spidercontroller.transform.InverseTransformPoint(prediction);
+        prediction.y = defaultPositionLocal.y;
+        prediction = spidercontroller.transform.TransformPoint(prediction);
 
         //Now shoot a rays using the prediction to find an actual point on a surface.
         RaycastHit hitInfo;
-        Vector3 normal = spidercontroller.transform.up;
+        Vector3 originPointOutward = spidercontroller.transform.TransformPoint(originPointOutwardsRay);
+        Vector3 endPointInward = spidercontroller.transform.TransformPoint(endPointInwardsRay);
+
+        lineOutward.origin = originPointOutward;
+        lineOutward.end = prediction;
+        lineDown.origin = prediction + height * normal;
+        lineDown.end = lineDown.origin + 2 * height * -normal;
+        lineInwards.origin = prediction;
+        lineInwards.end = endPointInward;
+        lineDefaultOutward.origin = originPointOutward;
+        lineDefaultOutward.end = defaultPosition;
+        lineDefaultDown.origin = defaultPosition + height * normal;
+        lineDefaultDown.end = lineDefaultDown.origin + 2 * height * -normal;
+        lineDefaultInward.origin = defaultPosition;
+        lineDefaultInward.end = endPointInward;
 
         //Straight down through prediction point
-        if (shootRay(prediction + height * normal, -normal, 2 * height, out hitInfo)) {
+        if (shootRay(lineDown, out hitInfo)) {
+            Debug.Log("Got Targetpoint shooting down to prediction.");
             return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
 
-        // From focus point to prediction
-        else if (shootRay(spidercontroller.transform.TransformPoint(focusPoint), prediction, out hitInfo)) {
-            Debug.Log("Shot Focus Ray");
-            //Debug.Break();
+        // Outwards to prediction
+        if (shootRay(lineOutward, out hitInfo)) {
+            Debug.Log("Got Targetpoint shooting outwards to prediction.");
             return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
 
-        // Straight down through default position
-        else if (shootRay(defaultPosition + height * normal, -normal, 2 * height, out hitInfo)) {
-            Debug.Log("Shot from default");
-            //Debug.Break();
+        // Inwards from prediction
+
+        if (shootRay(lineInwards, out hitInfo)) {
+            Debug.Log("Got Targetpoint shooting inwards from prediction.");
+            return new TargetInfo(hitInfo.point, hitInfo.normal);
+        }
+
+        // Outwards to default position
+
+        if (shootRay(lineDefaultOutward, out hitInfo)) {
+            Debug.Log("Got Targetpoint shooting outwards to default point.");
+            return new TargetInfo(hitInfo.point, hitInfo.normal);
+        }
+
+        //Straight down to default point
+        if (shootRay(lineDefaultDown, out hitInfo)) {
+            Debug.Log("Got Targetpoint shooting down to default point.");
+            return new TargetInfo(hitInfo.point, hitInfo.normal);
+        }
+
+        // Inwards from default point
+
+        if (shootRay(lineDefaultInward, out hitInfo)) {
+            Debug.Log("Got Targetpoint shooting inwards from default point.");
             return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
 
         // Return default position
-        else {
-            Debug.Log("Had to return default");
-            //Debug.Break();
-            return new TargetInfo(defaultPosition, normal);
-        }
+        Debug.Log("No ray was able to find a target position. Therefore i will return the default position.");
+        return new TargetInfo(defaultPosition, normal);
     }
 
     // Immediately sets down target position and stops any stepping process going on.
@@ -205,8 +265,11 @@ public class IKStepper : MonoBehaviour {
         isStepping = false;
         timeSinceLastStep = 0.0f;
         Vector3 normal = spidercontroller.transform.up;
-        Vector3 origin = Vector3.Project(transform.position, normal) + Vector3.ProjectOnPlane(ikChain.getTarget().position, normal);
-        if (shootRay(origin + height * normal, -normal, 2 * height, out RaycastHit hitInfo)) {
+
+        Vector3 origin = Vector3.Project(transform.position, normal) + Vector3.ProjectOnPlane(ikChain.getTarget().position, normal) + height * normal;
+        Line l = new Line(origin, -normal, 2 * height);
+
+        if (shootRay(l, out RaycastHit hitInfo)) {
             ikChain.setTarget(new TargetInfo(hitInfo.point, hitInfo.normal));
         }
         else {
@@ -215,27 +278,20 @@ public class IKStepper : MonoBehaviour {
         }
     }
 
-    private Vector3 predict(Vector3 from, Vector3 to) {
-        Vector3 normal = spidercontroller.transform.up;
-        return Vector3.Project(transform.position, normal) + Vector3.ProjectOnPlane(from + (to - from) * velocityPrediction, normal);
-    }
-
-    private bool shootRay(Vector3 origin, Vector3 end, out RaycastHit hitInfo) {
-        Vector3 v = end - origin;
-        return shootRay(origin, v.normalized, v.magnitude, out hitInfo);
-
-    }
-
-    private bool shootRay(Vector3 origin, Vector3 direction, float distance, out RaycastHit hitInfo) {
-        direction = direction.normalized;
+    private bool shootRay(Line l, out RaycastHit hitInfo) {
+        Vector3 direction = (l.end - l.origin);
+        float magnitude = Vector3.Magnitude(direction);
+        direction = direction / magnitude;
 
         if (showDebug) {
-            Debug.DrawLine(origin, origin + distance * direction, Color.cyan);
+            Debug.DrawLine(l.origin, l.end, Color.yellow);
         }
 
-        if (Physics.Raycast(origin, direction, out hitInfo, distance, spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore)) {
+        if (Physics.Raycast(l.origin, direction, out hitInfo, magnitude, spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore)) {
             // could check if the normal is acceptable
-            return true;
+            if (Mathf.Cos(Vector3.Angle(direction, hitInfo.normal)) < 0) {
+                return true;
+            }
         }
         return false;
     }
@@ -368,6 +424,15 @@ public class IKStepper : MonoBehaviour {
 
         // The cylinder section of viable target positions
         DebugShapes.DrawCylinderSection(rootPos, rootJoint.getMinOrientation(), rootJoint.getMaxOrientation(), rootJoint.getRotationAxis(), minDistance, maxDistance, height, height, 3, Color.red);
+
+        //All the Raycasts:
+        Debug.DrawLine(lineOutward.origin, lineOutward.end, Color.yellow);
+        Debug.DrawLine(lineDown.origin, lineDown.end, 0.9f * Color.yellow);
+        Debug.DrawLine(lineInwards.origin, lineInwards.end, 0.8f * Color.yellow);
+        Debug.DrawLine(lineDefaultOutward.origin, lineDefaultOutward.end, 0.7f * Color.yellow);
+        Debug.DrawLine(lineDefaultDown.origin, lineDefaultDown.end, 0.6f * Color.yellow);
+        Debug.DrawLine(lineDefaultInward.origin, lineDefaultInward.end, 0.5f * Color.yellow);
+
     }
 
     void OnDrawGizmosSelected() {
@@ -375,8 +440,8 @@ public class IKStepper : MonoBehaviour {
         if (!UnityEditor.Selection.Contains(transform.gameObject)) {
             return;
         }
-
-        DebugShapes.DrawPoint(spidercontroller.transform.TransformPoint(focusPoint), Color.green, debugIconScale);
+        DebugShapes.DrawPoint(spidercontroller.transform.TransformPoint(originPointOutwardsRay), Color.green, debugIconScale);
+        DebugShapes.DrawPoint(spidercontroller.transform.TransformPoint(endPointInwardsRay), Color.green, debugIconScale);
 #endif
     }
 }

@@ -77,20 +77,21 @@ public class SpiderController : MonoBehaviour {
 
 
 
-        //** Rotation to normal **//
-        Vector3 newNormal = Vector3.Lerp(currentNormal, grdInfo.groundNormal, 5*Time.deltaTime);
-        float angle = Vector3.Angle(currentNormal, newNormal);
+        //** Rotation to normal **// 
+        Vector3 newNormal = Vector3.Slerp(currentNormal, grdInfo.groundNormal, 10.0f * Time.deltaTime);
+        float angle = Vector3.SignedAngle(currentNormal, newNormal,cam.transform.right);
         currentNormal = newNormal;
         Vector3 right = Vector3.ProjectOnPlane(transform.right, currentNormal);
         Vector3 forward = Vector3.Cross(right, currentNormal);
         Quaternion goalrotation = Quaternion.LookRotation(forward, currentNormal);
 
-        Vector3 camPos = cam.transform.position;
-        Vector3 camRot = cam.transform.forward;
+        //Apply the rotation to the spider
         transform.rotation = goalrotation;
-        //cam.transform.RotateAround(transform.position,cam.transform.right,-angle/4);
-        cam.transform.position = camPos;
-        cam.transform.rotation = Quaternion.LookRotation(camRot, currentNormal);
+
+        //Adjust the camera as to not completely follow the rotation, This can lead to cam getting vertical rotation it shouldnt be allowed to get
+            // Think about uing the coroutine: StartCoroutine(adjustCamera(-0.5f * angle, 1.0f));
+            // Or lerp the angle independant of the normal slerp above. We want the camera to have completely independent lerping to the spider
+        cam.transform.RotateAround(transform.position, cam.transform.right, -0.5f*angle);
 
         if (showDebug)
             Debug.DrawLine(transform.position, transform.position + 0.3f * scale * currentNormal, Color.yellow, 0.1f);
@@ -140,6 +141,13 @@ public class SpiderController : MonoBehaviour {
 
     void RotateCameraVerticalAroundPlayer() {
         float angle = Input.GetAxis("Mouse Y") * YSensitivity;
+
+        float angleMargin = 30.0f;
+        angle = Mathf.Clamp(angle, -angleMargin, angleMargin);
+        Quaternion q = Quaternion.AngleAxis(angle, cam.transform.right);
+        float alpha = Vector3.Angle(q * cam.transform.forward, transform.up);
+        if ((angle > 0 && alpha <= angleMargin) || angle < 0 && alpha >= 180.0f-angleMargin) return;
+
         cam.transform.RotateAround(transform.position, cam.transform.right, -angle);
     }
 
@@ -191,6 +199,16 @@ public class SpiderController : MonoBehaviour {
 
     bool shootSphere(SphereRay sphereRay) {
         return Physics.SphereCast(sphereRay.position, sphereRay.radius, sphereRay.direction, out hitInfo, sphereRay.distance, groundedLayer, QueryTriggerInteraction.Ignore);
+    }
+
+    private IEnumerator adjustCamera(float angle, float time) {
+        float t = 0;
+        while (t < time) {
+            cam.transform.RotateAround(transform.position, cam.transform.right, angle* t/time);
+
+            t += Time.deltaTime;
+            yield return null;
+        }
     }
 
     void setupSphereRayDraw(ref GameObject[] sphereRay, int amount) {
