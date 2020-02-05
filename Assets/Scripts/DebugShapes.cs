@@ -2,91 +2,6 @@
 using System.Collections;
 
 public class DebugShapes : MonoBehaviour {
-    public static void DrawCube(Vector3 pos, Color col, Vector3 scale) {
-        Vector3 halfScale = scale * 0.5f;
-
-        Vector3[] points = new Vector3[]
-        {
-            pos + new Vector3(halfScale.x,      halfScale.y,    halfScale.z),
-            pos + new Vector3(-halfScale.x,     halfScale.y,    halfScale.z),
-            pos + new Vector3(-halfScale.x,     -halfScale.y,   halfScale.z),
-            pos + new Vector3(halfScale.x,      -halfScale.y,   halfScale.z),
-            pos + new Vector3(halfScale.x,      halfScale.y,    -halfScale.z),
-            pos + new Vector3(-halfScale.x,     halfScale.y,    -halfScale.z),
-            pos + new Vector3(-halfScale.x,     -halfScale.y,   -halfScale.z),
-            pos + new Vector3(halfScale.x,      -halfScale.y,   -halfScale.z),
-        };
-
-        Debug.DrawLine(points[0], points[1], col);
-        Debug.DrawLine(points[1], points[2], col);
-        Debug.DrawLine(points[2], points[3], col);
-        Debug.DrawLine(points[3], points[0], col);
-    }
-
-    public static void DrawSphere(Vector3 pos, float radius, int sectorCount, int stackCount, Color col) {
-        float x, y, z, xy;                              // vertex position
-
-        float sectorStep = 2 * Mathf.PI / sectorCount;
-        float stackStep = Mathf.PI / stackCount;
-        float sectorAngle, stackAngle;
-
-        Vector3[,] p = new Vector3[stackCount + 1, sectorCount + 1];
-
-        for (int i = 0; i <= stackCount; ++i) {
-            stackAngle = Mathf.PI / 2 - i * stackStep;        // starting from pi/2 to -pi/2
-            xy = radius * Mathf.Cos(stackAngle);             // r * cos(u)
-            z = radius * Mathf.Sin(stackAngle);              // r * sin(u)
-
-            // add (sectorCount+1) vertices per stack
-            // the first and last vertices have same position and normal, but different tex coords
-            for (int j = 0; j <= sectorCount; ++j) {
-                sectorAngle = j * sectorStep;           // starting from 0 to 2pi
-
-                // vertex position (x, y, z)
-                x = xy * Mathf.Cos(sectorAngle);             // r * cos(u) * cos(v)
-                y = xy * Mathf.Sin(sectorAngle);             // r * cos(u) * sin(v)
-
-                p[i, j] = new Vector3(x, y, z);
-            }
-        }
-
-        for (int i = 0; i <= stackCount; ++i) {
-            for (int j = 0; j <= sectorCount - 1; ++j) {
-                Debug.DrawLine(p[i, j], p[i, j + 1], col);
-            }
-        }
-
-        for (int j = 0; j <= sectorCount; ++j) {
-            for (int i = 0; i <= stackCount - 1; ++i) {
-
-                Debug.DrawLine(p[i, j], p[i + 1, j], col);
-            }
-        }
-    }
-
-    public static void DrawRect(Rect rect, Color col) {
-        Vector3 pos = new Vector3(rect.x + rect.width / 2, rect.y + rect.height / 2, 0.0f);
-        Vector3 scale = new Vector3(rect.width, rect.height, 0.0f);
-
-        DebugShapes.DrawRect(pos, col, scale);
-    }
-
-    public static void DrawRect(Vector3 pos, Color col, Vector3 scale) {
-        Vector3 halfScale = scale * 0.5f;
-
-        Vector3[] points = new Vector3[]
-        {
-            pos + new Vector3(halfScale.x,      halfScale.y,    halfScale.z),
-            pos + new Vector3(-halfScale.x,     halfScale.y,    halfScale.z),
-            pos + new Vector3(-halfScale.x,     -halfScale.y,   halfScale.z),
-            pos + new Vector3(halfScale.x,      -halfScale.y,   halfScale.z),
-        };
-
-        Debug.DrawLine(points[0], points[1], col);
-        Debug.DrawLine(points[1], points[2], col);
-        Debug.DrawLine(points[2], points[3], col);
-        Debug.DrawLine(points[3], points[0], col);
-    }
 
     public static void DrawPoint(Vector3 pos, Color col, float scale, float duration = 0.0f) {
         Vector3[] points = new Vector3[]
@@ -120,14 +35,54 @@ public class DebugShapes : MonoBehaviour {
 
     }
 
-    public static void DrawCircle(Vector3 pos, Vector3 normal, float radius, int subDivisions, Color col) {
+    public static void DrawCube(Vector3 pos, Color col, Vector3 scale) {
+        Vector3 halfScale = scale * 0.5f;
 
-        int l = subDivisions + 4;
+        Vector3[] points = new Vector3[]
+        {
+            pos + new Vector3(halfScale.x,      halfScale.y,    halfScale.z),
+            pos + new Vector3(-halfScale.x,     halfScale.y,    halfScale.z),
+            pos + new Vector3(-halfScale.x,     -halfScale.y,   halfScale.z),
+            pos + new Vector3(halfScale.x,      -halfScale.y,   halfScale.z),
+            pos + new Vector3(halfScale.x,      halfScale.y,    -halfScale.z),
+            pos + new Vector3(-halfScale.x,     halfScale.y,    -halfScale.z),
+            pos + new Vector3(-halfScale.x,     -halfScale.y,   -halfScale.z),
+            pos + new Vector3(halfScale.x,      -halfScale.y,   -halfScale.z),
+        };
 
-        if (subDivisions < 0) {
-            Debug.LogWarning("Subdivisions not allowed to be negative.");
-            return;
-        }
+        Debug.DrawLine(points[0], points[1], col);
+        Debug.DrawLine(points[1], points[2], col);
+        Debug.DrawLine(points[2], points[3], col);
+        Debug.DrawLine(points[3], points[0], col);
+    }
+
+    public static void DrawRect(Rect rect, Color col) {
+        Vector3 pos = new Vector3(rect.x + rect.width / 2, rect.y + rect.height / 2, 0.0f);
+        Vector3 scale = new Vector3(rect.width, rect.height, 0.0f);
+
+        DebugShapes.DrawRect(pos, col, scale);
+    }
+
+    public static void DrawRect(Vector3 pos, Color col, Vector3 scale) {
+        Vector3 halfScale = scale * 0.5f;
+
+        Vector3[] points = new Vector3[]
+        {
+            pos + new Vector3(halfScale.x,      halfScale.y,    halfScale.z),
+            pos + new Vector3(-halfScale.x,     halfScale.y,    halfScale.z),
+            pos + new Vector3(-halfScale.x,     -halfScale.y,   halfScale.z),
+            pos + new Vector3(halfScale.x,      -halfScale.y,   halfScale.z),
+        };
+
+        Debug.DrawLine(points[0], points[1], col);
+        Debug.DrawLine(points[1], points[2], col);
+        Debug.DrawLine(points[2], points[3], col);
+        Debug.DrawLine(points[3], points[0], col);
+    }
+
+    public static void DrawCircle(Vector3 pos, Vector3 normal, float radius, Color col) {
+
+        int l = 16;
 
         //Choose a perpendicular vector
         Vector3 perpendicular;
@@ -152,12 +107,7 @@ public class DebugShapes : MonoBehaviour {
         Debug.DrawLine(p[l - 1], p[0], col);
     }
 
-    public static void DrawCircleSection(Vector3 pos, Vector3 min, Vector3 max, float minRadius, float maxRadius, int subDivisions, Color col) {
-
-        if (subDivisions < 0) {
-            Debug.LogWarning("Subdivisions not allowed to be negative.");
-            return;
-        }
+    public static void DrawCircleSection(Vector3 pos, Vector3 min, Vector3 max, float minRadius, float maxRadius, Color col) {
 
         if (min == Vector3.zero || max == Vector3.zero) {
             Debug.LogWarning("Min and Max Vector not allowed to be zero.");
@@ -177,7 +127,7 @@ public class DebugShapes : MonoBehaviour {
             Debug.LogWarning("Can't Draw Circle Section since one of the two Vectors are parallel to the normal.");
         }
 
-        int l = subDivisions + 3;
+        int l = 9;
         Vector3[] p = new Vector3[l];
         Vector3[] P = new Vector3[l];
 
@@ -199,9 +149,30 @@ public class DebugShapes : MonoBehaviour {
         Debug.DrawLine(p[l - 1], P[l - 1], col);
     }
 
+    public static void DrawSphere(Vector3 pos, float radius, Color col) {
+
+        int l = 3;
+
+        Vector3[] horiz = new Vector3[l];
+        Vector3[] vert = new Vector3[l];
+
+        float step = 2 * radius / (l + 1);
+
+        for (int k = 0; k < l; k++) {
+            horiz[k] = pos - Vector3.right * radius + (k + 1) * step * Vector3.right;
+            vert[k] = pos - Vector3.up * radius + (k + 1) * step * Vector3.up;
+            float angle = Mathf.Lerp(-Mathf.PI / 2, Mathf.PI / 2, (float)(k + 1) / (l + 1));
+            float r = Mathf.Cos(angle) * radius;
+            DrawCircle(horiz[k], Vector3.right, r, col);
+            DrawCircle(vert[k], Vector3.up, r, col);
+        }
+        //Camera cam = UnityEditor.SceneView.lastActiveSceneView.camera;
+        //if (cam != null) DrawCircle(pos, -cam.transform.forward, radius, col);
+    }
+
     public static void DrawSphereSection(Vector3 pos, Vector3 lowLeft, Vector3 lowRight, Vector3 upLeft, Vector3 upRight, float minRadius, float maxRadius, int subDivisions, Color col) {
 
-        int l = subDivisions + 3;
+        int l = 9;
 
         // Make surecorners make sense
         // Make sure every vector is normalized
@@ -212,7 +183,7 @@ public class DebugShapes : MonoBehaviour {
         for (int k = 0; k < l; k++) {
             v[k] = Vector3.Lerp(lowLeft, upLeft, (float)k / (l - 1)).normalized;
             w[k] = Vector3.Lerp(lowRight, upRight, (float)k / (l - 1)).normalized;
-            DrawCircleSection(pos, v[k], w[k], minRadius, maxRadius, subDivisions, col);
+            DrawCircleSection(pos, v[k], w[k], minRadius, maxRadius, col);
         }
 
 
@@ -281,7 +252,7 @@ public class DebugShapes : MonoBehaviour {
         }
         */
         Debug.DrawLine(p_up[0], p_down[0], col);
-        Debug.DrawLine(p_up[l-1], p_down[l-1], col);
+        Debug.DrawLine(p_up[l - 1], p_down[l - 1], col);
 
         //Connect the q's
         for (int k = 0; k < l - 1; k++) {
@@ -315,5 +286,16 @@ public class DebugShapes : MonoBehaviour {
             Debug.DrawLine(p_down[k], q_down[k], col);
         }
         */
+    }
+
+    public static void DrawSphereRay(Vector3 start, Vector3 direction, float distance, float radius, int amount, Color col) {
+
+        Vector3 endPoint = start + (radius + distance) * direction;
+        Vector3 endPointSphereCenter = endPoint - (radius * direction);
+
+        for (int i = 0; i < amount; i++) {
+            DrawSphere(Vector3.Lerp(start, endPointSphereCenter, (float)i / (amount - 1)), radius, new Color(col.r, col.g, col.b, 0.5f));
+        }
+        //Debug.DrawLine(start, endPoint, col);
     }
 }

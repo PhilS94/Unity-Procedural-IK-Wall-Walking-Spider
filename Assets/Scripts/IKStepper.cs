@@ -12,6 +12,11 @@ public enum targetValidity {
     tooMax
 }
 
+public enum RayType {
+    singleRay,
+    sphereRay
+}
+
 public struct Line {
     public Vector3 origin;
     public Vector3 end;
@@ -49,6 +54,9 @@ public class IKStepper : MonoBehaviour {
     public float stepCooldown = 0.5f;
     private float timeSinceLastStep;
 
+    public RayType rayType;
+    private float radius; // If SphereRay is selected
+
     public Vector3 originPointOutwardsRay;
     public Vector3 endPointInwardsRay;
 
@@ -73,6 +81,7 @@ public class IKStepper : MonoBehaviour {
     private Vector3 rootPos;
     private Vector3 defaultPositionLocal;
     private Vector3 prediction;
+    private Vector3 projPrediciton;
     private Vector3 lastEndEffectorPos;
 
 
@@ -83,9 +92,10 @@ public class IKStepper : MonoBehaviour {
         rootJoint = ikChain.getRootJoint();
         rootPos = rootJoint.getRotationPoint();
 
+        radius = 0.005f * spidercontroller.scale;
         float chainLength = ikChain.getChainLength();
         maxDistance = chainLength;
-        minDistance = 0.2f * chainLength;
+        minDistance = 0.3f * chainLength;
         defaultPositionLocal = spidercontroller.transform.InverseTransformPoint(rootPos + (minDistance + 0.5f * (maxDistance - minDistance)) * rootJoint.getMidOrientation());
         defaultPositionLocal.y = -1.0f / spidercontroller.scale; // Because spider has a 20.0f reference scale
         timeSinceLastStep = 2 * stepCooldown;
@@ -93,7 +103,6 @@ public class IKStepper : MonoBehaviour {
 
     void Update() {
         rootPos = rootJoint.getRotationPoint();
-
         timeSinceLastStep += Time.deltaTime;
     }
 
@@ -187,13 +196,15 @@ public class IKStepper : MonoBehaviour {
 
         // For now I choose Option 1:
 
-        prediction = Vector3.ProjectOnPlane(endeffectorPosition + (defaultPosition - endeffectorPosition) * velocityPrediction, normal)
-                        + spidercontroller.getMovement() * stepTime;
+        prediction = endeffectorPosition + (defaultPosition - endeffectorPosition) * velocityPrediction
+                    + spidercontroller.getMovement() * stepTime;
+        projPrediciton = Vector3.ProjectOnPlane(prediction, normal);
 
         // The following just adjusts the prediction such that is lies on the same plane as the defaultposition
-        prediction = spidercontroller.transform.InverseTransformPoint(prediction);
-        prediction.y = defaultPositionLocal.y;
-        prediction = spidercontroller.transform.TransformPoint(prediction);
+        // DOESNT WORK LIKE I WANT IT TOO!
+        projPrediciton = spidercontroller.transform.InverseTransformPoint(projPrediciton);
+        projPrediciton.y = defaultPositionLocal.y;
+        projPrediciton = spidercontroller.transform.TransformPoint(projPrediciton);
 
         //Now shoot a rays using the prediction to find an actual point on a surface.
         RaycastHit hitInfo;
@@ -201,10 +212,10 @@ public class IKStepper : MonoBehaviour {
         Vector3 endPointInward = spidercontroller.transform.TransformPoint(endPointInwardsRay);
 
         lineOutward.origin = originPointOutward;
-        lineOutward.end = prediction;
-        lineDown.origin = prediction + height * normal;
+        lineOutward.end = projPrediciton;
+        lineDown.origin = projPrediciton + height * normal;
         lineDown.end = lineDown.origin + 2 * height * -normal;
-        lineInwards.origin = prediction;
+        lineInwards.origin = projPrediciton;
         lineInwards.end = endPointInward;
         lineDefaultOutward.origin = originPointOutward;
         lineDefaultOutward.end = defaultPosition;
@@ -213,17 +224,19 @@ public class IKStepper : MonoBehaviour {
         lineDefaultInward.origin = defaultPosition;
         lineDefaultInward.end = endPointInward;
 
+        // Outwards to prediction
+        if (shootRay(lineOutward, out hitInfo)) {
+            Debug.Log("Got Targetpoint shooting outwards to prediction.");
+            return new TargetInfo(hitInfo.point, hitInfo.normal);
+        }
+
+
         //Straight down through prediction point
         if (shootRay(lineDown, out hitInfo)) {
             Debug.Log("Got Targetpoint shooting down to prediction.");
             return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
 
-        // Outwards to prediction
-        if (shootRay(lineOutward, out hitInfo)) {
-            Debug.Log("Got Targetpoint shooting outwards to prediction.");
-            return new TargetInfo(hitInfo.point, hitInfo.normal);
-        }
 
         // Inwards from prediction
 
@@ -257,57 +270,28 @@ public class IKStepper : MonoBehaviour {
         return new TargetInfo(defaultPosition, normal);
     }
 
-    // Immediately sets down target position and stops any stepping process going on.
-    // Not used yet since if i do it gets called whenever i actually want to start a step
-    public void setTargetDown() {
-        Debug.Log("Had to stet Target Down, since i overpredicted.");
-        StopAllCoroutines();
-        isStepping = false;
-        timeSinceLastStep = 0.0f;
-        Vector3 normal = spidercontroller.transform.up;
-
-        Vector3 origin = Vector3.Project(transform.position, normal) + Vector3.ProjectOnPlane(ikChain.getTarget().position, normal) + height * normal;
-        Line l = new Line(origin, -normal, 2 * height);
-
-        if (shootRay(l, out RaycastHit hitInfo)) {
-            ikChain.setTarget(new TargetInfo(hitInfo.point, hitInfo.normal));
-        }
-        else {
-            Vector3 defaultPosition = spidercontroller.transform.TransformPoint(defaultPositionLocal);
-            ikChain.setTarget(new TargetInfo(defaultPosition, normal));
-        }
-    }
-
     private bool shootRay(Line l, out RaycastHit hitInfo) {
         Vector3 direction = (l.end - l.origin);
         float magnitude = Vector3.Magnitude(direction);
         direction = direction / magnitude;
 
-        if (showDebug) {
-            Debug.DrawLine(l.origin, l.end, Color.yellow);
-        }
-
-        if (Physics.Raycast(l.origin, direction, out hitInfo, magnitude, spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore)) {
-            // could check if the normal is acceptable
-            if (Mathf.Cos(Vector3.Angle(direction, hitInfo.normal)) < 0) {
-                return true;
+        if (rayType == RayType.singleRay) {
+            if (Physics.Raycast(l.origin, direction, out hitInfo, magnitude, spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore)) {
+                // could check if the normal is acceptable
+                if (Mathf.Cos(Vector3.Angle(direction, hitInfo.normal)) < 0) {
+                    return true;
+                }
             }
         }
-        return false;
-    }
+        else {
+            float radius = 0.0005f * spidercontroller.scale;
 
-    private bool shootSphere(Vector3 origin, Vector3 direction, float distance, float radius, out RaycastHit hitInfo) {
-        direction = direction.normalized;
-
-        if (showDebug) {
-            DebugShapes.DrawSphere(origin, debugIconScale, 24, 12, Color.cyan);
-            DebugShapes.DrawSphere(origin + distance / 2 * direction, debugIconScale, 24, 12, Color.cyan);
-            DebugShapes.DrawSphere(origin + distance * direction, debugIconScale, 24, 12, Color.cyan);
-        }
-
-        if (Physics.SphereCast(origin, radius, direction, out hitInfo, distance, spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore)) {
-            // could check if the normal is acceptable
-            return true;
+            if (Physics.SphereCast(l.origin, radius, direction, out hitInfo, magnitude, spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore)) {
+                // could check if the normal is acceptable
+                if (Mathf.Cos(Vector3.Angle(direction, hitInfo.normal)) < 0) {
+                    return true;
+                }
+            }
         }
         return false;
     }
@@ -315,37 +299,19 @@ public class IKStepper : MonoBehaviour {
     // If im walking so fast that  one legs keeps wanna step after step complete, one leg might not step at all since its never able to
     // Could implement a some sort of a queue where i enqueue chains that want to step next?
     public void step(TargetInfo target) {
-
         if (isStepping) {
             return;
         }
-
         if (!allowedToStep()) {
             return;
         }
-
         IEnumerator coroutineStepping = Step(target);
         StartCoroutine(coroutineStepping);
     }
 
-    public bool allowedToStep() {
-        if (asyncChain != null && asyncChain.getIsStepping()) {
-            return false;
-        }
-        return true;
-    }
-
-    public bool getIsStepping() {
-        return ((isStepping) || (timeSinceLastStep < stepCooldown));
-    }
-
-    public TargetInfo getDefault() {
-        return new TargetInfo(spidercontroller.transform.TransformPoint(defaultPositionLocal), spidercontroller.transform.up);
-    }
-
     /*
-     * Coroutine for stepping since i want to actually see the stepping process instead of it happening all within one frame
-     * */
+ * Coroutine for stepping since i want to actually see the stepping process instead of it happening all within one frame
+ * */
     private IEnumerator Step(TargetInfo newTarget) {
         Debug.Log("Stepping");
         // should probably move the targets while im moving so that i dont outrun them, however this is stupid because then im no longer at the surface point i want
@@ -395,7 +361,7 @@ public class IKStepper : MonoBehaviour {
 
         //Straight down through prediction point
         Vector3 normal = spidercontroller.transform.up;
-        if (shootSphere(lerpTarget.position + height * normal, -normal, 2 * height, 0.01f, out hitInfo)) {
+        if (shootRay(new Line(lerpTarget.position + height * normal, -normal, 2 * height), out hitInfo)) {
             ikChain.setTarget(new TargetInfo(hitInfo.point, hitInfo.normal));
         }
         else {
@@ -403,6 +369,43 @@ public class IKStepper : MonoBehaviour {
             ikChain.setTarget(new TargetInfo(spidercontroller.transform.TransformPoint(defaultPositionLocal), normal));
         }
     }
+
+    // Immediately sets down target position and stops any stepping process going on.
+    // Not used yet since if i do it gets called whenever i actually want to start a step
+    public void setTargetDown() {
+        Debug.Log("Had to stet Target Down, since i overpredicted.");
+        StopAllCoroutines();
+        isStepping = false;
+        timeSinceLastStep = 0.0f;
+        Vector3 normal = spidercontroller.transform.up;
+
+        Vector3 origin = Vector3.Project(transform.position, normal) + Vector3.ProjectOnPlane(ikChain.getTarget().position, normal) + height * normal;
+        Line l = new Line(origin, -normal, 2 * height);
+
+        if (shootRay(l, out RaycastHit hitInfo)) {
+            ikChain.setTarget(new TargetInfo(hitInfo.point, hitInfo.normal));
+        }
+        else {
+            Vector3 defaultPosition = spidercontroller.transform.TransformPoint(defaultPositionLocal);
+            ikChain.setTarget(new TargetInfo(defaultPosition, normal));
+        }
+    }
+
+    public bool allowedToStep() {
+        if (timeSinceLastStep < stepCooldown || (asyncChain != null && asyncChain.getIsStepping())) {
+            return false;
+        }
+        return true;
+    }
+
+    public bool getIsStepping() {
+        return isStepping;
+    }
+
+    public TargetInfo getDefault() {
+        return new TargetInfo(spidercontroller.transform.TransformPoint(defaultPositionLocal), spidercontroller.transform.up);
+    }
+
 
     void drawDebug() {
         //Target Point
@@ -414,18 +417,22 @@ public class IKStepper : MonoBehaviour {
         DebugShapes.DrawPoint(spidercontroller.transform.TransformPoint(defaultPositionLocal), Color.magenta, debugIconScale);
 
         //Prediction Point
-        DebugShapes.DrawPoint(prediction, Color.black, debugIconScale);
+        DebugShapes.DrawPoint(prediction, Color.gray, debugIconScale);
+        //Prediction Point
+        DebugShapes.DrawPoint(projPrediciton, Color.gray, debugIconScale);
 
         // Last Position the End effector had
         DebugShapes.DrawPoint(lastEndEffectorPos, Color.gray, debugIconScale);
 
         // Line From the last end effector position to the prediction
-        Debug.DrawLine(lastEndEffectorPos, prediction, Color.black);
+        Debug.DrawLine(lastEndEffectorPos, prediction, Color.gray);
+        Debug.DrawLine(prediction, projPrediciton, Color.gray);
 
         // The cylinder section of viable target positions
         DebugShapes.DrawCylinderSection(rootPos, rootJoint.getMinOrientation(), rootJoint.getMaxOrientation(), rootJoint.getRotationAxis(), minDistance, maxDistance, height, height, 3, Color.red);
 
         //All the Raycasts:
+
         Debug.DrawLine(lineOutward.origin, lineOutward.end, Color.yellow);
         Debug.DrawLine(lineDown.origin, lineDown.end, 0.9f * Color.yellow);
         Debug.DrawLine(lineInwards.origin, lineInwards.end, 0.8f * Color.yellow);
@@ -433,6 +440,14 @@ public class IKStepper : MonoBehaviour {
         Debug.DrawLine(lineDefaultDown.origin, lineDefaultDown.end, 0.6f * Color.yellow);
         Debug.DrawLine(lineDefaultInward.origin, lineDefaultInward.end, 0.5f * Color.yellow);
 
+        if (rayType == RayType.sphereRay) {
+            //DebugShapes.DrawSphere(lineOutward.origin, radius, Color.yellow);
+            //DebugShapes.DrawSphere(lineDown.origin, radius, 0.9f * Color.yellow);
+            //DebugShapes.DrawSphere(lineInwards.origin, radius, 0.8f * Color.yellow);
+            //DebugShapes.DrawSphere(lineDefaultOutward.origin, radius, 0.7f * Color.yellow);
+            //DebugShapes.DrawSphere(lineDefaultDown.origin, radius, 0.6f * Color.yellow);
+            //DebugShapes.DrawSphere(lineDefaultInward.origin, radius, 0.5f * Color.yellow);
+        }
     }
 
     void OnDrawGizmosSelected() {
@@ -442,6 +457,8 @@ public class IKStepper : MonoBehaviour {
         }
         DebugShapes.DrawPoint(spidercontroller.transform.TransformPoint(originPointOutwardsRay), Color.green, debugIconScale);
         DebugShapes.DrawPoint(spidercontroller.transform.TransformPoint(endPointInwardsRay), Color.green, debugIconScale);
+
+  
 #endif
     }
 }

@@ -14,20 +14,32 @@ public class SpiderController : MonoBehaviour {
     [Range(1, 5)]
     public float YSensitivity;
     private Vector3 camLocalPosition;
-    private float gravity = 100;
 
     public float scale = 1.0f;
     public float raycastGroundedLength = 0.15f;
-    public float raycastForwardLength = 0.1f;
-    public float raycastHeightLegs;
-    public float raycastDistanceLegs;
+    public float raycastForwardLength = 0.05f;
 
     public LayerMask groundedLayer;
     public LayerMask cameraClipLayer;
-    private struct SphereRay { public Vector3 position; public Vector3 direction; public float radius; public float distance; };
+
+    private struct SphereRay {
+        public Vector3 position;
+        public Vector3 direction;
+        public float radius;
+        public float distance;
+
+        public SphereRay(Vector3 p, Vector3 dir, float r, float dist) {
+            position = p;
+            direction = dir;
+            radius = r;
+            distance = dist;
+        }
+    }
     private SphereRay downRay, forwardRay;
     private RaycastHit hitInfo;
+    private RaycastHit[] camObstructions;
     private Vector3 currentNormal;
+    private float gravityOffDist = 0.1f;
 
     private struct groundInfo {
         public bool isGrounded;
@@ -45,41 +57,37 @@ public class SpiderController : MonoBehaviour {
 
     //Debug Variables
     public bool showDebug;
-    private GameObject[] debugSphereRaysForward;
-    private GameObject[] debugSphereRaysDown;
 
     void Start() {
         rb = GetComponent<Rigidbody>();
         sphereCol = GetComponent<SphereCollider>();
         currentNormal = Vector3.up;
         camLocalPosition = cam.transform.localPosition;
-
-        if (showDebug) {
-            setupSphereRayDraw(ref debugSphereRaysDown, 3);
-            setupSphereRayDraw(ref debugSphereRaysForward, 3);
-        }
     }
 
     void FixedUpdate() {
-        rb.AddForce(-currentNormal * 200 * gravity * Time.fixedDeltaTime); //Gravity
+        // No Gravity if close enough to ground
+        if (grdInfo.distanceToGround < sphereCol.radius * scale + gravityOffDist) return;
+        rb.AddForce(-grdInfo.groundNormal * 10000 * Time.fixedDeltaTime); //Important using the groundnormal and not the lerping currentnormal here!
     }
 
     void Update() {
-
-        //** Ground Check **//
-        grdInfo = GroundCheckSphere();
 
         /** Movement **/
         Vector3 input = getInput();
         turn(input, Time.deltaTime * turnSpeed);
         walk(input, Time.deltaTime * walkSpeed * scale);
 
+        //** Ground Check **//
+        // Important doing this after the movement, since we want to know whats beneath us in the new position, as to not apply gravity if we walked too far over a wall 
+        grdInfo = GroundCheckSphere();
 
+        // I need to reduce the jittering that occurs using the spherecast every frame while adjusting.. disable gravity while grounded?
 
 
         //** Rotation to normal **// 
-        Vector3 newNormal = Vector3.Slerp(currentNormal, grdInfo.groundNormal, 10.0f * Time.deltaTime);
-        float angle = Vector3.SignedAngle(currentNormal, newNormal,cam.transform.right);
+        Vector3 newNormal = Vector3.Slerp(currentNormal, grdInfo.groundNormal, 3.0f * Time.deltaTime);
+        float angle = Vector3.SignedAngle(currentNormal, newNormal, cam.transform.right);
         currentNormal = newNormal;
         Vector3 right = Vector3.ProjectOnPlane(transform.right, currentNormal);
         Vector3 forward = Vector3.Cross(right, currentNormal);
@@ -89,17 +97,23 @@ public class SpiderController : MonoBehaviour {
         transform.rotation = goalrotation;
 
         //Adjust the camera as to not completely follow the rotation, This can lead to cam getting vertical rotation it shouldnt be allowed to get
-            // Think about uing the coroutine: StartCoroutine(adjustCamera(-0.5f * angle, 1.0f));
-            // Or lerp the angle independant of the normal slerp above. We want the camera to have completely independent lerping to the spider
-        cam.transform.RotateAround(transform.position, cam.transform.right, -0.5f*angle);
+        // Think about uing the coroutine: StartCoroutine(adjustCamera(-0.5f * angle, 1.0f));
+        // Or lerp the angle independant of the normal slerp above. We want the camera to have completely independent lerping to the spider
+        // Atleast fix the non allowed rotations
+        cam.transform.RotateAround(transform.position, cam.transform.right, -0.5f * angle);
 
         if (showDebug)
-            Debug.DrawLine(transform.position, transform.position + 0.3f * scale * currentNormal, Color.yellow, 0.1f);
+            Debug.DrawLine(transform.position, transform.position + 0.3f * scale * currentNormal, Color.yellow);
 
         //** Camera movement **//
         RotateCameraHorizontalAroundPlayerLocal();
         RotateCameraVerticalAroundPlayer();
-        clipCamera();
+        clipCameraInvisible();
+
+        if (showDebug) {
+            drawDebug();
+        }
+
     }
 
 
@@ -146,7 +160,7 @@ public class SpiderController : MonoBehaviour {
         angle = Mathf.Clamp(angle, -angleMargin, angleMargin);
         Quaternion q = Quaternion.AngleAxis(angle, cam.transform.right);
         float alpha = Vector3.Angle(q * cam.transform.forward, transform.up);
-        if ((angle > 0 && alpha <= angleMargin) || angle < 0 && alpha >= 180.0f-angleMargin) return;
+        if ((angle > 0 && alpha <= angleMargin) || angle < 0 && alpha >= 180.0f - angleMargin) return;
 
         cam.transform.RotateAround(transform.position, cam.transform.right, -angle);
     }
@@ -157,6 +171,8 @@ public class SpiderController : MonoBehaviour {
         Ray rayToCam = new Ray(transform.position, toCameraVector);
 
         Debug.DrawLine(rayToCam.GetPoint(0), rayToCam.GetPoint(0) + (toCameraVector.normalized * MaxCameraDistance), Color.magenta);
+
+        //Think about instead changing alpha of the found objects
         if (Physics.Raycast(rayToCam, out hitInfo, MaxCameraDistance, cameraClipLayer, QueryTriggerInteraction.Ignore)) {
             cam.transform.position = hitInfo.point - 0.05f * toCameraVector;
             //GameObject hitGO = hitInfo.collider.gameObject;
@@ -167,7 +183,35 @@ public class SpiderController : MonoBehaviour {
         }
     }
 
+    void clipCameraInvisible() {
+        Vector3 to = transform.position - cam.transform.position;
+        Ray fromSpiderToCam = new Ray(cam.transform.position, to.normalized);
+
+        Debug.DrawLine(fromSpiderToCam.origin, fromSpiderToCam.origin + to, Color.magenta);
+
+        //First make all previous obstructions visible again.
+        if (camObstructions != null) {
+            for (int k = 0; k < camObstructions.Length; k++) {
+                MeshRenderer mesh = camObstructions[k].transform.GetComponent<MeshRenderer>();
+                if (mesh != null) {
+                    mesh.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                }
+            }
+        }
+
+        // Now transparent all new obstructions
+        camObstructions = Physics.RaycastAll(fromSpiderToCam, to.magnitude, cameraClipLayer, QueryTriggerInteraction.Ignore);
+
+        for (int k = 0; k < camObstructions.Length; k++) {
+            MeshRenderer mesh = camObstructions[k].transform.GetComponent<MeshRenderer>();
+            if (mesh != null) {
+                mesh.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
+            }
+        }
+    }
+
     //** Ground Check Methods **//
+    // The Distance in GroundInfo is the distance from transform.position to hitinfo.position
     private groundInfo GroundCheckSphere() {
 
         downRay.position = transform.position;
@@ -180,17 +224,12 @@ public class SpiderController : MonoBehaviour {
         forwardRay.radius = (sphereCol.radius / 1.5f) * scale;
         forwardRay.distance = raycastForwardLength * scale;
 
-        if (showDebug) {
-            DrawSphereRay(ref debugSphereRaysDown, downRay, Color.green);
-            DrawSphereRay(ref debugSphereRaysForward, forwardRay, Color.blue);
-        }
-
         if (shootSphere(forwardRay)) {
-            return new groundInfo(true, hitInfo.normal.normalized, hitInfo.distance);
+            return new groundInfo(true, hitInfo.normal.normalized, hitInfo.distance + forwardRay.radius);
         }
 
         if (shootSphere(downRay)) {
-            return new groundInfo(true, hitInfo.normal.normalized, hitInfo.distance);
+            return new groundInfo(true, hitInfo.normal.normalized, hitInfo.distance + downRay.radius);
         }
 
         //If SphereRays miss
@@ -201,42 +240,19 @@ public class SpiderController : MonoBehaviour {
         return Physics.SphereCast(sphereRay.position, sphereRay.radius, sphereRay.direction, out hitInfo, sphereRay.distance, groundedLayer, QueryTriggerInteraction.Ignore);
     }
 
+    private void drawDebug() {
+        DebugShapes.DrawSphereRay(downRay.position, downRay.direction, downRay.distance, downRay.radius, 3, Color.green);
+        DebugShapes.DrawSphereRay(forwardRay.position, forwardRay.direction, forwardRay.distance, forwardRay.radius, 3, Color.blue);
+        Debug.DrawLine(transform.position, transform.position - (sphereCol.radius * scale + gravityOffDist) * transform.up, Color.black);
+    }
+
     private IEnumerator adjustCamera(float angle, float time) {
         float t = 0;
         while (t < time) {
-            cam.transform.RotateAround(transform.position, cam.transform.right, angle* t/time);
+            cam.transform.RotateAround(transform.position, cam.transform.right, angle * t / time);
 
             t += Time.deltaTime;
             yield return null;
         }
-    }
-
-    void setupSphereRayDraw(ref GameObject[] sphereRay, int amount) {
-        GameObject group = new GameObject();
-        group.name = "SphereRay";
-        sphereRay = new GameObject[amount];
-        for (int i = 0; i < amount; i++) {
-            sphereRay[i] = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            Destroy(sphereRay[i].GetComponent<SphereCollider>());
-            sphereRay[i].GetComponent<MeshRenderer>().material.SetFloat("_Mode", 2);
-            float value = ((float)i + 1) / (float)amount;
-            sphereRay[i].transform.parent = group.transform;
-        }
-    }
-
-    void DrawSphereRay(ref GameObject[] debugSphereRay, SphereRay sphereRay, Color color) {
-        int amount = debugSphereRay.Length;
-
-        Vector3 endPoint = sphereRay.position + (sphereRay.radius + sphereRay.distance) * sphereRay.direction;
-        Vector3 endPointSphereCenter = endPoint - (sphereRay.radius * sphereRay.direction);
-
-        for (int i = 0; i < amount; i++) {
-            debugSphereRay[i].transform.localScale = new Vector3(1, 1, 1) * 2 * sphereRay.radius;
-            float value = (float)i / (float)(amount - 1);
-            debugSphereRay[i].transform.position = sphereRay.position + (value * (endPointSphereCenter - sphereRay.position));
-            debugSphereRay[i].GetComponent<MeshRenderer>().material.color = new Color(value * color.r, value * color.g, value * color.b, 0.4f);
-        }
-
-        Debug.DrawLine(sphereRay.position, endPoint, Color.cyan);
     }
 }
