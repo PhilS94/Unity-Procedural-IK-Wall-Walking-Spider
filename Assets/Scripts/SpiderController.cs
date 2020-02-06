@@ -5,7 +5,7 @@ public class SpiderController : MonoBehaviour {
 
     public Camera cam;
     private Rigidbody rb;
-    private SphereCollider sphereCol;
+    public SphereCollider sphereCol;
 
     public float walkSpeed;
     public float turnSpeed;
@@ -65,7 +65,6 @@ public class SpiderController : MonoBehaviour {
 
     void Start() {
         rb = GetComponent<Rigidbody>();
-        sphereCol = GetComponent<SphereCollider>();
         currentNormal = Vector3.up;
         camLocalPosition = cam.transform.localPosition;
     }
