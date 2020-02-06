@@ -62,8 +62,7 @@ public class IKSolver : MonoBehaviour {
                 joint.applyRotation(angle);
 
                 //Only apply as much angle such that your next joint wont go underground
-                //Rotate back
-                correctRotation(ref joints, target, k);
+                //correctRotation(ref joints, target, k);
             }
             error = Vector3.Distance(target.position, endEffector.position); //Refresh the error so we can check if we are already close enough for the while loop check
             iteration++;
@@ -71,7 +70,7 @@ public class IKSolver : MonoBehaviour {
         //if (iteration > 0) Debug.Log("Completed CCD with" + iteration + " iterations.");
     }
 
-    //Not Finsished....
+    //Not Finsished.... So for now i wont apply it in the CCD, has weird effects of more spiked legs
     private static void correctRotation(ref AHingeJoint[] joints, TargetInfo target, int k) {
         if (k == joints.Length - 1) return;
         Vector3 toNextJoint = (joints[k+1].getRotationPoint() - joints[k].getRotationPoint()).normalized;

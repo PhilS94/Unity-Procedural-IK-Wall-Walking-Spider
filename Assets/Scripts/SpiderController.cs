@@ -13,6 +13,11 @@ public class SpiderController : MonoBehaviour {
     public float XSensitivity;
     [Range(1, 5)]
     public float YSensitivity;
+    [Range(0.01f, 90.0f)]
+    public float camUpperAngleMargin = 30.0f;
+    [Range(0.01f, 90.0f)]
+    public float camLowerAngleMargin = 60.0f;
+
     private Vector3 camLocalPosition;
 
     public float scale = 1.0f;
@@ -100,14 +105,16 @@ public class SpiderController : MonoBehaviour {
         // Think about uing the coroutine: StartCoroutine(adjustCamera(-0.5f * angle, 1.0f));
         // Or lerp the angle independant of the normal slerp above. We want the camera to have completely independent lerping to the spider
         // Atleast fix the non allowed rotations
-        cam.transform.RotateAround(transform.position, cam.transform.right, -0.5f * angle);
+        //cam.transform.RotateAround(transform.position, cam.transform.right, -0.5f * angle);
+        RotateCameraVerticalAroundPlayer(-0.5f * angle);
 
         if (showDebug)
             Debug.DrawLine(transform.position, transform.position + 0.3f * scale * currentNormal, Color.yellow);
 
         //** Camera movement **//
-        RotateCameraHorizontalAroundPlayerLocal();
-        RotateCameraVerticalAroundPlayer();
+
+        RotateCameraHorizontalAroundPlayerLocal(Input.GetAxis("Mouse X") * XSensitivity);
+        RotateCameraVerticalAroundPlayer(-Input.GetAxis("Mouse Y") * YSensitivity);
         clipCameraInvisible();
 
         if (showDebug) {
@@ -148,21 +155,35 @@ public class SpiderController : MonoBehaviour {
     }
 
     //** Camera Methods **//
-    void RotateCameraHorizontalAroundPlayerLocal() {
-        float angle = Input.GetAxis("Mouse X") * XSensitivity;
+    void RotateCameraHorizontalAroundPlayerLocal(float angle) {
         cam.transform.RotateAround(transform.position, transform.up, angle);
     }
 
-    void RotateCameraVerticalAroundPlayer() {
-        float angle = Input.GetAxis("Mouse Y") * YSensitivity;
+    void RotateCameraVerticalAroundPlayer(float angle) {
 
-        float angleMargin = 30.0f;
-        angle = Mathf.Clamp(angle, -angleMargin, angleMargin);
-        Quaternion q = Quaternion.AngleAxis(angle, cam.transform.right);
-        float alpha = Vector3.Angle(q * cam.transform.forward, transform.up);
-        if ((angle > 0 && alpha <= angleMargin) || angle < 0 && alpha >= 180.0f - angleMargin) return;
+        angle = angle % 360;        //Now angle is of the form (-360,360]
+        if (angle == -180) angle = 180;
 
-        cam.transform.RotateAround(transform.position, cam.transform.right, -angle);
+        if (angle > 180) angle -= 360;
+
+        if (angle < -180) angle += 360;
+        //Now angle is of the form (-180,180]
+
+        float currentAngle = Vector3.SignedAngle(transform.up, transform.position-cam.transform.position, cam.transform.right); //Should always be positive
+        if (currentAngle + angle < camLowerAngleMargin) {
+            angle = camLowerAngleMargin - currentAngle;
+        }
+
+        if (currentAngle + angle > 180.0f - camUpperAngleMargin) {
+            angle = 180.0f - camUpperAngleMargin - currentAngle;
+        }
+
+        //angle = Mathf.Clamp(angle, -angleMargin, angleMargin);
+        //Quaternion q = Quaternion.AngleAxis(angle, cam.transform.right);
+        //float alpha = Vector3.Angle(q * cam.transform.forward, transform.up);
+        //if ((angle > 0 && alpha <= angleMargin) || angle < 0 && alpha >= 180.0f - angleMargin) return;
+
+        cam.transform.RotateAround(transform.position, cam.transform.right, angle);
     }
 
     void clipCamera() {
