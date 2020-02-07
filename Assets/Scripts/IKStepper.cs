@@ -55,8 +55,6 @@ public class IKStepper : MonoBehaviour {
 
     private IKChain ikChain;
 
-    private float error = 0.0f;
-
     private bool isStepping = false;
     private bool uncomfortable = false;
 
@@ -94,8 +92,9 @@ public class IKStepper : MonoBehaviour {
         radius = 0.005f * spidercontroller.scale;
         float chainLength = ikChain.getChainLength();
         maxDistance = chainLength;
-        minDistance = 0.3f * chainLength;
-        defaultPositionLocal = spidercontroller.transform.InverseTransformPoint(rootPos + (minDistance + 0.5f * (maxDistance - minDistance)) * rootJoint.getMidOrientation());
+        minDistance = 0.2f * chainLength;
+        Vector3 v = Quaternion.AngleAxis((rootJoint.minAngle + rootJoint.maxAngle) / 2, rootJoint.getRotationAxis()) * Vector3.ProjectOnPlane(ikChain.getEndEffector().position - rootPos, rootJoint.getRotationAxis()).normalized;
+        defaultPositionLocal = spidercontroller.transform.InverseTransformPoint(rootPos + (minDistance + 0.5f * (maxDistance - minDistance)) * v);
         defaultPositionLocal.y = -1.0f / spidercontroller.scale; // Because spider has a 20.0f reference scale
         timeSinceLastStep = 2 * stepCooldown;
     }
@@ -114,9 +113,13 @@ public class IKStepper : MonoBehaviour {
             else ikChain.setTarget(newTarget);
         }
         //If comfortable but target not close enough anymore even after the last CCD iteration, step
-        // The error we get here is from the end of the last frame.
         else if (ikChain.getError() > IKSolver.tolerance) {
             //Debug.Log("Have to step now since im too far away at an error of " + ikChain.getError());
+            step(calcNewTarget(out uncomfortable));
+            //Debug.Break();
+        }
+        // Or if too close to RootJoint
+        else if (Vector3.Distance(rootJoint.getRotationPoint(), ikChain.getTarget().position) < minDistance) {
             step(calcNewTarget(out uncomfortable));
         }
 
@@ -135,6 +138,9 @@ public class IKStepper : MonoBehaviour {
      */
     public TargetInfo calcNewTarget(out bool uncomfortable) {
 
+        /*
+         * Think about using the last target position instead of the endeffector position?
+         */
         uncomfortable = false;
         Vector3 endeffectorPosition = ikChain.getEndEffector().position;
         Vector3 defaultPosition = spidercontroller.transform.TransformPoint(defaultPositionLocal);
@@ -265,6 +271,8 @@ public class IKStepper : MonoBehaviour {
             return;
         }
         if (!allowedToStep()) {
+            //I cant step but my target is not reachable. So i simply add the spiders movevector here
+            ikChain.setTarget(new TargetInfo(ikChain.getTarget().position + spidercontroller.getMovement(),ikChain.getTarget().normal));
             return;
         }
         IEnumerator coroutineStepping = Step(target);
@@ -348,9 +356,11 @@ public class IKStepper : MonoBehaviour {
         DebugShapes.DrawPoint(prediction2, Color.grey, debugIconScale);
         DebugShapes.DrawPoint(prediction3, Color.black, debugIconScale);
         Debug.DrawLine(lastEndEffectorPos, prediction1, Color.grey);
-        Debug.DrawLine(prediction1, prediction2, Color.grey);
+        Debug.DrawLine(prediction1, prediction2, Color.green);
         Debug.DrawLine(prediction2, prediction3, Color.grey);
 
+        // MinDistance
+        DebugShapes.DrawSphere(rootPos, minDistance, Color.red);
         //All the Raycasts:
 
         Debug.DrawLine(lineOutward.origin, lineOutward.end, Color.yellow);
