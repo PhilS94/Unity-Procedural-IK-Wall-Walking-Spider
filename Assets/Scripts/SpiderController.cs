@@ -236,7 +236,7 @@ public class SpiderController : MonoBehaviour {
 
         downRay.position = transform.position;
         downRay.direction = -transform.up;
-        downRay.radius = 1.0f * sphereCol.radius * scale;
+        downRay.radius = 0.9f * sphereCol.radius * scale;
         downRay.distance = raycastGroundedLength * scale;
 
         forwardRay.position = transform.position;

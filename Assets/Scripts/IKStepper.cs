@@ -114,9 +114,19 @@ public class IKStepper : MonoBehaviour {
 
         if (!ikChain.IKStepperActivated() || isStepping || !allowedToStep()) return;
 
-        if (uncomfortable || checkTarget(ikChain.getTarget()) != targetValidity.Valid) {
+
+        //If im uncomfortable and there is a new comfortable target, step, otherwise just refresh the uncomfortable target.
+        if (uncomfortable) {
+            TargetInfo newTarget = calcNewTarget(out uncomfortable);
+            if (!uncomfortable) step(newTarget);
+            else ikChain.setTarget(newTarget);
+        }
+        //If comfortable but target not in range anymore, step
+        else if (checkTarget(ikChain.getTarget()) != targetValidity.Valid) {
             step(calcNewTarget(out uncomfortable));
         }
+
+        if (Input.GetKeyDown(KeyCode.Space)) step(calcNewTarget(out uncomfortable));
     }
 
     private void LateUpdate() {
@@ -187,9 +197,9 @@ public class IKStepper : MonoBehaviour {
      * Calculates a new target using the endeffector Position and a default position defined in this class.
      * The new target position is a movement towards the default position but overshoots the default position using the velocity prediction
      */
-    public TargetInfo calcNewTarget(out bool stayHere) {
+    public TargetInfo calcNewTarget(out bool uncomfortable) {
 
-        stayHere = true;
+        uncomfortable = false;
         Vector3 endeffectorPosition = ikChain.getEndEffector().position;
         Vector3 defaultPosition = spidercontroller.transform.TransformPoint(defaultPositionLocal);
         Vector3 normal = spidercontroller.transform.up;
@@ -256,7 +266,7 @@ public class IKStepper : MonoBehaviour {
             Debug.Log("Got Targetpoint shooting down to prediction.");
             return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
-
+      
         // Inwards from prediction
         if (shootRay(lineInwards, out hitInfo)) {
             Debug.Log("Got Targetpoint shooting inwards from prediction.");
@@ -281,10 +291,11 @@ public class IKStepper : MonoBehaviour {
             return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
 
+
         // Return default position
         Debug.Log("No ray was able to find a target position. Therefore i will return a default position.");
-        stayHere = false;
-        return new TargetInfo(defaultPosition + 0.5f * height * normal, normal);
+        uncomfortable = true;
+        return new TargetInfo(defaultPosition + 0.25f * height * normal, normal);
     }
 
     private bool shootRay(Line l, out RaycastHit hitInfo) {
