@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public enum targetValidity {
-    valid = 0,
-    tooFar,
-    tooClose,
-    tooHigh,
-    tooLow,
-    tooMin,
-    tooMax
+    Valid = 0,
+    TooFar,
+    TooClose,
+    TooHigh,
+    TooLow,
+    TooMin,
+    TooMax
 }
 
 public enum RayType {
@@ -66,6 +66,7 @@ public class IKStepper : MonoBehaviour {
     private IKChain ikChain;
 
     private bool isStepping = false;
+    private bool uncomfortable = false;
 
     private float minDistance;
     private float maxDistance;
@@ -113,9 +114,8 @@ public class IKStepper : MonoBehaviour {
 
         if (!ikChain.IKStepperActivated() || isStepping || !allowedToStep()) return;
 
-        targetValidity valid = checkInvalidTarget(ikChain.getTarget());
-        if (valid != targetValidity.valid) {
-            step(calcNewTarget());
+        if (uncomfortable || checkTarget(ikChain.getTarget()) != targetValidity.Valid) {
+            step(calcNewTarget(out uncomfortable));
         }
     }
 
@@ -131,7 +131,7 @@ public class IKStepper : MonoBehaviour {
      * If the target is invalid returns
      * 
      */
-    public targetValidity checkInvalidTarget(TargetInfo target) {
+    public targetValidity checkTarget(TargetInfo target) {
         Vector3 toTarget = target.position - rootPos;
 
         // Calculate current distances
@@ -152,43 +152,44 @@ public class IKStepper : MonoBehaviour {
         int scope = rootJoint.isVectorWithinScope(toTarget);
         if (scope == 1) {
             Debug.Log("Target above my max angle.");
-            return targetValidity.tooMax;
+            return targetValidity.TooMax;
         }
         else if (scope == -1) {
             Debug.Log("Target below my min angle.");
-            return targetValidity.tooMin;
+            return targetValidity.TooMin;
         }
 
         //Then check horizontal distance
         if (horizontalDistance > maxDistance) {
             Debug.Log("Target too far away too reach.");
-            return targetValidity.tooFar;
+            return targetValidity.TooFar;
         }
         if (horizontalDistance < minDistance) {
             Debug.Log("Target too close for comfort.");
-            return targetValidity.tooClose;
+            return targetValidity.TooClose;
         }
 
         //Then check vertical distance (height)
         if (verticalDistance > height) {
             if (Vector3.Dot(normal, vert) >= 0) {
                 Debug.Log("Target too high.");
-                return targetValidity.tooHigh;
+                return targetValidity.TooHigh;
             }
             else {
                 Debug.Log("Target too low.");
-                return targetValidity.tooLow;
+                return targetValidity.TooLow;
             }
         }
-        return targetValidity.valid;
+        return targetValidity.Valid;
     }
 
     /*
      * Calculates a new target using the endeffector Position and a default position defined in this class.
      * The new target position is a movement towards the default position but overshoots the default position using the velocity prediction
      */
-    public TargetInfo calcNewTarget() {
+    public TargetInfo calcNewTarget(out bool stayHere) {
 
+        stayHere = true;
         Vector3 endeffectorPosition = ikChain.getEndEffector().position;
         Vector3 defaultPosition = spidercontroller.transform.TransformPoint(defaultPositionLocal);
         Vector3 normal = spidercontroller.transform.up;
@@ -250,23 +251,19 @@ public class IKStepper : MonoBehaviour {
             return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
 
-
         //Straight down through prediction point
         if (shootRay(lineDown, out hitInfo)) {
             Debug.Log("Got Targetpoint shooting down to prediction.");
             return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
 
-
         // Inwards from prediction
-
         if (shootRay(lineInwards, out hitInfo)) {
             Debug.Log("Got Targetpoint shooting inwards from prediction.");
             return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
 
         // Outwards to default position
-
         if (shootRay(lineDefaultOutward, out hitInfo)) {
             Debug.Log("Got Targetpoint shooting outwards to default point.");
             return new TargetInfo(hitInfo.point, hitInfo.normal);
@@ -279,15 +276,15 @@ public class IKStepper : MonoBehaviour {
         }
 
         // Inwards from default point
-
         if (shootRay(lineDefaultInward, out hitInfo)) {
             Debug.Log("Got Targetpoint shooting inwards from default point.");
             return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
 
         // Return default position
-        Debug.Log("No ray was able to find a target position. Therefore i will return the default position.");
-        return new TargetInfo(defaultPosition, normal);
+        Debug.Log("No ray was able to find a target position. Therefore i will return a default position.");
+        stayHere = false;
+        return new TargetInfo(defaultPosition + 0.5f * height * normal, normal);
     }
 
     private bool shootRay(Line l, out RaycastHit hitInfo) {
@@ -349,44 +346,6 @@ public class IKStepper : MonoBehaviour {
         ikChain.setTarget(newTarget);
         isStepping = false;
         timeSinceLastStep = 0.0f;
-    }
-
-    // Testing Option 2 of predicting
-    private IEnumerator stepDynamically(Vector3 prediction) {
-
-        TargetInfo lastTarget = ikChain.getTarget();
-
-        Vector3 predictionLocal = spidercontroller.transform.InverseTransformPoint(prediction);
-        Vector3 lastTargetPositionLocal = spidercontroller.transform.InverseTransformPoint(lastTarget.position);
-
-        TargetInfo lerpTarget = lastTarget; //Initialize since its possibly unassigned later
-        lerpTarget.normal = lastTarget.normal;
-        float time = 0;
-        while (time < stepTime) {
-            Vector3 target = spidercontroller.transform.TransformPoint(lastTargetPositionLocal);
-            Vector3 naivPred = spidercontroller.transform.TransformPoint(predictionLocal);
-
-            // Lerp locally + Height 
-            lerpTarget.position = Vector3.Lerp(target, naivPred, time / stepTime)
-                                    + stepHeight * stepAnimation.Evaluate(time / stepTime) * spidercontroller.transform.up;
-            time += Time.deltaTime;
-            ikChain.setTarget(lerpTarget);
-            yield return null;
-        }
-        // Now im at the provisorical prediction and moved with the spider movement.
-        // I dont have a surface point though so now i need to raycast
-        RaycastHit hitInfo;
-
-        //Straight down through prediction point
-        Vector3 normal = spidercontroller.transform.up;
-        if (shootRay(new Line(lerpTarget.position + height * normal, -normal, 2 * height), out hitInfo)) {
-            ikChain.setTarget(new TargetInfo(hitInfo.point, hitInfo.normal));
-        }
-        else {
-            //Use slighly aboe defaultpos as last resort target
-            Vector3 p = spidercontroller.transform.TransformPoint(defaultPositionLocal) + 0.2f * height * spidercontroller.transform.up;
-            ikChain.setTarget(new TargetInfo(p, normal));
-        }
     }
 
     // Immediately sets down target position and stops any stepping process going on.

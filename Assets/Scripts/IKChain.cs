@@ -35,10 +35,9 @@ public class IKChain : MonoBehaviour {
     }
 
     private void Start() {
-        // Assign a starting target. Would assign default but the default position is calculated in the Start function of IKStepper and uses the IKChain length :         setTarget(ikStepper.getDefault());
         setTarget(new TargetInfo(getEndEffector().position, Vector3.up));
-        solve();
     }
+
     void initializeChain() {
         if (endEffector.GetComponent<AHingeJoint>() != null) {
             Debug.Log("For the CCD chain " + this.name + " the end effector " + endEffector.gameObject.name + " has an attached AHingeJoint but is not a joint. The component should be removed.");
@@ -124,7 +123,7 @@ public class IKChain : MonoBehaviour {
         return currentTarget;
     }
 
-    // Use these setters to set the target for the CCD algorithm. The CCD runs with every frame update and uses this target.
+    // Use this setter to set the target for the CCD algorithm. The CCD runs with every frame update and uses this target.
     public void setTarget(TargetInfo target) {
         currentTarget = target;
         //In Theory i want to call solveCCD here but it runs every frame anyway so i wont for now
