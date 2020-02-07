@@ -36,9 +36,17 @@ public class IKSolver : MonoBehaviour {
         int iteration = 0;
         float error = Vector3.Distance(target.position, endEffector.position);
 
+        // If Endeffector is below Hyperplane defined by target i offset the target slightly above the plane, so the following algorithm will solve from above the hyperplane
+        if (Vector3.Dot(endEffector.position-target.position,target.normal)<0) {
+            target.position += tolerance * target.normal.normalized;
+        }
+
+        //Too prevent self collision, Keep track of exterior angles of the spanned polygon and make sure the sum does not exceed 360
+        // Only works for convex polygon though i think
+
         //If only the normal changes but my error is within tolerance, i will not adjust the normal here, maybe fix this
         while (iteration < maxIterations && error > tolerance) {
-            for (int i = 0; i < joints.Length; i++) //How do i smartly configure the foor loop to start with joints.length-1, then 0 to joints.length-2?
+            for (int i = 0; i < joints.Length; i++)
             {
 
                 //This line ensures that the we start with the last joint, but then chronologically, e.g.
@@ -49,46 +57,33 @@ public class IKSolver : MonoBehaviour {
 
                 joint = joints[k];
                 rotAxis = joint.getRotationAxis();
-                toEnd = (endEffector.position - joint.getRotationPoint()).normalized;
-                toTarget = (target.position - joint.getRotationPoint()).normalized;
+                toEnd = Vector3.ProjectOnPlane((endEffector.position - joint.getRotationPoint()), rotAxis);
+                toTarget = Vector3.ProjectOnPlane(target.position - joint.getRotationPoint(), rotAxis);
+
+                if (toTarget == Vector3.zero || toEnd == Vector3.zero) continue; // If singularity, skip. ToEnd should never be zero in my configuration though
 
                 //This is a special case, where i want the foot, that is the last joint of the chain to adjust to the normal it hit
                 if (k == joints.Length - 1 && hasFoot) {
-                    angle = footAngleToNormal+ 90.0f - Vector3.SignedAngle(Vector3.ProjectOnPlane(target.normal, rotAxis), Vector3.ProjectOnPlane(toEnd, rotAxis), rotAxis); //Here toEnd only works because ill use this only for the last joint. instead you would want to use the vector from joint[i] to joint[i+1]
+                    angle = footAngleToNormal + 90.0f - Vector3.SignedAngle(Vector3.ProjectOnPlane(target.normal, rotAxis), toEnd, rotAxis); //Here toEnd only works because ill use this only for the last joint. instead you would want to use the vector from joint[i] to joint[i+1]
                 }
                 else {
-                    angle = weight * joint.getWeight() * Vector3.SignedAngle(Vector3.ProjectOnPlane(toEnd, rotAxis), Vector3.ProjectOnPlane(toTarget, rotAxis), rotAxis);
+                    angle = Vector3.SignedAngle(toEnd, toTarget, rotAxis);
+                    angle *= weight;
+                    angle *= joint.getWeight();
+                    float kValue = 1.0f / (joints.Length * error);
+                    angle *= Mathf.Clamp(kValue, float.Epsilon, 1.0f); // k-Faktor //Have to update the error every forloop here
                 }
                 joint.applyRotation(angle);
-
-                //Only apply as much angle such that your next joint wont go underground
-                //correctRotation(ref joints, target, k);
             }
             error = Vector3.Distance(target.position, endEffector.position); //Refresh the error so we can check if we are already close enough for the while loop check
             iteration++;
         }
-        //if (iteration > 0) Debug.Log("Completed CCD with" + iteration + " iterations.");
-    }
-
-    //Not Finsished.... So for now i wont apply it in the CCD, has weird effects of more spiked legs
-    private static void correctRotation(ref AHingeJoint[] joints, TargetInfo target, int k) {
-        if (k == joints.Length - 1) return;
-        Vector3 toNextJoint = (joints[k+1].getRotationPoint() - joints[k].getRotationPoint()).normalized;
-        Vector3 toTarget = (target.position - joints[k].getRotationPoint()).normalized;
-        Vector3 rotAxis = joints[k].getRotationAxis();
-        float angle = Vector3.SignedAngle(Vector3.ProjectOnPlane(toNextJoint, rotAxis), Vector3.ProjectOnPlane(toTarget, rotAxis), rotAxis);
-        if (angle < 0) {
-            joints[k].applyRotation(angle-0.1f);
-        }
+        if (iteration > 0) Debug.Log("Completed CCD with" + iteration + " iterations.");
     }
 
 
-
-
-
-
-        // Slighly messy since Unity does not provide Matrix class so i had to work with two dimensional arrays and convert to Vector3 if needed
-        public static void solveJacobianTranspose(ref AHingeJoint[] joints, Transform endEffector, TargetInfo target, bool hasFoot = false) {
+    // Slighly messy since Unity does not provide Matrix class so i had to work with two dimensional arrays and convert to Vector3 if needed
+    public static void solveJacobianTranspose(ref AHingeJoint[] joints, Transform endEffector, TargetInfo target, bool hasFoot = false) {
         Vector3 error = target.position - endEffector.position;
         float[] err = new float[] { error.x, error.y, error.z };
         float[,] J = new float[3, joints.Length];

@@ -168,7 +168,7 @@ public class SpiderController : MonoBehaviour {
         if (angle < -180) angle += 360;
         //Now angle is of the form (-180,180]
 
-        float currentAngle = Vector3.SignedAngle(transform.up, transform.position-cam.transform.position, cam.transform.right); //Should always be positive
+        float currentAngle = Vector3.SignedAngle(transform.up, transform.position - cam.transform.position, cam.transform.right); //Should always be positive
         if (currentAngle + angle < camLowerAngleMargin) {
             angle = camLowerAngleMargin - currentAngle;
         }
@@ -236,12 +236,12 @@ public class SpiderController : MonoBehaviour {
 
         downRay.position = transform.position;
         downRay.direction = -transform.up;
-        downRay.radius = 0.9f * sphereCol.radius * scale;
+        downRay.radius = 1.0f * sphereCol.radius * scale;
         downRay.distance = raycastGroundedLength * scale;
 
         forwardRay.position = transform.position;
         forwardRay.direction = transform.forward;
-        forwardRay.radius = (sphereCol.radius / 1.5f) * scale;
+        forwardRay.radius = 0.66f * sphereCol.radius * scale;
         forwardRay.distance = raycastForwardLength * scale;
 
         if (shootSphere(forwardRay)) {

@@ -4,14 +4,14 @@ using UnityEngine;
 using UnityEditor;
 
 public enum TargetMode {
-    targetPredictor,
-    debugTarget,
-    debugTargetRay
+    IKStepper,
+    DebugTarget,
+    DebugTargetRay
 }
 
 public class IKChain : MonoBehaviour {
 
-    public bool deactivate = false;
+    public bool deactivateSolving = false;
 
     public SpiderController spiderController;
     public AHingeJoint[] joints;
@@ -20,7 +20,7 @@ public class IKChain : MonoBehaviour {
 
     public TargetMode targetMode;
 
-    // By assigning one of these the CCD IK Solver will use one of these transfoms as target, if unassigned  the IKTargetPredictor is used
+    // Assign these if corresponding mode is selected
     public Transform debugTarget;
     private IKStepper ikStepper;
 
@@ -54,12 +54,12 @@ public class IKChain : MonoBehaviour {
     }
 
     bool isValidChain() {
-        if ((debugTarget == null) && ((targetMode == TargetMode.debugTarget) || (targetMode == TargetMode.debugTargetRay))) {
+        if ((debugTarget == null) && ((targetMode == TargetMode.DebugTarget) || (targetMode == TargetMode.DebugTargetRay))) {
             Debug.LogError("Please assign a Target Transform when using this mode.");
             return false;
         }
 
-        if ((ikStepper == null) && (targetMode == TargetMode.targetPredictor)) {
+        if ((ikStepper == null) && (targetMode == TargetMode.IKStepper)) {
             Debug.LogError("Please assign a IKTargetPredictor Component when using this mode.");
             return false;
         }
@@ -69,33 +69,23 @@ public class IKChain : MonoBehaviour {
 
     // Update is called once per frame
     void Update() {
-        if (deactivate) {
-            return;
-        }
+        if (deactivateSolving || !validChain) return;
 
-        if (!validChain) {
-            return;
-        }
-
-        if (!ikStepper.allowedToStep()) {
-            return;
-        }
-
-        TargetInfo newTarget = currentTarget;
+        TargetInfo newTarget;
 
         switch (targetMode) {
-            case TargetMode.debugTarget:
+            case TargetMode.DebugTarget:
 
                 newTarget = new TargetInfo(debugTarget.position, debugTarget.up);
-                ikStepper.checkInvalidTarget(newTarget); //Just for Debug Prints
+                //ikStepper.checkInvalidTarget(newTarget); //Just for Debug Prints
                 setTarget(newTarget);
                 break;
 
-            case TargetMode.debugTargetRay:
+            case TargetMode.DebugTargetRay:
                 float height = 1.0f;
                 float distance = 1.1f;
                 Ray debugRay = new Ray(debugTarget.position + height * Vector3.up, Vector3.down);
-                Debug.DrawLine(debugRay.origin, debugRay.origin + distance * debugRay.direction, Color.green);
+                Debug.DrawLine(debugRay.origin, debugRay.origin + distance * debugRay.direction, Color.yellow);
 
                 if (Physics.Raycast(debugRay, out RaycastHit rayHit, distance, spiderController.groundedLayer, QueryTriggerInteraction.Ignore)) {
                     newTarget = new TargetInfo(rayHit.point, rayHit.normal);
@@ -105,36 +95,19 @@ public class IKChain : MonoBehaviour {
                 }
                 setTarget(newTarget);
                 break;
-
-            case TargetMode.targetPredictor:
-
-                if (ikStepper.getIsStepping()) {
-
-                    // Causes problems if walking backwards. Need to maybe save the current problem while stepping and ignore it?
-                    //if (valid == targetValidity.tooMin) {
-                    //  ikStepper.setTargetDown();
-                    //}
-                }
-                else {
-                    targetValidity valid = ikStepper.checkInvalidTarget(currentTarget);
-                    if (valid != targetValidity.valid) {
-                        ikStepper.step(ikStepper.calcNewTarget());
-                    }
-                }
-                break;
         }
     }
 
     private void LateUpdate() {
-        if (deactivate) {
-            return;
-        }
+        if (deactivateSolving || !validChain) return;
+
         solve();
     }
 
     private void solve() {
         IKSolver.solveCCD(ref joints, endEffector, currentTarget, true);
     }
+
     public float getChainLength() {
         return chainLength;
     }
@@ -153,12 +126,11 @@ public class IKChain : MonoBehaviour {
 
     // Use these setters to set the target for the CCD algorithm. The CCD runs with every frame update and uses this target.
     public void setTarget(TargetInfo target) {
-        if ((targetMode == TargetMode.debugTarget) || (targetMode == TargetMode.debugTargetRay)) {
-            debugTarget.position = target.position;
-            debugTarget.rotation = Quaternion.LookRotation(debugTarget.forward, target.normal);
-        }
-
         currentTarget = target;
         //In Theory i want to call solveCCD here but it runs every frame anyway so i wont for now
+    }
+
+    public bool IKStepperActivated() {
+        return (targetMode == TargetMode.IKStepper && !deactivateSolving && validChain);
     }
 }

@@ -33,6 +33,7 @@ public struct Line {
 
 [RequireComponent(typeof(IKChain))]
 public class IKStepper : MonoBehaviour {
+
     public SpiderController spidercontroller;
     public IKStepper asyncChain;
 
@@ -109,6 +110,13 @@ public class IKStepper : MonoBehaviour {
     void Update() {
         rootPos = rootJoint.getRotationPoint();
         timeSinceLastStep += Time.deltaTime;
+
+        if (!ikChain.IKStepperActivated() || isStepping || !allowedToStep()) return;
+
+        targetValidity valid = checkInvalidTarget(ikChain.getTarget());
+        if (valid != targetValidity.valid) {
+            step(calcNewTarget());
+        }
     }
 
     private void LateUpdate() {
