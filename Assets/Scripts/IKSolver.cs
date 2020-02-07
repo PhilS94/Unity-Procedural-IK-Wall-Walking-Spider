@@ -37,17 +37,28 @@ public class IKSolver : MonoBehaviour {
         float error = Vector3.Distance(target.position, endEffector.position);
 
         // If Endeffector is below Hyperplane defined by target i offset the target slightly above the plane, so the following algorithm will solve from above the hyperplane
-        if (Vector3.Dot(endEffector.position-target.position,target.normal)<0) {
+        if (Vector3.Dot(endEffector.position - target.position, target.normal) < 0) {
             target.position += tolerance * target.normal.normalized;
         }
 
+        /*
         //Too prevent self collision, Keep track of exterior angles of the spanned polygon and make sure the sum does not exceed 360
         // Only works for convex polygon though i think
+        float[] interiorAngles = new float[joints.Length];
+        float anglesum = 0;
+        for (int j = 0; j < joints.Length; j++) {
+            int j_l = mod(j - 1, joints.Length);
+            int j_r = mod(j + 1, joints.Length);
+            Vector3 v = joints[j].getRotationPoint() - joints[j_l].getRotationPoint();
+            Vector3 w = joints[j_r].getRotationPoint() - joints[j].getRotationPoint();
+            interiorAngles[j] = Vector3.SignedAngle(v, w, joints[j].getRotationAxis());
+            anglesum += interiorAngles[j];
+        }
+        */
 
         //If only the normal changes but my error is within tolerance, i will not adjust the normal here, maybe fix this
         while (iteration < maxIterations && error > tolerance) {
-            for (int i = 0; i < joints.Length; i++)
-            {
+            for (int i = 0; i < joints.Length; i++) {
 
                 //This line ensures that the we start with the last joint, but then chronologically, e.g.
                 // Length = 5
@@ -73,6 +84,7 @@ public class IKSolver : MonoBehaviour {
                     float kValue = 1.0f / (joints.Length * error);
                     angle *= Mathf.Clamp(kValue, float.Epsilon, 1.0f); // k-Faktor //Have to update the error every forloop here
                 }
+
                 joint.applyRotation(angle);
             }
             error = Vector3.Distance(target.position, endEffector.position); //Refresh the error so we can check if we are already close enough for the while loop check
