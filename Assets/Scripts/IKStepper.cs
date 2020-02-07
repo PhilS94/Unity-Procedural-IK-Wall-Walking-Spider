@@ -2,16 +2,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public enum targetValidity {
-    Valid = 0,
-    TooFar,
-    TooClose,
-    TooHigh,
-    TooLow,
-    TooMin,
-    TooMax
-}
-
 public enum RayType {
     singleRay,
     sphereRay
@@ -64,6 +54,8 @@ public class IKStepper : MonoBehaviour {
     public AnimationCurve stepAnimation;
 
     private IKChain ikChain;
+
+    private float error = 0.0f;
 
     private bool isStepping = false;
     private bool uncomfortable = false;
@@ -121,8 +113,10 @@ public class IKStepper : MonoBehaviour {
             if (!uncomfortable) step(newTarget);
             else ikChain.setTarget(newTarget);
         }
-        //If comfortable but target not in range anymore, step
-        else if (checkTarget(ikChain.getTarget()) != targetValidity.Valid) {
+        //If comfortable but target not close enough anymore even after the last CCD iteration, step
+        // The error we get here is from the end of the last frame.
+        else if (ikChain.getError() > IKSolver.tolerance) {
+            //Debug.Log("Have to step now since im too far away at an error of " + ikChain.getError());
             step(calcNewTarget(out uncomfortable));
         }
 
@@ -133,64 +127,6 @@ public class IKStepper : MonoBehaviour {
         if (showDebug) {
             drawDebug();
         }
-    }
-
-    /*
-     * Checks if the target is invalid or not.
-     * Returns 0 if the target is valid.
-     * If the target is invalid returns
-     * 
-     */
-    public targetValidity checkTarget(TargetInfo target) {
-        Vector3 toTarget = target.position - rootPos;
-
-        // Calculate current distances
-        Vector3 normal = rootJoint.getRotationAxis();
-        Vector3 horiz = Vector3.ProjectOnPlane(toTarget, normal);
-        Vector3 vert = Vector3.Project(toTarget, normal);
-        float horizontalDistance = Vector3.Magnitude(horiz);
-        float verticalDistance = Vector3.Magnitude(vert);
-
-        if (showDebug) {
-            Debug.DrawLine(rootPos, rootPos + horiz, Color.green);
-            Debug.DrawLine(rootPos + horiz, rootPos + horiz + vert, Color.green);
-        }
-
-        // Check if target is within cylinder section
-
-        // First check Scope
-        int scope = rootJoint.isVectorWithinScope(toTarget);
-        if (scope == 1) {
-            Debug.Log("Target above my max angle.");
-            return targetValidity.TooMax;
-        }
-        else if (scope == -1) {
-            Debug.Log("Target below my min angle.");
-            return targetValidity.TooMin;
-        }
-
-        //Then check horizontal distance
-        if (horizontalDistance > maxDistance) {
-            Debug.Log("Target too far away too reach.");
-            return targetValidity.TooFar;
-        }
-        if (horizontalDistance < minDistance) {
-            Debug.Log("Target too close for comfort.");
-            return targetValidity.TooClose;
-        }
-
-        //Then check vertical distance (height)
-        if (verticalDistance > height) {
-            if (Vector3.Dot(normal, vert) >= 0) {
-                Debug.Log("Target too high.");
-                return targetValidity.TooHigh;
-            }
-            else {
-                Debug.Log("Target too low.");
-                return targetValidity.TooLow;
-            }
-        }
-        return targetValidity.Valid;
     }
 
     /*
@@ -266,7 +202,7 @@ public class IKStepper : MonoBehaviour {
             Debug.Log("Got Targetpoint shooting down to prediction.");
             return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
-      
+
         // Inwards from prediction
         if (shootRay(lineInwards, out hitInfo)) {
             Debug.Log("Got Targetpoint shooting inwards from prediction.");
@@ -414,9 +350,6 @@ public class IKStepper : MonoBehaviour {
         Debug.DrawLine(lastEndEffectorPos, prediction1, Color.grey);
         Debug.DrawLine(prediction1, prediction2, Color.grey);
         Debug.DrawLine(prediction2, prediction3, Color.grey);
-
-        // The cylinder section of viable target positions
-        DebugShapes.DrawCylinderSection(rootPos, rootJoint.getMinOrientation(), rootJoint.getMaxOrientation(), rootJoint.getRotationAxis(), minDistance, maxDistance, height, height, 3, Color.red);
 
         //All the Raycasts:
 

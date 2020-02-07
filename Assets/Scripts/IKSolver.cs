@@ -14,8 +14,8 @@ public struct TargetInfo {
 
 public class IKSolver : MonoBehaviour {
 
-    private static int maxIterations = 10;
-    private static float tolerance = 0.01f;
+    private static int maxIterations = 15;
+    public static float tolerance = 0.05f;
     private static float weight = 1.0f;
     private static float footAngleToNormal = 20.0f; // 0 means parallel to ground (Orthogonal to plane normal)
 
@@ -34,12 +34,13 @@ public class IKSolver : MonoBehaviour {
         float angle;
 
         int iteration = 0;
-        float error = Vector3.Distance(target.position, endEffector.position);
 
         // If Endeffector is below Hyperplane defined by target i offset the target slightly above the plane, so the following algorithm will solve from above the hyperplane
         if (Vector3.Dot(endEffector.position - target.position, target.normal) < 0) {
-            target.position += tolerance * target.normal.normalized;
+            //target.position += tolerance * target.normal.normalized;
         }
+
+        float error = Vector3.Distance(target.position, endEffector.position);
 
         /*
         //Too prevent self collision, Keep track of exterior angles of the spanned polygon and make sure the sum does not exceed 360
@@ -90,7 +91,7 @@ public class IKSolver : MonoBehaviour {
             error = Vector3.Distance(target.position, endEffector.position); //Refresh the error so we can check if we are already close enough for the while loop check
             iteration++;
         }
-        if (iteration > 0) Debug.Log("Completed CCD with" + iteration + " iterations.");
+        //if (iteration>0) Debug.Log("Completed CCD with " + iteration + " iterations and an error of "+ error);
     }
 
 

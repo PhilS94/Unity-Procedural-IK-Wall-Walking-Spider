@@ -26,6 +26,7 @@ public class IKChain : MonoBehaviour {
 
     private float chainLength;
     private TargetInfo currentTarget;
+    private float error =0.0f;
     private bool validChain;
 
     private void Awake() {
@@ -99,12 +100,12 @@ public class IKChain : MonoBehaviour {
 
     private void LateUpdate() {
         if (deactivateSolving || !validChain) return;
-
         solve();
     }
 
-    private void solve() {
+    public void solve() {
         IKSolver.solveCCD(ref joints, endEffector, currentTarget, true);
+        error = Vector3.Distance(endEffector.position, currentTarget.position);
     }
 
     public float getChainLength() {
@@ -131,5 +132,9 @@ public class IKChain : MonoBehaviour {
 
     public bool IKStepperActivated() {
         return (targetMode == TargetMode.IKStepper && !deactivateSolving && validChain);
+    }
+
+    public float getError() {
+        return error;
     }
 }

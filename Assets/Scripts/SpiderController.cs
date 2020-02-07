@@ -7,12 +7,18 @@ public class SpiderController : MonoBehaviour {
     private Rigidbody rb;
     public SphereCollider sphereCol;
 
+    [Range(1, 5)]
     public float walkSpeed;
+    [Range(1, 5)]
     public float turnSpeed;
     [Range(1, 5)]
     public float XSensitivity;
     [Range(1, 5)]
     public float YSensitivity;
+
+    [Range(1, 10)]
+    public float normalAdjustSpeed;
+
     [Range(0.01f, 90.0f)]
     public float camUpperAngleMargin = 30.0f;
     [Range(0.01f, 90.0f)]
@@ -21,8 +27,6 @@ public class SpiderController : MonoBehaviour {
     private Vector3 camLocalPosition;
 
     public float scale = 1.0f;
-    public float raycastGroundedLength = 0.15f;
-    public float raycastForwardLength = 0.05f;
 
     public LayerMask groundedLayer;
     public LayerMask cameraClipLayer;
@@ -45,6 +49,7 @@ public class SpiderController : MonoBehaviour {
     private RaycastHit[] camObstructions;
     private Vector3 currentNormal;
     private float gravityOffDist = 0.1f;
+    private Vector3 currentWalkVector;
 
     private struct groundInfo {
         public bool isGrounded;
@@ -72,7 +77,7 @@ public class SpiderController : MonoBehaviour {
     void FixedUpdate() {
         // No Gravity if close enough to ground
         if (grdInfo.distanceToGround < sphereCol.radius * scale + gravityOffDist) return;
-        rb.AddForce(-grdInfo.groundNormal * 10000 * Time.fixedDeltaTime); //Important using the groundnormal and not the lerping currentnormal here!
+            rb.AddForce(-grdInfo.groundNormal * 10000 * Time.fixedDeltaTime); //Important using the groundnormal and not the lerping currentnormal here!
     }
 
     void Update() {
@@ -80,7 +85,11 @@ public class SpiderController : MonoBehaviour {
         /** Movement **/
         Vector3 input = getInput();
         turn(input, Time.deltaTime * turnSpeed);
-        walk(input, Time.deltaTime * walkSpeed * scale);
+
+        // Only move when movevector and forward angle small enough
+        currentWalkVector = 0.1f * Time.deltaTime * walkSpeed * scale * input;
+        currentWalkVector *= Mathf.Pow(Mathf.Clamp(Vector3.Dot(input, transform.forward), 0, 1), 4);
+        walk(currentWalkVector);
 
         //** Ground Check **//
         // Important doing this after the movement, since we want to know whats beneath us in the new position, as to not apply gravity if we walked too far over a wall 
@@ -90,7 +99,7 @@ public class SpiderController : MonoBehaviour {
 
 
         //** Rotation to normal **// 
-        Vector3 newNormal = Vector3.Slerp(currentNormal, grdInfo.groundNormal, 3.0f * Time.deltaTime);
+        Vector3 newNormal = Vector3.Slerp(currentNormal, grdInfo.groundNormal, normalAdjustSpeed * Time.deltaTime);
         float angle = Vector3.SignedAngle(currentNormal, newNormal, cam.transform.right);
         currentNormal = newNormal;
         Vector3 right = Vector3.ProjectOnPlane(transform.right, currentNormal);
@@ -136,21 +145,21 @@ public class SpiderController : MonoBehaviour {
         Quaternion tempCamRotation = cam.transform.rotation;
         Vector3 tempCamPosition = cam.transform.position;
         //transform.rotation = Quaternion.LookRotation(forward,currentNormal);
-        transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(forward, currentNormal), speed);
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(forward, currentNormal), 100.0f * speed);
         cam.transform.rotation = tempCamRotation;
         cam.transform.position = tempCamPosition;
     }
 
-    void walk(Vector3 moveVector, float speed) {
+    void walk(Vector3 moveVector) {
         if (moveVector != Vector3.zero) {
-            transform.position += moveVector * speed;
+            transform.position += moveVector;
             //rb.AddForce(moveVector * speed);
         }
     }
 
     //Implemented so the IKStepper can use this to predict 
     public Vector3 getMovement() {
-        return getInput() * walkSpeed * scale;
+        return currentWalkVector;
     }
 
     //** Camera Methods **//
@@ -237,12 +246,12 @@ public class SpiderController : MonoBehaviour {
         downRay.position = transform.position;
         downRay.direction = -transform.up;
         downRay.radius = 0.9f * sphereCol.radius * scale;
-        downRay.distance = raycastGroundedLength * scale;
+        downRay.distance = 0.15f * scale;
 
         forwardRay.position = transform.position;
         forwardRay.direction = transform.forward;
         forwardRay.radius = 0.66f * sphereCol.radius * scale;
-        forwardRay.distance = raycastForwardLength * scale;
+        forwardRay.distance = 0.05f * scale;
 
         if (shootSphere(forwardRay)) {
             return new groundInfo(true, hitInfo.normal.normalized, hitInfo.distance + forwardRay.radius);
