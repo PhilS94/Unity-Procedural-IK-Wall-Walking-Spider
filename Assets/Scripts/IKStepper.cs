@@ -95,7 +95,7 @@ public class IKStepper : MonoBehaviour {
         minDistance = 0.2f * chainLength;
         Vector3 v = Quaternion.AngleAxis((rootJoint.minAngle + rootJoint.maxAngle) / 2, rootJoint.getRotationAxis()) * Vector3.ProjectOnPlane(ikChain.getEndEffector().position - rootPos, rootJoint.getRotationAxis()).normalized;
         defaultPositionLocal = spidercontroller.transform.InverseTransformPoint(rootPos + (minDistance + 0.5f * (maxDistance - minDistance)) * v);
-        defaultPositionLocal.y = -1.0f / spidercontroller.scale; // Because spider has a 20.0f reference scale
+        defaultPositionLocal.y = -spidercontroller.collider.radius;
         timeSinceLastStep = 2 * stepCooldown;
     }
 
