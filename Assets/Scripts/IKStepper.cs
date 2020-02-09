@@ -246,7 +246,7 @@ public class IKStepper : MonoBehaviour {
         direction = direction / magnitude;
 
         if (rayType == RayType.singleRay) {
-            if (Physics.Raycast(l.origin, direction, out hitInfo, magnitude, spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore)) {
+            if (Physics.Raycast(l.origin, direction, out hitInfo, magnitude, spidercontroller.walkableLayer, QueryTriggerInteraction.Ignore)) {
                 // could check if the normal is acceptable
                 if (Mathf.Cos(Vector3.Angle(direction, hitInfo.normal)) < 0) {
                     return true;
@@ -254,7 +254,7 @@ public class IKStepper : MonoBehaviour {
             }
         }
         else {
-            if (Physics.SphereCast(l.origin, radius, direction, out hitInfo, magnitude, spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore)) {
+            if (Physics.SphereCast(l.origin, radius, direction, out hitInfo, magnitude, spidercontroller.walkableLayer, QueryTriggerInteraction.Ignore)) {
                 // could check if the normal is acceptable
                 if (Mathf.Cos(Vector3.Angle(direction, hitInfo.normal)) < 0) {
                     return true;

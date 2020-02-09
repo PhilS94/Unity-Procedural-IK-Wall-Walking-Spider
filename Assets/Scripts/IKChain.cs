@@ -87,7 +87,7 @@ public class IKChain : MonoBehaviour {
                 Ray debugRay = new Ray(debugTarget.position + height * Vector3.up, Vector3.down);
                 Debug.DrawLine(debugRay.origin, debugRay.origin + distance * debugRay.direction, Color.yellow);
 
-                if (Physics.Raycast(debugRay, out RaycastHit rayHit, distance, spiderController.groundedLayer, QueryTriggerInteraction.Ignore)) {
+                if (Physics.Raycast(debugRay, out RaycastHit rayHit, distance, spiderController.walkableLayer, QueryTriggerInteraction.Ignore)) {
                     newTarget = new TargetInfo(rayHit.point, rayHit.normal);
                 }
                 else {
