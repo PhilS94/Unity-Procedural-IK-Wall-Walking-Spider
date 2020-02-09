@@ -169,40 +169,6 @@ public class AHingeJoint : MonoBehaviour {
         return weight;
     }
 
-    void OnDrawGizmosSelected() {
-#if UNITY_EDITOR
-        if (!UnityEditor.Selection.Contains(transform.gameObject)) {
-            return;
-        }
-
-        updateValues(); //to refresh all the below values to be drawn
-
-        //RotAxis
-        Gizmos.color = Color.blue;
-        Gizmos.DrawLine(rotPoint, rotPoint + debugIconScale * rotationAxis);
-
-        //RotPoint
-        Gizmos.color = Color.green;
-        Gizmos.DrawSphere(rotPoint, 0.01f * debugIconScale);
-
-        // Rotation Limit Arc
-        UnityEditor.Handles.color = Color.yellow;
-        UnityEditor.Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, maxAngle - minAngle, 0.2f * debugIconScale);
-
-        // Current Rotation Used Arc
-        UnityEditor.Handles.color = Color.red;
-        UnityEditor.Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, currentAngle - minAngle, 0.1f * debugIconScale);
-
-        // Current Rotation used (same as above) just an additional line to emphasize
-        Gizmos.color = Color.red;
-        Gizmos.DrawLine(rotPoint, rotPoint + 0.2f * debugIconScale * orientation);
-
-        // Default Rotation
-        Gizmos.color = Color.magenta;
-        Gizmos.DrawLine(rotPoint, rotPoint + 0.2f * debugIconScale * defaultOrientation);
-#endif
-    }
-
     /*
      * This function fails if minOrientation and maxOrientation have an angle greather than 180
      * since signedangle returns the smaller angle, which i dont really want, but it suffices right now since i dont have these big of DOF
@@ -252,4 +218,38 @@ public class AHingeJoint : MonoBehaviour {
     public float getAngleRange() {
         return maxAngle - minAngle;
     }
+
+#if UNITY_EDITOR
+    void OnDrawGizmosSelected() {
+        if (!UnityEditor.Selection.Contains(transform.gameObject)) {
+            return;
+        }
+
+        updateValues(); //to refresh all the below values to be drawn
+
+        //RotAxis
+        Gizmos.color = Color.blue;
+        Gizmos.DrawLine(rotPoint, rotPoint + debugIconScale * rotationAxis);
+
+        //RotPoint
+        Gizmos.color = Color.green;
+        Gizmos.DrawSphere(rotPoint, 0.01f * debugIconScale);
+
+        // Rotation Limit Arc
+        UnityEditor.Handles.color = Color.yellow;
+        UnityEditor.Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, maxAngle - minAngle, 0.2f * debugIconScale);
+
+        // Current Rotation Used Arc
+        UnityEditor.Handles.color = Color.red;
+        UnityEditor.Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, currentAngle - minAngle, 0.1f * debugIconScale);
+
+        // Current Rotation used (same as above) just an additional line to emphasize
+        Gizmos.color = Color.red;
+        Gizmos.DrawLine(rotPoint, rotPoint + 0.2f * debugIconScale * orientation);
+
+        // Default Rotation
+        Gizmos.color = Color.magenta;
+        Gizmos.DrawLine(rotPoint, rotPoint + 0.2f * debugIconScale * defaultOrientation);
+    }
+#endif
 }

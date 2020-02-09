@@ -5,7 +5,7 @@ public class SpiderController : MonoBehaviour {
 
     public Camera cam;
     private Rigidbody rb;
-    public SphereCollider sphereCol;
+    public SphereCollider col;
 
     [Range(1, 5)]
     public float walkSpeed;
@@ -23,6 +23,16 @@ public class SpiderController : MonoBehaviour {
     public float camUpperAngleMargin = 30.0f;
     [Range(0.01f, 90.0f)]
     public float camLowerAngleMargin = 60.0f;
+
+    [Range(0.0f, 1.0f)]
+    public float forwardRayLength;
+    [Range(0.0f, 1.0f)]
+    public float downRayLength;
+
+    [Range(0.1f, 1.0f)]
+    public float forwardRaySize = 0.66f;
+    [Range(0.1f, 1.0f)]
+    public float downRaySize = 0.9f;
 
     private Vector3 camLocalPosition;
 
@@ -48,7 +58,7 @@ public class SpiderController : MonoBehaviour {
     private RaycastHit hitInfo;
     private RaycastHit[] camObstructions;
     private Vector3 currentNormal;
-    private float gravityOffDist = 0.1f;
+    private float gravityOffDist = 0.002f;
     private Vector3 currentWalkVector;
 
     private struct groundInfo {
@@ -75,25 +85,34 @@ public class SpiderController : MonoBehaviour {
     }
 
     void FixedUpdate() {
-        // No Gravity if close enough to ground
-        if (grdInfo.distanceToGround < sphereCol.radius * scale + gravityOffDist) return;
-            rb.AddForce(-grdInfo.groundNormal * 10000 * Time.fixedDeltaTime); //Important using the groundnormal and not the lerping currentnormal here!
-    }
-
-    void Update() {
 
         /** Movement **/
         Vector3 input = getInput();
-        turn(input, Time.deltaTime * turnSpeed);
+
+        //torque add
+        float rot = Mathf.Sin(Mathf.Deg2Rad* Vector3.SignedAngle(transform.forward, input, transform.up));
+        rb.AddTorque(rot * 0.01f * Time.fixedDeltaTime * turnSpeed * transform.up);
+        float winkelgeschw = Mathf.Rad2Deg * transform.InverseTransformDirection(rb.angularVelocity).y;
+        cam.transform.RotateAround(transform.position, transform.up,  -winkelgeschw * Time.fixedDeltaTime);
 
         // Only move when movevector and forward angle small enough
-        currentWalkVector = 0.1f * Time.deltaTime * walkSpeed * scale * input;
-        currentWalkVector *= Mathf.Pow(Mathf.Clamp(Vector3.Dot(input, transform.forward), 0, 1), 4);
-        walk(currentWalkVector);
+        float force = Mathf.Pow(Mathf.Clamp(Vector3.Dot(input, transform.forward), 0, 1), 4) * 10.0f * Time.fixedDeltaTime * walkSpeed * scale;
+        rb.AddForce(force * input);
+        // Never Move more than the size of the downRay each frame, This can significantly slow down the spider in low frame rates
+        //rb.velocity = Mathf.Clamp(rb.velocity.magnitude, 0, 0.99f * downRay.radius) * rb.velocity.normalized; // Clamp velocity. This also affects gravity though..
 
         //** Ground Check **//
         // Important doing this after the movement, since we want to know whats beneath us in the new position, as to not apply gravity if we walked too far over a wall 
         grdInfo = GroundCheckSphere();
+
+        // Only gravity if far enough from ground
+        if (grdInfo.distanceToGround > col.radius * scale + gravityOffDist) {
+            Debug.Log("Now apply gravity please.");
+            rb.velocity += 9.81f * Time.fixedDeltaTime * -grdInfo.groundNormal; //Important using the groundnormal and not the lerping currentnormal here!
+        }
+    }
+
+    void Update() {
 
         // I need to reduce the jittering that occurs using the spherecast every frame while adjusting.. disable gravity while grounded?
 
@@ -137,28 +156,9 @@ public class SpiderController : MonoBehaviour {
         return (Vector3.ProjectOnPlane(cam.transform.forward, currentNormal) * Input.GetAxis("Vertical") + (Vector3.ProjectOnPlane(cam.transform.right, currentNormal).normalized * Input.GetAxis("Horizontal"))).normalized;
     }
 
-
-    void turn(Vector3 forward, float speed) {
-        if (forward == Vector3.zero)
-            return;
-
-        Quaternion tempCamRotation = cam.transform.rotation;
-        Vector3 tempCamPosition = cam.transform.position;
-        //transform.rotation = Quaternion.LookRotation(forward,currentNormal);
-        transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(forward, currentNormal), 100.0f * speed);
-        cam.transform.rotation = tempCamRotation;
-        cam.transform.position = tempCamPosition;
-    }
-
-    void walk(Vector3 moveVector) {
-        if (moveVector != Vector3.zero) {
-            transform.position += moveVector;
-            //rb.AddForce(moveVector * speed);
-        }
-    }
-
     //Implemented so the IKStepper can use this to predict 
     public Vector3 getMovement() {
+        // Due to Rigidbody movement, i should return the velocity here
         return currentWalkVector;
     }
 
@@ -242,17 +242,7 @@ public class SpiderController : MonoBehaviour {
     //** Ground Check Methods **//
     // The Distance in GroundInfo is the distance from transform.position to hitinfo.position
     private groundInfo GroundCheckSphere() {
-
-        downRay.position = transform.position;
-        downRay.direction = -transform.up;
-        downRay.radius = 0.9f * sphereCol.radius * scale;
-        downRay.distance = 0.15f * scale;
-
-        forwardRay.position = transform.position;
-        forwardRay.direction = transform.forward;
-        forwardRay.radius = 0.66f * sphereCol.radius * scale;
-        forwardRay.distance = 0.05f * scale;
-
+        refreshRays();
         if (shootSphere(forwardRay)) {
             return new groundInfo(true, hitInfo.normal.normalized, hitInfo.distance + forwardRay.radius);
         }
@@ -263,25 +253,41 @@ public class SpiderController : MonoBehaviour {
 
         //If SphereRays miss
         return new groundInfo(false, Vector3.up, float.PositiveInfinity);
+
+        bool shootSphere(SphereRay sphereRay) {
+            return Physics.SphereCast(sphereRay.position, sphereRay.radius, sphereRay.direction, out hitInfo, sphereRay.distance, groundedLayer, QueryTriggerInteraction.Ignore);
+        }
     }
 
-    bool shootSphere(SphereRay sphereRay) {
-        return Physics.SphereCast(sphereRay.position, sphereRay.radius, sphereRay.direction, out hitInfo, sphereRay.distance, groundedLayer, QueryTriggerInteraction.Ignore);
+    private void refreshRays() {
+        downRay.position = transform.position;
+        downRay.direction = -transform.up;
+        downRay.radius = downRaySize * col.radius * scale;
+        downRay.distance = downRayLength * scale;
+
+        forwardRay.position = transform.position;
+        forwardRay.direction = transform.forward;
+        forwardRay.radius = forwardRaySize * col.radius * scale;
+        forwardRay.distance = forwardRayLength * scale;
     }
 
     private void drawDebug() {
         DebugShapes.DrawSphereRay(downRay.position, downRay.direction, downRay.distance, downRay.radius, 3, Color.green);
         DebugShapes.DrawSphereRay(forwardRay.position, forwardRay.direction, forwardRay.distance, forwardRay.radius, 3, Color.blue);
-        Debug.DrawLine(transform.position, transform.position - (sphereCol.radius * scale + gravityOffDist) * transform.up, Color.black);
+        Debug.DrawLine(transform.position, transform.position - (col.radius + gravityOffDist)*scale * transform.up, Color.black);
     }
 
-    private IEnumerator adjustCamera(float angle, float time) {
-        float t = 0;
-        while (t < time) {
-            cam.transform.RotateAround(transform.position, cam.transform.right, angle * t / time);
 
-            t += Time.deltaTime;
-            yield return null;
+#if UNITY_EDITOR
+    void OnDrawGizmosSelected() {
+
+        if (!showDebug) return;
+        if (UnityEditor.EditorApplication.isPlaying) return;
+        if (!UnityEditor.Selection.Contains(transform.gameObject)) {
+            return;
         }
+        refreshRays();
+        drawDebug();
     }
+#endif
 }

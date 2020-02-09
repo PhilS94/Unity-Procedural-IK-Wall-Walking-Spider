@@ -248,7 +248,7 @@ public class IKStepper : MonoBehaviour {
         if (rayType == RayType.singleRay) {
             if (Physics.Raycast(l.origin, direction, out hitInfo, magnitude, spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore)) {
                 // could check if the normal is acceptable
-                if (Mathf.Cos(Vector3.Angle(direction, hitInfo.normal)) < 0) {
+                if (Mathf.Cos(Mathf.Deg2Rad* Vector3.Angle(direction, hitInfo.normal)) < 0) {
                     return true;
                 }
             }
@@ -256,7 +256,7 @@ public class IKStepper : MonoBehaviour {
         else {
             if (Physics.SphereCast(l.origin, radius, direction, out hitInfo, magnitude, spidercontroller.groundedLayer, QueryTriggerInteraction.Ignore)) {
                 // could check if the normal is acceptable
-                if (Mathf.Cos(Vector3.Angle(direction, hitInfo.normal)) < 0) {
+                if (Mathf.Cos(Mathf.Deg2Rad * Vector3.Angle(direction, hitInfo.normal)) < 0) {
                     return true;
                 }
             }
@@ -272,7 +272,7 @@ public class IKStepper : MonoBehaviour {
         }
         if (!allowedToStep()) {
             //I cant step but my target is not reachable. So i simply add the spiders movevector here
-            ikChain.setTarget(new TargetInfo(ikChain.getTarget().position + spidercontroller.getMovement(),ikChain.getTarget().normal));
+            ikChain.setTarget(new TargetInfo(ikChain.getTarget().position + spidercontroller.getMovement(), ikChain.getTarget().normal));
             return;
         }
         IEnumerator coroutineStepping = Step(target);
@@ -380,15 +380,13 @@ public class IKStepper : MonoBehaviour {
         }
     }
 
-    void OnDrawGizmosSelected() {
 #if UNITY_EDITOR
+    void OnDrawGizmosSelected() {
         if (!UnityEditor.Selection.Contains(transform.gameObject)) {
             return;
         }
         DebugShapes.DrawPoint(spidercontroller.transform.TransformPoint(originPointOutwardsRay), Color.green, debugIconScale);
         DebugShapes.DrawPoint(spidercontroller.transform.TransformPoint(endPointInwardsRay), Color.green, debugIconScale);
-
-
-#endif
     }
+#endif
 }
