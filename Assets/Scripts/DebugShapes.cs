@@ -298,4 +298,9 @@ public class DebugShapes : MonoBehaviour {
         }
         //Debug.DrawLine(start, endPoint, col);
     }
+
+    public static void DrawSphereRay(Vector3 start, Vector3 end, float radius, int amount, Color col) {
+        Vector3 v = end - start;
+        DrawSphereRay(start, v.normalized, v.magnitude, radius, amount, col);
+    }
 }

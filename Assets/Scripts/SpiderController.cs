@@ -7,7 +7,7 @@ public class SpiderController : MonoBehaviour {
 
     public Camera cam;
     private Rigidbody rb;
-    public CapsuleCollider collider;
+    public CapsuleCollider col;
 
     [Range(1, 5)]
     public float walkSpeed;
@@ -234,11 +234,11 @@ public class SpiderController : MonoBehaviour {
     private groundInfo GroundCheckSphere() {
         updateRays();
         if (shootSphere(forwardRay)) {
-            return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(collider.center), hitInfo.point) - scale * collider.radius);
+            return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - scale * col.radius);
         }
 
         if (shootSphere(downRay)) {
-            return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(collider.center), hitInfo.point) - scale * collider.radius);
+            return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - scale * col.radius);
         }
 
         return new groundInfo(false, Vector3.up, float.PositiveInfinity);
@@ -247,12 +247,12 @@ public class SpiderController : MonoBehaviour {
     private void updateRays() {
         downRay.position = transform.position;
         downRay.direction = -transform.up;
-        downRay.radius = downRaySize * collider.radius * scale;
+        downRay.radius = downRaySize * col.radius * scale;
         downRay.distance = downRayLength * scale;
 
         forwardRay.position = transform.position;
         forwardRay.direction = transform.forward;
-        forwardRay.radius = forwardRaySize * collider.radius * scale;
+        forwardRay.radius = forwardRaySize * col.radius * scale;
         forwardRay.distance = forwardRayLength * scale;
     }
 
@@ -266,7 +266,7 @@ public class SpiderController : MonoBehaviour {
     private void drawDebug() {
         DebugShapes.DrawSphereRay(downRay.position, downRay.direction, downRay.distance, downRay.radius, 3, Color.green);
         DebugShapes.DrawSphereRay(forwardRay.position, forwardRay.direction, forwardRay.distance, forwardRay.radius, 3, Color.blue);
-        Vector3 borderpoint = transform.TransformPoint(collider.center) + collider.radius * scale * -transform.up;
+        Vector3 borderpoint = transform.TransformPoint(col.center) + col.radius * scale * -transform.up;
         Debug.DrawLine(borderpoint, borderpoint + gravityOffDist * -transform.up, Color.black);
         Debug.DrawLine(transform.position, transform.position + 0.3f * scale * currentNormal, Color.yellow);
         Debug.DrawLine(camToPlayer.origin, camToPlayer.origin + transform.position - cam.transform.position, Color.magenta);
@@ -277,9 +277,8 @@ public class SpiderController : MonoBehaviour {
 
         if (!showDebug) return;
         if (UnityEditor.EditorApplication.isPlaying) return;
-        if (!UnityEditor.Selection.Contains(transform.gameObject)) {
-            return;
-        }
+        if (!UnityEditor.Selection.Contains(transform.gameObject)) return;
+
         updateRays();
         drawDebug();
     }

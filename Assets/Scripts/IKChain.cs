@@ -14,10 +14,12 @@ public class IKChain : MonoBehaviour {
     public bool deactivateSolving = false;
 
     public SpiderController spiderController;
+
+    [Header("Chain")]
     public AHingeJoint[] joints;
     public Transform endEffector;
 
-
+    [Header("Target Mode")]
     public TargetMode targetMode;
 
     // Assign these if corresponding mode is selected
@@ -26,12 +28,12 @@ public class IKChain : MonoBehaviour {
 
     private float chainLength;
     private TargetInfo currentTarget;
-    private float error =0.0f;
+    private float error = 0.0f;
     private bool validChain;
 
     private void Awake() {
         ikStepper = GetComponent<IKStepper>();
-        initializeChain();
+        chainLength = calculateChainLength();
         validChain = isValidChain();
     }
 
@@ -39,18 +41,14 @@ public class IKChain : MonoBehaviour {
         setTarget(new TargetInfo(getEndEffector().position, Vector3.up));
     }
 
-    void initializeChain() {
-        if (endEffector.GetComponent<AHingeJoint>() != null) {
-            Debug.Log("For the CCD chain " + this.name + " the end effector " + endEffector.gameObject.name + " has an attached AHingeJoint but is not a joint. The component should be removed.");
-        }
-
-        // Calc Chain Length
+    float calculateChainLength() {
         chainLength = 0;
 
         for (int i = 0; i < joints.Length - 1; i++) {
             chainLength += Vector3.Distance(joints[i].getRotationPoint(), joints[i + 1].getRotationPoint());
         }
-        Debug.Log("Chain length for the chain " + gameObject.name + ": " + chainLength);
+        //Debug.Log("Chain length for the chain " + gameObject.name + ": " + chainLength);
+        return chainLength;
     }
 
     bool isValidChain() {
@@ -137,4 +135,24 @@ public class IKChain : MonoBehaviour {
     public float getError() {
         return error;
     }
+
+#if UNITY_EDITOR
+    void OnDrawGizmosSelected() {
+
+        if (UnityEditor.EditorApplication.isPlaying) return;
+        if (!UnityEditor.Selection.Contains(transform.gameObject)) return;
+
+        // Set ChainLength and ValidChain here
+        Awake();
+
+        if (!validChain) return;
+
+        //Draw the Chain
+        for (int k = 0; k < joints.Length - 1; k++) {
+            Debug.DrawLine(joints[k].getRotationPoint(), joints[k + 1].getRotationPoint(), Color.green);
+        }
+        Debug.DrawLine(joints[joints.Length-1].getRotationPoint(), endEffector.position, Color.green);
+    }
+
+#endif
 }
