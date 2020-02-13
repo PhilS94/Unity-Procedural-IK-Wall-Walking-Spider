@@ -42,7 +42,7 @@ public class SpiderController : MonoBehaviour {
     public LayerMask cameraInvisibleClipLayer;
     public LayerMask cameraClipLayer;
 
-    private Vector3 currentWalkVector;
+    private Vector3 currentDistancePerSecond;
     private Vector3 camLocalPosition;
     private Vector3 currentNormal;
     private float gravityOffDist = 0.05f;
@@ -100,11 +100,11 @@ public class SpiderController : MonoBehaviour {
         Vector3 input = getInput();
 
         // Only move when movevector and forward angle small enough
-        float distance = Mathf.Pow(Mathf.Clamp(Vector3.Dot(input, transform.forward), 0, 1), 4) * 0.1f * Time.deltaTime * walkSpeed * scale;
+        float distance = Mathf.Pow(Mathf.Clamp(Vector3.Dot(input, transform.forward), 0, 1), 4) * 0.1f * Time.deltaTime *walkSpeed * scale;
         //Make sure per frame we wont move more than our downsphereRay radius, or we might lose the floor. This can significantly slow down the spider when having low frame rates!
         distance = Mathf.Clamp(distance, 0, 0.99f * downRaySize);
-        currentWalkVector = distance * input;
-        walk(currentWalkVector);
+        currentDistancePerSecond = distance / Time.deltaTime * input;
+        walk(distance *input);
         turn(input, Time.deltaTime * turnSpeed);
 
 
@@ -152,7 +152,7 @@ public class SpiderController : MonoBehaviour {
 
         Quaternion tempCamRotation = cam.transform.rotation;
         Vector3 tempCamPosition = cam.transform.position;
-        transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(forward, currentNormal), 100.0f * speed);
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(forward, currentNormal), 50.0f * speed);
         cam.transform.rotation = tempCamRotation;
         cam.transform.position = tempCamPosition;
     }
@@ -163,10 +163,8 @@ public class SpiderController : MonoBehaviour {
 
     //Implemented so the IKStepper can use this to predict 
     public Vector3 getMovement() {
-        return currentWalkVector;
+        return currentDistancePerSecond;
     }
-
-
 
     //** Camera Methods **//
     void RotateCameraHorizontal(float angle) {
