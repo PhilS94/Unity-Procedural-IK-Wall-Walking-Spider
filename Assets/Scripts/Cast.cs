@@ -10,41 +10,73 @@ namespace Raycasting {
     }
 
     public abstract class Cast {
+
+        //If parent set, then parameters are in Local Space of the Parent
+        protected Transform parent;
         protected Vector3 origin;
         protected Vector3 direction;
-        protected float distance;
 
         public Cast() {
             origin = Vector3.zero;
-            direction = Vector3.zero;
-            distance = 0;
-        }
-
-        public Cast(Vector3 m_origin, Vector3 m_end) {
-            origin = m_origin;
-            direction = (m_end - m_origin).normalized;
+            direction = -Vector3.up;
         }
 
         public Cast(Vector3 m_origin, Vector3 m_direction, float m_distance) {
             origin = m_origin;
-            direction = m_direction;
-            distance = m_distance;
+            direction = m_direction.normalized *m_distance;
         }
 
-        public Vector3 getOrigin() { return origin; }
-        public Vector3 getDirection() { return direction; }
-        public float getDistance() { return distance; }
-        public Vector3 getEnd() { return origin + distance * direction; }
+        public Cast(Vector3 m_origin, Vector3 m_end) {
+            origin = m_origin;
+            direction = (m_end - m_origin);
+        }
 
-        public void setOrigin(Vector3 m_Origin) { origin = m_Origin; }
-        public void setDirection(Vector3 m_Direction) { direction = m_Direction; }
-        public void setDistance(float m_distance) { distance = m_distance; }
-        public void setDirectionDistance(Vector3 v) { direction = v.normalized; distance = v.magnitude; }
-        public void setLookDirection(Vector3 point) { direction = (point - origin).normalized; }
-        public void setEnd(Vector3 m_end) { direction = (m_end - origin).normalized; distance = (m_end - origin).magnitude; }
+        public Cast(Vector3 m_origin, Vector3 m_direction, float m_distance, Transform m_parent) {
+            parent = m_parent;
+            setOrigin(m_origin);
+            setDirection(m_direction.normalized * m_distance);
+        }
+
+        public Cast(Vector3 m_origin, Vector3 m_end, Transform m_parent) {
+            parent = m_parent;
+            setOrigin(m_origin);
+            setDirection(m_end - m_origin);
+        }
+
+        // Returns values in World Space
+        public Vector3 getOrigin() { return (parent == null) ? origin : parent.TransformPoint(origin); }
+        public Vector3 getDirection() { return (parent == null) ? direction : parent.TransformVector(direction); }
+        public float getDistance() { return getDirection().magnitude; }
+        public Vector3 getEnd() { return getOrigin() + getDirection(); }
+
+        public void setParent(Transform m_parent) {
+            if (parent == null) {
+                // Dont have a current parent, therefore current origin and direction are already in world coordinates.
+                parent = m_parent;
+                setOrigin(origin);
+                setDirection(direction);
+            }
+            else {
+                // Already have a parent. Get the current world positions, and set them again after changing parent.
+                Vector3 oldOriginWorldSpace = getOrigin();
+                Vector3 oldDirectionWorldSpace = getDirection();
+                parent = m_parent;
+                setOrigin(oldOriginWorldSpace);
+                setDirection(oldDirectionWorldSpace);
+
+            }
+            parent = m_parent;
+        }
+
+        // Input parameters are in World Space
+        public void setOrigin(Vector3 m_Origin) { origin = (parent == null) ? m_Origin : parent.InverseTransformPoint(m_Origin); }
+        public void setDirection(Vector3 m_Direction) { direction = (parent == null) ? m_Direction : parent.InverseTransformVector(m_Direction); }
+        public void setLookDirection(Vector3 point, float distance) { setDirection((point - getOrigin()).normalized * distance); }
+        public void setDistance(float m_Distance) { setDirection(getDirection().normalized * m_Distance); }
+        public void setEnd(Vector3 m_end) { setDirection(m_end - getOrigin()); }
         public void setSymmetricThroughCenter(Vector3 center, Vector3 normal, float height) {
-            origin = center + height * normal;
-            setDirectionDistance(2 * height * -normal);
+            setOrigin(center + height * normal);
+            setDirection(2 * height * -normal);
         }
         public abstract bool castRay(out RaycastHit hitInfo, int layerMask, QueryTriggerInteraction q = QueryTriggerInteraction.Ignore);
 
@@ -58,21 +90,27 @@ namespace Raycasting {
 
         public RayCast() : base() { }
 
-        public RayCast(Vector3 m_origin, Vector3 m_end) : base(m_origin, m_end) { }
-
         public RayCast(Vector3 m_origin, Vector3 m_direction, float m_distance) : base(m_origin, m_direction, m_distance) { }
 
+        public RayCast(Vector3 m_origin, Vector3 m_end) : base(m_origin, m_end) { }
+
+        public RayCast(Vector3 m_origin, Vector3 m_direction, float m_distance, Transform m_parent) : base(m_origin, m_direction, m_distance, m_parent) { }
+
+        public RayCast(Vector3 m_origin, Vector3 m_end, Transform m_parent) : base(m_origin, m_end, m_parent) { }
+
+
         public override bool castRay(out RaycastHit hitInfo, int layerMask, QueryTriggerInteraction q = QueryTriggerInteraction.Ignore) {
-            // could check if the normal is acceptable
-            return Physics.Raycast(origin, direction, out hitInfo, distance, layerMask, q);
+            Vector3 v = getDirection();
+            return Physics.Raycast(getOrigin(), v.normalized, out hitInfo, v.magnitude, layerMask, q);
         }
 
         public override RaycastHit[] castRayAll(int layerMask, QueryTriggerInteraction q = QueryTriggerInteraction.Ignore) {
-            return Physics.RaycastAll(origin, direction, distance, layerMask, q);
+            Vector3 v = getDirection();
+            return Physics.RaycastAll(getOrigin(), v, v.magnitude, layerMask, q);
         }
 
         public override void draw(Color col) {
-            Debug.DrawLine(origin, getEnd(), col);
+            Debug.DrawLine(getOrigin(), getEnd(), col);
         }
     }
 
@@ -81,7 +119,7 @@ namespace Raycasting {
         protected float radius;
 
         public SphereCast() : base() {
-            radius = 0;
+            radius = 1.0f;
         }
 
         public SphereCast(float m_radius) : base() {
@@ -96,21 +134,30 @@ namespace Raycasting {
             radius = m_radius;
         }
 
-        public float getRadius() { return radius; }
+        public SphereCast(Vector3 m_origin, Vector3 m_direction, float m_distance, float m_radius, Transform m_parent) : base(m_origin, m_direction, m_distance,m_parent) {
+            setRadius(m_radius);
+        }
 
-        public void setRadius(float m_radius) { radius = m_radius; }
+        public SphereCast(Vector3 m_origin, Vector3 m_end, float m_radius, Transform m_parent) : base(m_origin, m_end,m_parent) {
+            setRadius(m_radius);
+        }
+
+        public float getRadius() { return (parent == null) ? radius : parent.lossyScale.z * radius; }
+
+        public void setRadius(float m_radius) { radius = (parent == null) ? m_radius : m_radius / parent.lossyScale.z; }
 
         public override bool castRay(out RaycastHit hitInfo, int layerMask, QueryTriggerInteraction q = QueryTriggerInteraction.Ignore) {
-            // could check if the normal is acceptable
-            return Physics.SphereCast(origin, radius, direction, out hitInfo, distance, layerMask, q);
+            Vector3 v = getDirection();
+            return Physics.SphereCast(getOrigin(), getRadius(), v.normalized, out hitInfo, v.magnitude, layerMask, q);
         }
 
         public override RaycastHit[] castRayAll(int layerMask, QueryTriggerInteraction q = QueryTriggerInteraction.Ignore) {
-            return Physics.SphereCastAll(origin, radius, direction, distance, layerMask, q);
+            Vector3 v = getDirection();
+            return Physics.SphereCastAll(getOrigin(), getRadius(), v.normalized, v.magnitude, layerMask, q);
         }
 
         public override void draw(Color col) {
-            DebugShapes.DrawSphereRay(origin, getEnd(), radius, 5, col);
+            DebugShapes.DrawSphereRay(getOrigin(), getEnd(), getRadius(), 5, col);
         }
     }
 }

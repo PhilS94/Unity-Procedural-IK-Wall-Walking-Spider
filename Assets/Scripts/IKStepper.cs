@@ -119,30 +119,38 @@ public class IKStepper : MonoBehaviour {
     }
 
     private void initializeCasts() {
+
+        Transform parent = spidercontroller.transform;
+        Vector3 normal = parent.up;
+        Vector3 defaultPos = getDefault();
+        Vector3 top = getTop();
+        Vector3 bottom = getBottom();
+        Vector3 frontal = getFrontalVector();
+        prediction = defaultPos;
+
         if (castMode == CastMode.RayCast) {
-            castFrontal = new RayCast();
-            castDown = new RayCast();
-            castOutward = new RayCast();
-            castInwards = new RayCast();
-            castDefaultDown = new RayCast();
-            castDefaultOutward = new RayCast();
-            castDefaultInward = new RayCast();
+            castFrontal = new RayCast(top, top + frontal, parent);
+            castDown = new RayCast(prediction + normal * height, -normal, 2 * height, parent);
+            castOutward = new RayCast(top, prediction, parent);
+            castInwards = new RayCast(prediction, bottom, parent);
+            castDefaultDown = new RayCast(defaultPos + normal * height, -normal, 2 * height, parent);
+            castDefaultOutward = new RayCast(top, defaultPos, parent);
+            castDefaultInward = new RayCast(defaultPos, bottom, parent);
         }
         else {
             float r = spidercontroller.scale * radius;
-            castFrontal = new SphereCast(r);
-            castDown = new SphereCast(r);
-            castOutward = new SphereCast(r);
-            castInwards = new SphereCast(r);
-            castDefaultDown = new SphereCast(r);
-            castDefaultOutward = new SphereCast(r);
-            castDefaultInward = new SphereCast(r);
+            castFrontal = new SphereCast(top, top + frontal, r, parent);
+            castDown = new SphereCast(prediction + normal * height, -normal, 2 * height, r, parent);
+            castOutward = new SphereCast(top, prediction, r, parent);
+            castInwards = new SphereCast(prediction, bottom, r, parent);
+            castDefaultDown = new SphereCast(defaultPos + normal * height, -normal, 2 * height, r, parent);
+            castDefaultOutward = new SphereCast(top, defaultPos, r, parent);
+            castDefaultInward = new SphereCast(defaultPos, bottom, r, parent);
         }
     }
 
     void Update() {
         timeSinceLastStep += Time.deltaTime;
-        updateRays();
 
         if (!ikChain.IKStepperActivated() || isStepping || !allowedToStep()) return;
 
@@ -213,7 +221,11 @@ public class IKStepper : MonoBehaviour {
         //Now shoot rays using the prediction to find an actual point on a surface.
         RaycastHit hitInfo;
         int layer = spidercontroller.walkableLayer;
-        updateRays();
+
+        //Update Rays for new prediction Point
+        castOutward.setEnd(prediction);
+        castDown.setOrigin(prediction + normal * height);
+        castInwards.setOrigin(prediction);
 
         // Frontal Ray
         if (castFrontal.castRay(out hitInfo, layer)) {
@@ -260,33 +272,6 @@ public class IKStepper : MonoBehaviour {
         // Return default position
         Debug.Log("No ray was able to find a target position. Therefore i will return a default position.");
         return new TargetInfo(defaultPosition + 0.25f * height * normal, normal, false);
-    }
-
-    private void updateRays() {
-        Vector3 normal = spidercontroller.transform.up;
-        Vector3 defaultPos = getDefault();
-        Vector3 top = getTop();
-        Vector3 bottom = getBottom();
-        Vector3 frontal = getFrontalVector();
-
-        castFrontal.setOrigin(top);
-        castFrontal.setDirectionDistance(frontal);
-
-        castOutward.setOrigin(top);
-        castOutward.setEnd(prediction);
-
-        castDown.setSymmetricThroughCenter(prediction, normal, height);
-
-        castInwards.setOrigin(prediction);
-        castInwards.setEnd(bottom);
-
-        castDefaultOutward.setOrigin(top);
-        castDefaultOutward.setEnd(defaultPos);
-
-        castDefaultDown.setSymmetricThroughCenter(defaultPos, normal, height);
-
-        castDefaultInward.setOrigin(defaultPos);
-        castDefaultInward.setEnd(bottom);
     }
 
     /*
@@ -367,7 +352,7 @@ public class IKStepper : MonoBehaviour {
             DebugShapes.DrawPoint(getBottom(), Color.green, debugIconScale);
 
             //Target Point
-            if (isStepping) DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, debugIconScale, 2*stepTime);
+            if (isStepping) DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, debugIconScale, 2 * stepTime);
             else DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, debugIconScale);
         }
 
@@ -383,22 +368,19 @@ public class IKStepper : MonoBehaviour {
         }
 
         if (rayCasts) {
-            castFrontal.draw(Color.yellow);
+            castFrontal.draw(Color.green);
             castOutward.draw(Color.yellow);
             castDown.draw(Color.yellow);
             castInwards.draw(Color.yellow);
-            castDefaultOutward.draw(Color.yellow);
-            castDefaultDown.draw(Color.yellow);
-            castDefaultInward.draw(Color.yellow);
+            castDefaultOutward.draw(Color.magenta);
+            castDefaultDown.draw(Color.magenta);
+            castDefaultInward.draw(Color.magenta);
         }
 
         if (DOFArc) {
             Vector3 v = spidercontroller.transform.TransformDirection(minOrient);
             Vector3 w = spidercontroller.transform.TransformDirection(maxOrient);
             DebugShapes.DrawCircleSection(rootJoint.getRotationPoint(), v, w, minDistance, ikChain.getChainLength(), Color.red);
-
-            // MinDistance
-            //DebugShapes.DrawSphere(rootPos, minDistance, Color.red);
         }
     }
 
@@ -414,9 +396,7 @@ public class IKStepper : MonoBehaviour {
         // Run Start to set all parameters (Since chainlength is used in this call we make sure it is set or else we return)
         if (ikChain.getChainLength() == 0) return;
         Start();
-
-        updateRays();
-        drawDebug(true, false,true, true);
+        drawDebug(true, false, true, true);
     }
 #endif
 }

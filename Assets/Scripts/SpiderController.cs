@@ -54,6 +54,7 @@ public class SpiderController : MonoBehaviour {
 
     private SphereCast downRay, forwardRay;
     private RayCast camToPlayer, playerToCam;
+    float maxCameraDistance;
     private RaycastHit hitInfo;
     private RaycastHit[] camObstructions;
 
@@ -78,20 +79,13 @@ public class SpiderController : MonoBehaviour {
     void Start() {
         currentNormal = Vector3.up;
 
-        downRay = new SphereCast();
-        downRay.setRadius(downRaySize * col.radius * scale);
-        downRay.setDistance(downRayLength * scale);
+        maxCameraDistance = Vector3.Distance(transform.position,cam.transform.position);
 
-        forwardRay = new SphereCast();
-        forwardRay.setDistance(forwardRayLength * scale);
-        forwardRay.setRadius(forwardRaySize * col.radius * scale);
+        downRay = new SphereCast(transform.position, -transform.up, scale * downRayLength, downRaySize * scale * col.radius, transform);
+        forwardRay = new SphereCast(transform.position, transform.forward, scale * forwardRayLength, forwardRaySize * scale * col.radius, transform);
 
-        float maxCameraDistance = Mathf.Abs(cam.transform.localPosition.magnitude) * scale;
-        playerToCam = new RayCast();
-        playerToCam.setDistance(maxCameraDistance);
-
-        camToPlayer = new RayCast();
-        camToPlayer.setDistance(maxCameraDistance);
+        playerToCam = new RayCast(transform.position, cam.transform.position);
+        camToPlayer = new RayCast(cam.transform.position, transform.position);
     }
 
     void FixedUpdate() {
@@ -195,7 +189,8 @@ public class SpiderController : MonoBehaviour {
     void clipCamera() {
         float margin = 0.05f;
 
-        updateRays();
+        playerToCam.setOrigin(transform.position);
+        playerToCam.setLookDirection(cam.transform.position, maxCameraDistance);
         if (playerToCam.castRay(out hitInfo, cameraClipLayer)) {
             cam.transform.position = hitInfo.point - margin * playerToCam.getDirection();
         }
@@ -216,7 +211,8 @@ public class SpiderController : MonoBehaviour {
         }
 
         // Now transparent all new obstructions
-        updateRays();
+        camToPlayer.setOrigin(cam.transform.position);
+        camToPlayer.setEnd(transform.position);
         camObstructions = camToPlayer.castRayAll(cameraInvisibleClipLayer);
 
         for (int k = 0; k < camObstructions.Length; k++) {
@@ -229,7 +225,6 @@ public class SpiderController : MonoBehaviour {
 
     //** Ground Check Methods **//
     private groundInfo GroundCheckSphere() {
-        updateRays();
         if (forwardRay.castRay(out hitInfo, walkableLayer)) {
             return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - scale * col.radius);
         }
@@ -239,20 +234,6 @@ public class SpiderController : MonoBehaviour {
         }
 
         return new groundInfo(false, Vector3.up, float.PositiveInfinity);
-    }
-
-    private void updateRays() {
-        downRay.setOrigin(transform.position);
-        downRay.setDirection(-transform.up);
-
-        forwardRay.setOrigin(transform.position);
-        forwardRay.setDirection(transform.forward);
-
-        camToPlayer.setOrigin(cam.transform.position);
-        camToPlayer.setLookDirection(transform.position);
-
-        playerToCam.setOrigin(transform.position);
-        playerToCam.setLookDirection(cam.transform.position);
     }
 
     //** Get Methods **//
@@ -268,7 +249,8 @@ public class SpiderController : MonoBehaviour {
 
         Vector3 borderpoint = transform.TransformPoint(col.center) + col.radius * scale * -transform.up;
         Debug.DrawLine(borderpoint, borderpoint + gravityOffDist * -transform.up, Color.black);
-        Debug.DrawLine(transform.position, transform.position + 0.3f * scale * currentNormal, new Color(1, 0.5f, 0, 1));    }
+        Debug.DrawLine(transform.position, transform.position + 0.3f * scale * currentNormal, new Color(1, 0.5f, 0, 1));
+    }
 
 #if UNITY_EDITOR
     void OnDrawGizmosSelected() {
@@ -279,7 +261,6 @@ public class SpiderController : MonoBehaviour {
 
         Awake();
         Start();
-        updateRays();
         drawDebug();
     }
 #endif
