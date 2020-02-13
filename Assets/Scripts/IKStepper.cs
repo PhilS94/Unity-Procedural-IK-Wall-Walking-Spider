@@ -56,6 +56,13 @@ public class IKStepper : MonoBehaviour {
 
 
     [Header("Points")]
+    [Range(-1.0f, 1.0f)]
+    public float defaultOffsetLength;
+    [Range(-1.0f, 1.0f)]
+    public float defaultOffsetHeight;
+    [Range(-1.0f, 1.0f)]
+    public float defaultOffsetStride;
+
     public Vector3 originPointOutwardsRay;
     public Vector3 endPointInwardsRay;
 
@@ -85,7 +92,8 @@ public class IKStepper : MonoBehaviour {
     private Vector3 prediction2;
     private Vector3 prediction3;
     private Vector3 lastEndEffectorPos;
-    private Vector3 lastDefaultPositionOfStep;
+    private Vector3 minOrient;
+    private Vector3 maxOrient;
 
 
     private void Awake() {
@@ -104,10 +112,18 @@ public class IKStepper : MonoBehaviour {
         maxDistance = chainLength;
         minDistance = 0.2f * chainLength;
 
-        //Calc default position
-        Vector3 v = Quaternion.AngleAxis((rootJoint.minAngle + rootJoint.maxAngle) / 2, rootJoint.getRotationAxis()) * Vector3.ProjectOnPlane(ikChain.getEndEffector().position - rootPos, rootJoint.getRotationAxis()).normalized;
-        defaultPositionLocal = spidercontroller.transform.InverseTransformPoint(rootPos + (minDistance + 0.5f * (maxDistance - minDistance)) * v);
+        //Set some debug variables
+        Vector3 toEnd = (Vector3.ProjectOnPlane(ikChain.getEndEffector().position - rootPos,rootJoint.getRotationAxis())).normalized;
+        minOrient = spidercontroller.transform.InverseTransformVector(Quaternion.AngleAxis(rootJoint.minAngle, rootJoint.getRotationAxis()) * toEnd);
+        maxOrient = spidercontroller.transform.InverseTransformVector(Quaternion.AngleAxis(rootJoint.maxAngle, rootJoint.getRotationAxis()) * toEnd);
+
+        //Calculate default position
+        Vector3 midOrient = Quaternion.AngleAxis(0.5f*(rootJoint.maxAngle+rootJoint.minAngle), rootJoint.getRotationAxis()) * toEnd;
+        defaultPositionLocal = spidercontroller.transform.InverseTransformPoint(rootPos + (minDistance + 0.5f * (maxDistance - minDistance)) * midOrient);
         defaultPositionLocal.y = -spidercontroller.col.radius;
+        defaultPositionLocal += defaultOffsetLength * midOrient.normalized * 0.5f * (maxDistance - minDistance) * 1 / spidercontroller.scale;
+        defaultPositionLocal += defaultOffsetHeight * rootJoint.getRotationAxis() * height * 1 / spidercontroller.scale;
+        defaultPositionLocal += defaultOffsetStride * Vector3.Cross(midOrient.normalized, rootJoint.getRotationAxis()) * ((minDistance + (0.5f + 0.5f * defaultOffsetLength) * (maxDistance - minDistance)) / chainLength) * Mathf.Sin(0.5f * rootJoint.getAngleRange()) * 1 / spidercontroller.scale;
     }
 
     void Update() {
@@ -125,12 +141,13 @@ public class IKStepper : MonoBehaviour {
         }
         //If comfortable but target not close enough anymore even after the last CCD iteration, step
         else if (ikChain.getError() > IKSolver.tolerance) {
-            //Debug.Log("Have to step now since im too far away at an error of " + ikChain.getError());
+            //Debug.Log(gameObject.name + "had to step since the error was to great.");
             step(calcNewTarget(out uncomfortable));
             //Debug.Break();
         }
         // Or if too close to RootJoint
         else if (Vector3.Distance(rootJoint.getRotationPoint(), ikChain.getTarget().position) < minDistance) {
+            //Debug.Log(gameObject.name + "had to step since it was too close to root joint.");
             step(calcNewTarget(out uncomfortable));
         }
 
@@ -173,21 +190,26 @@ public class IKStepper : MonoBehaviour {
         // For now I choose Option 1:
 
         //Calculate prediction
-        prediction = endeffectorPosition + (defaultPosition - endeffectorPosition) * velocityPrediction
+        Vector3 start = Vector3.ProjectOnPlane(endeffectorPosition, normal);
+        start = spidercontroller.transform.InverseTransformPoint(start);
+        start.y = defaultPositionLocal.y;
+        start = spidercontroller.transform.TransformPoint(start);
+
+
+
+        prediction = start + (defaultPosition - start) * velocityPrediction
                     + spidercontroller.getMovement() * stepTime;
-        prediction = Vector3.ProjectOnPlane(prediction, normal);
 
         // The following just adjusts the prediction such that is lies on the same plane as the defaultposition
-        prediction = spidercontroller.transform.InverseTransformPoint(prediction);
-        prediction.y = defaultPositionLocal.y;
-        prediction = spidercontroller.transform.TransformPoint(prediction);
+        //prediction = spidercontroller.transform.InverseTransformPoint(prediction);
+        //prediction.y = defaultPositionLocal.y;
+        //prediction = spidercontroller.transform.TransformPoint(prediction);
 
         //Debug variables
         lastEndEffectorPos = endeffectorPosition;
-        lastDefaultPositionOfStep = defaultPosition;
-        prediction1 = endeffectorPosition + (defaultPosition - endeffectorPosition) * velocityPrediction;
-        prediction2 = prediction1 + spidercontroller.getMovement() * stepTime;
-        prediction3 = prediction;
+        prediction1 = start;
+        prediction2 = prediction1 + (defaultPosition - start) * velocityPrediction;
+        prediction3 = prediction2 + spidercontroller.getMovement() * stepTime;
 
         //Now shoot a rays using the prediction to find an actual point on a surface.
         RaycastHit hitInfo;
@@ -244,7 +266,7 @@ public class IKStepper : MonoBehaviour {
         if (rayType == RayType.singleRay) {
             if (Physics.Raycast(l.origin, direction, out hitInfo, magnitude, spidercontroller.walkableLayer, QueryTriggerInteraction.Ignore)) {
                 // could check if the normal is acceptable
-                if (Mathf.Cos(Mathf.Deg2Rad*Vector3.Angle(direction, hitInfo.normal)) < 0) {
+                if (Mathf.Cos(Mathf.Deg2Rad * Vector3.Angle(direction, hitInfo.normal)) < 0) {
                     return true;
                 }
             }
@@ -286,7 +308,7 @@ public class IKStepper : MonoBehaviour {
         }
         if (!allowedToStep()) {
             //I cant step but my target is not reachable. So i simply add the spiders movevector here
-            ikChain.setTarget(new TargetInfo(ikChain.getTarget().position + spidercontroller.getMovement(),ikChain.getTarget().normal));
+            ikChain.setTarget(new TargetInfo(ikChain.getTarget().position + spidercontroller.getMovement(), ikChain.getTarget().normal));
             return;
         }
         IEnumerator coroutineStepping = Step(target);
@@ -365,18 +387,22 @@ public class IKStepper : MonoBehaviour {
 
         //Draw the prediction process
         DebugShapes.DrawPoint(lastEndEffectorPos, Color.white, debugIconScale);
-        DebugShapes.DrawPoint(lastDefaultPositionOfStep, new Color(1, 0, 1, 0.5f), debugIconScale);
         DebugShapes.DrawPoint(prediction1, Color.grey, debugIconScale);
-        DebugShapes.DrawPoint(prediction2, Color.grey, debugIconScale);
-        DebugShapes.DrawPoint(prediction3, Color.black, debugIconScale);
-        Debug.DrawLine(lastEndEffectorPos, prediction1, Color.grey);
-        Debug.DrawLine(prediction1, prediction2, Color.green);
-        Debug.DrawLine(prediction2, prediction3, Color.grey);
+        DebugShapes.DrawPoint(prediction2, Color.green, debugIconScale);
+        DebugShapes.DrawPoint(prediction3, Color.red, debugIconScale);
+        Debug.DrawLine(lastEndEffectorPos, prediction1, Color.white);
+        Debug.DrawLine(prediction1, prediction2, Color.grey);
+        Debug.DrawLine(prediction2, prediction3, Color.green);
 
         // MinDistance
-        DebugShapes.DrawSphere(rootPos, minDistance, Color.red);
-        //All the Raycasts:
+        //DebugShapes.DrawSphere(rootPos, minDistance, Color.red);
 
+        //Degree of Freedom Arc
+        Vector3 v = spidercontroller.transform.TransformVector(minOrient);
+        Vector3 w = spidercontroller.transform.TransformVector(maxOrient);
+        DebugShapes.DrawCircleSection(rootPos, v, w, minDistance, maxDistance, Color.red);
+
+        //All the Raycasts:
         Debug.DrawLine(lineOutward.origin, lineOutward.end, Color.yellow);
         Debug.DrawLine(lineDown.origin, lineDown.end, 0.9f * Color.yellow);
         Debug.DrawLine(lineInwards.origin, lineInwards.end, 0.8f * Color.yellow);
@@ -396,9 +422,8 @@ public class IKStepper : MonoBehaviour {
 
 #if UNITY_EDITOR
     void OnDrawGizmosSelected() {
-        if (!UnityEditor.Selection.Contains(transform.gameObject)) {
-            return;
-        }
+        if (UnityEditor.EditorApplication.isPlaying) return;
+        if (!UnityEditor.Selection.Contains(transform.gameObject)) return;
 
         //Draw the two focus points
         DebugShapes.DrawPoint(spidercontroller.transform.TransformPoint(originPointOutwardsRay), Color.green, debugIconScale);
@@ -416,7 +441,12 @@ public class IKStepper : MonoBehaviour {
         DebugShapes.DrawPoint(defaultPosition, Color.magenta, debugIconScale);
 
         // MinDistance
-        DebugShapes.DrawSphere(rootPos, minDistance, Color.red);
+        //DebugShapes.DrawSphere(rootPos, minDistance, Color.red);
+
+        //Degree of Freedom Arc
+        Vector3 v = spidercontroller.transform.TransformVector(minOrient);
+        Vector3 w = spidercontroller.transform.TransformVector(maxOrient);
+        DebugShapes.DrawCircleSection(rootPos, v, w, minDistance, maxDistance, Color.red);
     }
 #endif
 }
