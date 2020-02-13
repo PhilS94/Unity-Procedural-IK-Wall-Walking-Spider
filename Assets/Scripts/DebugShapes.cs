@@ -299,7 +299,7 @@ public class DebugShapes : MonoBehaviour {
         for (int i = 0; i < amount; i++) {
             DrawSphere(Vector3.Lerp(start, endPointSphereCenter, (float)i / (amount - 1)), radius, new Color(col.r, col.g, col.b, 0.5f));
         }
-        //Debug.DrawLine(start, endPoint, col);
+        Debug.DrawLine(start, endPoint, col);
     }
 
     public static void DrawSphereRay(Vector3 start, Vector3 end, float radius, int amount, Color col) {

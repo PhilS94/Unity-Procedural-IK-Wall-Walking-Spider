@@ -5,17 +5,19 @@ using UnityEngine;
 public struct TargetInfo {
     public Vector3 position;
     public Vector3 normal;
+    public bool comfortable;
 
-    public TargetInfo(Vector3 pos, Vector3 n) {
-        position = pos;
-        normal = n;
+    public TargetInfo(Vector3 m_position, Vector3 m_normal, bool m_comfortable=true) {
+        position = m_position;
+        normal = m_normal;
+        comfortable = m_comfortable;
     }
 }
 
 public class IKSolver : MonoBehaviour {
 
     private static int maxIterations = 15;
-    public static float tolerance = 0.05f;
+    public static float tolerance = 0.1f;
     private static float weight = 1.0f;
     private static float footAngleToNormal = 20.0f; // 0 means parallel to ground (Orthogonal to plane normal)
 
@@ -75,7 +77,7 @@ public class IKSolver : MonoBehaviour {
                 if (toTarget == Vector3.zero || toEnd == Vector3.zero) continue; // If singularity, skip. ToEnd should never be zero in my configuration though
 
                 //This is a special case, where i want the foot, that is the last joint of the chain to adjust to the normal it hit
-                if (k == joints.Length - 1 && hasFoot) {
+                if (iteration < maxIterations / 2 && k == joints.Length - 1 && hasFoot) {
                     angle = footAngleToNormal + 90.0f - Vector3.SignedAngle(Vector3.ProjectOnPlane(target.normal, rotAxis), toEnd, rotAxis); //Here toEnd only works because ill use this only for the last joint. instead you would want to use the vector from joint[i] to joint[i+1]
                 }
                 else {

@@ -125,7 +125,6 @@ public class IKChain : MonoBehaviour {
     // Use this setter to set the target for the CCD algorithm. The CCD runs with every frame update and uses this target.
     public void setTarget(TargetInfo target) {
         currentTarget = target;
-        //In Theory i want to call solveCCD here but it runs every frame anyway so i wont for now
     }
 
     public bool IKStepperActivated() {

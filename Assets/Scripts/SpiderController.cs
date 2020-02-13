@@ -1,20 +1,29 @@
 ﻿using UnityEngine;
 using System.Collections;
+using Raycasting;
 
 public class SpiderController : MonoBehaviour {
 
+    private Rigidbody rb;
+
+    [Header("Debug")]
     public bool showDebug;
 
-    public Camera cam;
-    private Rigidbody rb;
-    public CapsuleCollider col;
+    [Header("Scale of Transform")]
+    public float scale = 1.0f;
 
+    [Header("Movement")]
+    public CapsuleCollider col;
     [Range(1, 5)]
     public float walkSpeed;
     [Range(1, 5)]
     public float turnSpeed;
     [Range(1, 10)]
     public float normalAdjustSpeed;
+    public LayerMask walkableLayer;
+
+    [Header("Camera")]
+    public Camera cam;
 
     [Range(1, 5)]
     public float XSensitivity;
@@ -26,44 +35,25 @@ public class SpiderController : MonoBehaviour {
     [Range(0.01f, 90.0f)]
     public float camLowerAngleMargin = 60.0f;
 
+    public LayerMask cameraInvisibleClipLayer;
+    public LayerMask cameraClipLayer;
+
+    [Header("Ray Adjustments")]
     [Range(0.0f, 1.0f)]
     public float forwardRayLength;
     [Range(0.0f, 1.0f)]
     public float downRayLength;
-
     [Range(0.1f, 1.0f)]
     public float forwardRaySize = 0.66f;
     [Range(0.1f, 1.0f)]
     public float downRaySize = 0.9f;
 
-    public float scale = 1.0f;
-
-    public LayerMask walkableLayer;
-    public LayerMask cameraInvisibleClipLayer;
-    public LayerMask cameraClipLayer;
-
     private Vector3 currentDistancePerSecond;
-    private Vector3 camLocalPosition;
     private Vector3 currentNormal;
     private float gravityOffDist = 0.05f;
 
-
-    private struct SphereRay {
-        public Vector3 position;
-        public Vector3 direction;
-        public float radius;
-        public float distance;
-
-        public SphereRay(Vector3 p, Vector3 dir, float r, float dist) {
-            position = p;
-            direction = dir;
-            radius = r;
-            distance = dist;
-        }
-    }
-
-    private SphereRay downRay, forwardRay;
-    private Ray camToPlayer, playerToCam;
+    private SphereCast downRay, forwardRay;
+    private RayCast camToPlayer, playerToCam;
     private RaycastHit hitInfo;
     private RaycastHit[] camObstructions;
 
@@ -81,14 +71,31 @@ public class SpiderController : MonoBehaviour {
 
     private groundInfo grdInfo;
 
-    void Start() {
+    private void Awake() {
         rb = GetComponent<Rigidbody>();
+    }
+
+    void Start() {
         currentNormal = Vector3.up;
-        camLocalPosition = cam.transform.localPosition;
+
+        downRay = new SphereCast();
+        downRay.setRadius(downRaySize * col.radius * scale);
+        downRay.setDistance(downRayLength * scale);
+
+        forwardRay = new SphereCast();
+        forwardRay.setDistance(forwardRayLength * scale);
+        forwardRay.setRadius(forwardRaySize * col.radius * scale);
+
+        float maxCameraDistance = Mathf.Abs(cam.transform.localPosition.magnitude) * scale;
+        playerToCam = new RayCast();
+        playerToCam.setDistance(maxCameraDistance);
+
+        camToPlayer = new RayCast();
+        camToPlayer.setDistance(maxCameraDistance);
     }
 
     void FixedUpdate() {
-        // No Gravity if close enough to ground
+        // Dont apply gravity if close enough to ground
         if (grdInfo.distanceToGround > gravityOffDist) {
             rb.AddForce(-grdInfo.groundNormal * 1000.0f * Time.fixedDeltaTime); //Important using the groundnormal and not the lerping currentnormal here!
         }
@@ -96,17 +103,16 @@ public class SpiderController : MonoBehaviour {
 
     void Update() {
 
-        /** Movement **/
+        //** Movement **//
         Vector3 input = getInput();
 
         // Only move when movevector and forward angle small enough
-        float distance = Mathf.Pow(Mathf.Clamp(Vector3.Dot(input, transform.forward), 0, 1), 4) * 0.1f * Time.deltaTime *walkSpeed * scale;
+        float distance = Mathf.Pow(Mathf.Clamp(Vector3.Dot(input, transform.forward), 0, 1), 4) * 0.1f * Time.deltaTime * walkSpeed * scale;
         //Make sure per frame we wont move more than our downsphereRay radius, or we might lose the floor. This can significantly slow down the spider when having low frame rates!
         distance = Mathf.Clamp(distance, 0, 0.99f * downRaySize);
         currentDistancePerSecond = distance / Time.deltaTime * input;
-        walk(distance *input);
+        walk(distance * input);
         turn(input, Time.deltaTime * turnSpeed);
-
 
         //** Ground Check **//
         // Important doing this after the movement, since we want to know whats beneath us in the new position, as to not apply gravity if we walked too far over a wall 
@@ -133,10 +139,7 @@ public class SpiderController : MonoBehaviour {
         clipCameraInvisible();
 
         //** Debug **//
-        if (showDebug) {
-            drawDebug();
-        }
-
+        if (showDebug) drawDebug();
     }
 
 
@@ -191,22 +194,17 @@ public class SpiderController : MonoBehaviour {
 
     void clipCamera() {
         float margin = 0.05f;
-        Vector3 to = cam.transform.position - transform.position;
-        float maxCameraDistance = Mathf.Abs(camLocalPosition.magnitude) * scale;
-        playerToCam = new Ray(transform.position, to);
 
-        if (Physics.Raycast(playerToCam, out hitInfo, maxCameraDistance, cameraClipLayer, QueryTriggerInteraction.Ignore)) {
-            cam.transform.position = hitInfo.point - margin * to.normalized;
+        updateRays();
+        if (playerToCam.castRay(out hitInfo, cameraClipLayer)) {
+            cam.transform.position = hitInfo.point - margin * playerToCam.getDirection();
         }
         else {
-            cam.transform.position = transform.position + (maxCameraDistance * to.normalized);
+            cam.transform.position = playerToCam.getEnd();
         }
     }
 
     void clipCameraInvisible() {
-        Vector3 to = transform.position - cam.transform.position;
-        camToPlayer = new Ray(cam.transform.position, to.normalized);
-
         //First make all previous obstructions visible again.
         if (camObstructions != null) {
             for (int k = 0; k < camObstructions.Length; k++) {
@@ -218,7 +216,8 @@ public class SpiderController : MonoBehaviour {
         }
 
         // Now transparent all new obstructions
-        camObstructions = Physics.RaycastAll(camToPlayer, to.magnitude, cameraInvisibleClipLayer, QueryTriggerInteraction.Ignore);
+        updateRays();
+        camObstructions = camToPlayer.castRayAll(cameraInvisibleClipLayer);
 
         for (int k = 0; k < camObstructions.Length; k++) {
             MeshRenderer mesh = camObstructions[k].transform.GetComponent<MeshRenderer>();
@@ -231,11 +230,11 @@ public class SpiderController : MonoBehaviour {
     //** Ground Check Methods **//
     private groundInfo GroundCheckSphere() {
         updateRays();
-        if (shootSphere(forwardRay)) {
+        if (forwardRay.castRay(out hitInfo, walkableLayer)) {
             return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - scale * col.radius);
         }
 
-        if (shootSphere(downRay)) {
+        if (downRay.castRay(out hitInfo, walkableLayer)) {
             return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - scale * col.radius);
         }
 
@@ -243,42 +242,45 @@ public class SpiderController : MonoBehaviour {
     }
 
     private void updateRays() {
-        downRay.position = transform.position;
-        downRay.direction = -transform.up;
-        downRay.radius = downRaySize * col.radius * scale;
-        downRay.distance = downRayLength * scale;
+        downRay.setOrigin(transform.position);
+        downRay.setDirection(-transform.up);
 
-        forwardRay.position = transform.position;
-        forwardRay.direction = transform.forward;
-        forwardRay.radius = forwardRaySize * col.radius * scale;
-        forwardRay.distance = forwardRayLength * scale;
+        forwardRay.setOrigin(transform.position);
+        forwardRay.setDirection(transform.forward);
+
+        camToPlayer.setOrigin(cam.transform.position);
+        camToPlayer.setLookDirection(transform.position);
+
+        playerToCam.setOrigin(transform.position);
+        playerToCam.setLookDirection(cam.transform.position);
     }
 
-    bool shootSphere(SphereRay sphereRay) {
-        return Physics.SphereCast(sphereRay.position, sphereRay.radius, sphereRay.direction, out hitInfo, sphereRay.distance, walkableLayer, QueryTriggerInteraction.Ignore);
+    //** Get Methods **//
+    public CapsuleCollider getCapsuleCollider() {
+        return col;
     }
-
-
 
     //** Debug Methods **//
     private void drawDebug() {
-        DebugShapes.DrawSphereRay(downRay.position, downRay.direction, downRay.distance, downRay.radius, 3, Color.green);
-        DebugShapes.DrawSphereRay(forwardRay.position, forwardRay.direction, forwardRay.distance, forwardRay.radius, 3, Color.blue);
+        downRay.draw(Color.green);
+        forwardRay.draw(Color.blue);
+        camToPlayer.draw(Color.magenta);
+
         Vector3 borderpoint = transform.TransformPoint(col.center) + col.radius * scale * -transform.up;
         Debug.DrawLine(borderpoint, borderpoint + gravityOffDist * -transform.up, Color.black);
-        Debug.DrawLine(transform.position, transform.position + 0.3f * scale * currentNormal, Color.yellow);
-        Debug.DrawLine(camToPlayer.origin, camToPlayer.origin + transform.position - cam.transform.position, Color.magenta);
-    }
+        Debug.DrawLine(transform.position, transform.position + 0.3f * scale * currentNormal, new Color(1, 0.5f, 0, 1));    }
 
-    #if UNITY_EDITOR
+#if UNITY_EDITOR
     void OnDrawGizmosSelected() {
 
         if (!showDebug) return;
         if (UnityEditor.EditorApplication.isPlaying) return;
         if (!UnityEditor.Selection.Contains(transform.gameObject)) return;
 
+        Awake();
+        Start();
         updateRays();
         drawDebug();
     }
-    #endif
+#endif
 }
