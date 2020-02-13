@@ -155,16 +155,19 @@ public class DebugShapes : MonoBehaviour {
 
         Vector3[] horiz = new Vector3[l];
         Vector3[] vert = new Vector3[l];
+        Vector3[] Z = new Vector3[l];
 
         float step = 2 * radius / (l + 1);
 
         for (int k = 0; k < l; k++) {
             horiz[k] = pos - Vector3.right * radius + (k + 1) * step * Vector3.right;
             vert[k] = pos - Vector3.up * radius + (k + 1) * step * Vector3.up;
+            Z[k] = pos - Vector3.forward * radius + (k + 1) * step * Vector3.forward;
             float angle = Mathf.Lerp(-Mathf.PI / 2, Mathf.PI / 2, (float)(k + 1) / (l + 1));
-            float r = Mathf.Cos(angle) * radius;
+            float r = Mathf.Cos(angle) * radius; //Calculated wrong
             DrawCircle(horiz[k], Vector3.right, r, col);
             DrawCircle(vert[k], Vector3.up, r, col);
+            DrawCircle(Z[k], Vector3.forward, r, col);
         }
         //Camera cam = UnityEditor.SceneView.lastActiveSceneView.camera;
         //if (cam != null) DrawCircle(pos, -cam.transform.forward, radius, col);
