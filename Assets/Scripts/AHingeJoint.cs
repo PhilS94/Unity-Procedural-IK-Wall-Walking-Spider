@@ -218,7 +218,7 @@ public class AHingeJoint : MonoBehaviour {
     }
 
     public Vector3 getMidOrientation() {
-        return (minOrientation + maxOrientation).normalized;
+        return Quaternion.AngleAxis(0.5f*(maxAngle-minAngle), rotationAxis) * minOrientation;
     }
 
     public float getAngleRange() {
