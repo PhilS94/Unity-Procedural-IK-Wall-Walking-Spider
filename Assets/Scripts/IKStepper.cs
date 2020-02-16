@@ -54,7 +54,7 @@ public class IKStepper : MonoBehaviour {
     private bool isStepping = false;
 
     private float minDistance;
-    private float height = 2.5f;
+    private float height = 2.0f;
 
     private Cast castFrontal;
     private Cast castDown;
@@ -129,23 +129,23 @@ public class IKStepper : MonoBehaviour {
         prediction = defaultPos;
 
         if (castMode == CastMode.RayCast) {
-            castFrontal = new RayCast(top, top + frontal, parent);
-            castDown = new RayCast(prediction + normal * height, -normal, 2 * height, parent);
-            castOutward = new RayCast(top, prediction, parent);
-            castInwards = new RayCast(prediction, bottom, parent);
-            castDefaultDown = new RayCast(defaultPos + normal * height, -normal, 2 * height, parent);
-            castDefaultOutward = new RayCast(top, defaultPos, parent);
-            castDefaultInward = new RayCast(defaultPos, bottom, parent);
+            castFrontal = new RayCast(top, top + frontal, parent, parent);
+            castDown = new RayCast(prediction + normal * height, -normal, 2 * height, null, null);
+            castOutward = new RayCast(top, prediction, parent, null);
+            castInwards = new RayCast(prediction, bottom, null, parent);
+            castDefaultDown = new RayCast(defaultPos + normal * height, -normal, 2 * height, parent, parent);
+            castDefaultOutward = new RayCast(top, defaultPos, parent, parent);
+            castDefaultInward = new RayCast(defaultPos, bottom, parent, parent);
         }
         else {
             float r = spidercontroller.scale * radius;
-            castFrontal = new SphereCast(top, top + frontal, r, parent);
-            castDown = new SphereCast(prediction + normal * height, -normal, 2 * height, r, parent);
-            castOutward = new SphereCast(top, prediction, r, parent);
-            castInwards = new SphereCast(prediction, bottom, r, parent);
-            castDefaultDown = new SphereCast(defaultPos + normal * height, -normal, 2 * height, r, parent);
-            castDefaultOutward = new SphereCast(top, defaultPos, r, parent);
-            castDefaultInward = new SphereCast(defaultPos, bottom, r, parent);
+            castFrontal = new SphereCast(top, top + frontal, r, parent, parent);
+            castDown = new SphereCast(prediction + normal * height, -normal, 2 * height, r, null, null);
+            castOutward = new SphereCast(top, prediction, r, parent, null);
+            castInwards = new SphereCast(prediction, bottom, r, null, parent);
+            castDefaultDown = new SphereCast(defaultPos + normal * height, -normal, 2 * height, r, parent, parent);
+            castDefaultOutward = new SphereCast(top, defaultPos, r, parent, parent);
+            castDefaultInward = new SphereCast(defaultPos, bottom, r, parent, parent);
         }
     }
 
@@ -225,6 +225,7 @@ public class IKStepper : MonoBehaviour {
         //Update Rays for new prediction Point
         castOutward.setEnd(prediction);
         castDown.setOrigin(prediction + normal * height);
+        castDown.setEnd(prediction - normal * height);
         castInwards.setOrigin(prediction);
 
         // Frontal Ray

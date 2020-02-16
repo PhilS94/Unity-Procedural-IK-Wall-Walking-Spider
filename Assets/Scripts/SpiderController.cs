@@ -79,13 +79,13 @@ public class SpiderController : MonoBehaviour {
     void Start() {
         currentNormal = Vector3.up;
 
-        maxCameraDistance = Vector3.Distance(transform.position,cam.transform.position);
+        maxCameraDistance = Vector3.Distance(transform.position, cam.transform.position);
 
-        downRay = new SphereCast(transform.position, -transform.up, scale * downRayLength, downRaySize * scale * col.radius, transform);
-        forwardRay = new SphereCast(transform.position, transform.forward, scale * forwardRayLength, forwardRaySize * scale * col.radius, transform);
+        downRay = new SphereCast(transform.position, -transform.up, scale * downRayLength, downRaySize * scale * col.radius, transform, transform);
+        forwardRay = new SphereCast(transform.position, transform.forward, scale * forwardRayLength, forwardRaySize * scale * col.radius, transform, transform);
 
-        playerToCam = new RayCast(transform.position, cam.transform.position);
-        camToPlayer = new RayCast(cam.transform.position, transform.position);
+        playerToCam = new RayCast(transform.position, cam.transform.position, transform, cam.transform);
+        camToPlayer = new RayCast(cam.transform.position, transform.position, cam.transform, transform);
     }
 
     void FixedUpdate() {
@@ -124,7 +124,6 @@ public class SpiderController : MonoBehaviour {
         //Apply the rotation to the spider and rotate camera halfway back vertically
         transform.rotation = goalrotation;
         RotateCameraVertical(-0.5f * slerpAngle);
-
 
         //** Camera movement **//
         RotateCameraHorizontal(Input.GetAxis("Mouse X") * XSensitivity);
@@ -189,10 +188,9 @@ public class SpiderController : MonoBehaviour {
     void clipCamera() {
         float margin = 0.05f;
 
-        playerToCam.setOrigin(transform.position);
-        playerToCam.setLookDirection(cam.transform.position, maxCameraDistance);
+        playerToCam.setDistance(maxCameraDistance);
         if (playerToCam.castRay(out hitInfo, cameraClipLayer)) {
-            cam.transform.position = hitInfo.point - margin * playerToCam.getDirection();
+            cam.transform.position = hitInfo.point - margin * playerToCam.getDirection().normalized;
         }
         else {
             cam.transform.position = playerToCam.getEnd();
@@ -211,8 +209,6 @@ public class SpiderController : MonoBehaviour {
         }
 
         // Now transparent all new obstructions
-        camToPlayer.setOrigin(cam.transform.position);
-        camToPlayer.setEnd(transform.position);
         camObstructions = camToPlayer.castRayAll(cameraInvisibleClipLayer);
 
         for (int k = 0; k < camObstructions.Length; k++) {
@@ -245,7 +241,7 @@ public class SpiderController : MonoBehaviour {
     private void drawDebug() {
         downRay.draw(Color.green);
         forwardRay.draw(Color.blue);
-        camToPlayer.draw(Color.magenta);
+        camToPlayer.draw(Color.white);
 
         Vector3 borderpoint = transform.TransformPoint(col.center) + col.radius * scale * -transform.up;
         Debug.DrawLine(borderpoint, borderpoint + gravityOffDist * -transform.up, Color.black);
