@@ -13,10 +13,12 @@ public class IKStepper : MonoBehaviour {
     public bool showDebug;
     [Range(0.01f, 1.0f)]
     public float debugIconScale = 0.1f;
+    public bool pauseOnStep = false;
 
     [Header("Stepping")]
 
     public IKStepper asyncChain;
+    public IKStepper syncChain;
 
     [Range(1.0f, 2.0f)]
     public float velocityPrediction = 1.5f;
@@ -230,48 +232,48 @@ public class IKStepper : MonoBehaviour {
 
         // Frontal Ray
         if (castFrontal.castRay(out hitInfo, layer)) {
-            Debug.Log("Got Targetpoint from frontal.");
+            if (showDebug) Debug.Log("Got Targetpoint from frontal.");
             return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
 
         // Outwards to prediction
         if (castOutward.castRay(out hitInfo, layer)) {
-            Debug.Log("Got Targetpoint shooting outwards to prediction.");
+            if (showDebug) Debug.Log("Got Targetpoint shooting outwards to prediction.");
             return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
 
         //Straight down through prediction point
         if (castDown.castRay(out hitInfo, layer)) {
-            Debug.Log("Got Targetpoint shooting down to prediction.");
+            if (showDebug) Debug.Log("Got Targetpoint shooting down to prediction.");
             return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
 
         // Inwards from prediction
         if (castInwards.castRay(out hitInfo, layer)) {
-            Debug.Log("Got Targetpoint shooting inwards from prediction.");
+            if (showDebug) Debug.Log("Got Targetpoint shooting inwards from prediction.");
             return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
 
         // Outwards to default position
         if (castDefaultOutward.castRay(out hitInfo, layer)) {
-            Debug.Log("Got Targetpoint shooting outwards to default point.");
+            if (showDebug) Debug.Log("Got Targetpoint shooting outwards to default point.");
             return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
 
         //Straight down to default point
         if (castDefaultDown.castRay(out hitInfo, layer)) {
-            Debug.Log("Got Targetpoint shooting down to default point.");
+            if (showDebug) Debug.Log("Got Targetpoint shooting down to default point.");
             return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
 
         // Inwards from default point
         if (castDefaultInward.castRay(out hitInfo, layer)) {
-            Debug.Log("Got Targetpoint shooting inwards from default point.");
+            if (showDebug) Debug.Log("Got Targetpoint shooting inwards from default point.");
             return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
 
         // Return default position
-        Debug.Log("No ray was able to find a target position. Therefore i will return a default position.");
+        if (showDebug) Debug.Log("No ray was able to find a target position. Therefore i will return a default position.");
         return new TargetInfo(defaultPosition + 0.25f * height * normal, normal, false);
     }
 
@@ -290,13 +292,15 @@ public class IKStepper : MonoBehaviour {
         }
         IEnumerator coroutineStepping = Step(target);
         StartCoroutine(coroutineStepping);
+        if (syncChain != null) syncChain.step(syncChain.calcNewTarget());
     }
 
     /*
     * Coroutine for stepping since i want to actually see the stepping process instead of it happening all within one frame
     */
     private IEnumerator Step(TargetInfo newTarget) {
-        Debug.Log("Stepping");
+        if (showDebug) Debug.Log(gameObject.name + " starts stepping now.");
+        if (pauseOnStep) Debug.Break();
         isStepping = true;
         TargetInfo lastTarget = ikChain.getTarget();
         TargetInfo lerpTarget;
@@ -316,7 +320,13 @@ public class IKStepper : MonoBehaviour {
     }
 
     private bool allowedToStep() {
-        if (timeSinceLastStep < stepCooldown || (asyncChain != null && asyncChain.getIsStepping())) {
+        if (timeSinceLastStep < stepCooldown) {
+            return false;
+        }
+        if (asyncChain != null && asyncChain.getIsStepping()) {
+            return false;
+        }
+        if (syncChain != null && syncChain.asyncChain != null && syncChain.asyncChain.getIsStepping()) {
             return false;
         }
         return true;
