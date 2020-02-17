@@ -99,6 +99,7 @@ public class SpiderController : MonoBehaviour {
 
         //** Movement **//
         Vector3 input = getInput();
+        input = RandomWalker.getMovement(cam.transform.forward, cam.transform.right, currentNormal);
 
         // Only move when movevector and forward angle small enough
         float distance = Mathf.Pow(Mathf.Clamp(Vector3.Dot(input, transform.forward), 0, 1), 4) * 0.1f * Time.deltaTime * walkSpeed * scale;
