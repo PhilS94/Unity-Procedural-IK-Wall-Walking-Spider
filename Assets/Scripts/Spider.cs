@@ -64,22 +64,11 @@ public class Spider : MonoBehaviour {
     }
 
     void FixedUpdate() {
-        // Dont apply gravity if close enough to ground
-        if (grdInfo.distanceToGround > gravityOffDist) {
-            rb.AddForce(-grdInfo.groundNormal * 1000.0f * Time.fixedDeltaTime); //Important using the groundnormal and not the lerping currentnormal here!
-        }
-    }
-
-    void Update() {
-
         //** Ground Check **//
-        // Important doing this after the movement, since we want to know whats beneath us in the new position, as to not apply gravity if we walked too far over a wall 
         grdInfo = GroundCheckSphere();
 
-
         //** Rotation to normal **// 
-        Vector3 slerpNormal = Vector3.Slerp(transform.up, grdInfo.groundNormal, normalAdjustSpeed * Time.deltaTime);
-
+        Vector3 slerpNormal = Vector3.Slerp(transform.up, grdInfo.groundNormal, normalAdjustSpeed * Time.fixedDeltaTime);
         Vector3 right = Vector3.ProjectOnPlane(transform.right, slerpNormal);
         Vector3 forward = Vector3.Cross(right, slerpNormal);
         Quaternion goalrotation = Quaternion.LookRotation(forward, slerpNormal);
@@ -91,22 +80,34 @@ public class Spider : MonoBehaviour {
         transform.rotation = goalrotation;
 
 
+        // Dont apply gravity if close enough to ground
+        if (grdInfo.distanceToGround > gravityOffDist) {
+            rb.AddForce(-grdInfo.groundNormal * 1000.0f * Time.fixedDeltaTime); //Important using the groundnormal and not the lerping currentnormal here!
+        }
+    }
+
+    void Update() {
         //** Debug **//
         if (showDebug) drawDebug();
     }
 
     public void turn(Vector3 goalForward, float speed) {
         if (goalForward == Vector3.zero) return;
+
+        Debug.DrawLine(transform.position, transform.position + goalForward * 5.0f, new Color(Time.time, 0, 0, 1.0f), 3.0f);
+        goalForward = Vector3.ProjectOnPlane(goalForward, transform.up);
+        DebugShapes.DrawPoint(transform.position, new Color(0, 0, Time.time, 1.0f), 0.03f, 3.0f);
+        Debug.DrawLine(transform.position, transform.position + goalForward * 5.0f, new Color(0, 0, Time.time, 1.0f), 3.0f);
         transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(goalForward, transform.up), 50.0f * turnSpeed * speed);
     }
 
     public void walk(Vector3 direction, float speed) {
         direction = direction.normalized;
         // Increase velocity as the direction and forward vector of spider get closer together
-        float distance = Mathf.Pow(Mathf.Clamp(Vector3.Dot(direction, transform.forward), 0, 1), 4) * 0.1f * walkSpeed * speed  * scale;
-        //Make sure per frame we wont move more than our downsphereRay radius, or we might lose the floor. This can significantly slow down the spider when having low frame rates! 
-        //Although i check ground every frame, physics works in fixed frame way, therefore this clamping might not work the way i want
-        distance = Mathf.Clamp(distance, 0, 0.99f * downRaySize* (Time.deltaTime/Time.fixedDeltaTime));
+        float distance = Mathf.Pow(Mathf.Clamp(Vector3.Dot(direction, transform.forward), 0, 1), 4) * 0.1f * walkSpeed * speed * scale;
+        //Make sure per frame we wont move more than our downsphereRay radius, or we might lose the floor.
+        //It is advised to call this method every fixed frame since collision is calculated on a fixed frame basis.
+        distance = Mathf.Clamp(distance, 0, 0.99f * downRaySize);
         currentVelocity = distance * direction;
         transform.position += currentVelocity;
     }
@@ -138,6 +139,10 @@ public class Spider : MonoBehaviour {
     //** Get Methods **//
     public CapsuleCollider getCapsuleCollider() {
         return col;
+    }
+
+    public Vector3 getGroundNormal() {
+        return grdInfo.groundNormal;
     }
 
     //** Debug Methods **//

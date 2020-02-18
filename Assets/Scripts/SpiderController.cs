@@ -33,22 +33,23 @@ public class SpiderController : MonoBehaviour {
         camToPlayer = new RayCast(cam.transform.position, spider.transform.position, cam.transform, spider.transform);
     }
 
-
-
-    void Update() {
+    private void FixedUpdate() {
         //** Movement **//
         Vector3 input = getInput();
-
-        spider.walk(input, Time.deltaTime);
+        spider.walk(input, Time.fixedDeltaTime);
 
         Quaternion tempCamRotation = cam.transform.rotation;
         Vector3 tempCamPosition = cam.transform.position;
-        spider.turn(input, Time.deltaTime);
+        spider.turn(input, Time.fixedDeltaTime);
         cam.transform.rotation = tempCamRotation;
         cam.transform.position = tempCamPosition;
 
         // Since the spider might have adjusted its normal, rotate halfway back with the camera here (More smooth experience instead of camera freezing in place with every normal adjustment)
         rotateCameraBack(0.5f);
+    }
+
+    void Update() {
+
 
         //** Camera movement **//
         RotateCameraHorizontal(Input.GetAxis("Mouse X") * XSensitivity);
@@ -58,8 +59,12 @@ public class SpiderController : MonoBehaviour {
 
         if (spider.showDebug) drawDebug();
     }
+
+    //I feel like heres a bug since the spider when climbing walls sways to the right or left slighlty
     private Vector3 getInput() {
-        return (Vector3.ProjectOnPlane(cam.transform.forward, spider.transform.up) * Input.GetAxis("Vertical") + (Vector3.ProjectOnPlane(cam.transform.right, spider.transform.up).normalized * Input.GetAxis("Horizontal"))).normalized;
+        Vector3 forward = Vector3.ProjectOnPlane(cam.transform.forward, spider.transform.up);
+        Vector3 right = Vector3.ProjectOnPlane(cam.transform.right, spider.transform.up);
+        return (Vector3.ProjectOnPlane(forward, spider.getGroundNormal()) * Input.GetAxis("Vertical") + (Vector3.ProjectOnPlane(right, spider.getGroundNormal()) * Input.GetAxis("Horizontal"))).normalized;
     }
 
     //** Camera Methods **//
