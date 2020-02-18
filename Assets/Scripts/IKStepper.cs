@@ -6,7 +6,7 @@ using Raycasting;
 [RequireComponent(typeof(IKChain))]
 public class IKStepper : MonoBehaviour {
 
-    public SpiderController spidercontroller;
+    private Spider spider;
 
     [Header("Debug")]
 
@@ -81,7 +81,7 @@ public class IKStepper : MonoBehaviour {
 
     private void Awake() {
         ikChain = GetComponent<IKChain>();
-        spidercontroller = ikChain.spiderController;
+        spider = ikChain.spider;
         rootJoint = ikChain.getRootJoint();
     }
 
@@ -94,7 +94,7 @@ public class IKStepper : MonoBehaviour {
         defaultPositionLocal = calculateDefault();
 
         // Calc frontal vector
-        frontalVectorLocal = Vector3.ProjectOnPlane(defaultPositionLocal - rayTopPosition, spidercontroller.transform.up).normalized * ikChain.getChainLength(); ;
+        frontalVectorLocal = Vector3.ProjectOnPlane(defaultPositionLocal - rayTopPosition, spider.transform.up).normalized * ikChain.getChainLength(); ;
 
         // Initialize prediction
         prediction = getDefault();
@@ -109,20 +109,20 @@ public class IKStepper : MonoBehaviour {
         Vector3 midOrient = Quaternion.AngleAxis(0.5f * (rootJoint.maxAngle + rootJoint.minAngle), rootJoint.getRotationAxis()) * toEnd;
 
         //Set the following debug variables for the DOF Arc
-        minOrient = spidercontroller.transform.InverseTransformDirection(Quaternion.AngleAxis(rootJoint.minAngle, rootJoint.getRotationAxis()) * toEnd);
-        maxOrient = spidercontroller.transform.InverseTransformDirection(Quaternion.AngleAxis(rootJoint.maxAngle, rootJoint.getRotationAxis()) * toEnd);
+        minOrient = spider.transform.InverseTransformDirection(Quaternion.AngleAxis(rootJoint.minAngle, rootJoint.getRotationAxis()) * toEnd);
+        maxOrient = spider.transform.InverseTransformDirection(Quaternion.AngleAxis(rootJoint.maxAngle, rootJoint.getRotationAxis()) * toEnd);
 
-        Vector3 def = spidercontroller.transform.InverseTransformPoint(rootJoint.getRotationPoint() + (minDistance + 0.5f * (chainLength - minDistance)) * midOrient);
-        def.y = -spidercontroller.getCapsuleCollider().radius;
-        def += defaultOffsetLength * midOrient.normalized * 0.5f * (chainLength - minDistance) * 1 / spidercontroller.scale;
-        def += defaultOffsetHeight * rootJoint.getRotationAxis() * height * 1 / spidercontroller.scale;
-        def += defaultOffsetStride * Vector3.Cross(midOrient.normalized, rootJoint.getRotationAxis()) * ((minDistance + (0.5f + 0.5f * defaultOffsetLength) * (chainLength - minDistance)) / chainLength) * Mathf.Sin(0.5f * rootJoint.getAngleRange()) * 1 / spidercontroller.scale;
+        Vector3 def = spider.transform.InverseTransformPoint(rootJoint.getRotationPoint() + (minDistance + 0.5f * (chainLength - minDistance)) * midOrient);
+        def.y = -spider.getCapsuleCollider().radius;
+        def += defaultOffsetLength * midOrient.normalized * 0.5f * (chainLength - minDistance) * 1 / spider.scale;
+        def += defaultOffsetHeight * rootJoint.getRotationAxis() * height * 1 / spider.scale;
+        def += defaultOffsetStride * Vector3.Cross(midOrient.normalized, rootJoint.getRotationAxis()) * ((minDistance + (0.5f + 0.5f * defaultOffsetLength) * (chainLength - minDistance)) / chainLength) * Mathf.Sin(0.5f * rootJoint.getAngleRange()) * 1 / spider.scale;
         return def;
     }
 
     private void initializeCasts() {
 
-        Transform parent = spidercontroller.transform;
+        Transform parent = spider.transform;
         Vector3 normal = parent.up;
         Vector3 defaultPos = getDefault();
         Vector3 top = getTop();
@@ -140,7 +140,7 @@ public class IKStepper : MonoBehaviour {
             castDefaultInward = new RayCast(defaultPos, bottom, parent, parent);
         }
         else {
-            float r = spidercontroller.scale * radius;
+            float r = spider.scale * radius;
             castFrontal = new SphereCast(top, top + frontal, r, parent, parent);
             castDown = new SphereCast(prediction + normal * height, -normal, 2 * height, r, null, null);
             castOutward = new SphereCast(top, prediction, r, parent, null);
@@ -190,7 +190,7 @@ public class IKStepper : MonoBehaviour {
 
         Vector3 endeffectorPosition = ikChain.getEndEffector().position;
         Vector3 defaultPosition = getDefault();
-        Vector3 normal = spidercontroller.transform.up;
+        Vector3 normal = spider.transform.up;
 
         //Now predict step target
 
@@ -208,12 +208,12 @@ public class IKStepper : MonoBehaviour {
 
         // For now I choose Option 1:
         Vector3 start = Vector3.ProjectOnPlane(endeffectorPosition, normal);
-        start = spidercontroller.transform.InverseTransformPoint(start);
+        start = spider.transform.InverseTransformPoint(start);
         start.y = defaultPositionLocal.y;
-        start = spidercontroller.transform.TransformPoint(start);
+        start = spider.transform.TransformPoint(start);
 
         Vector3 overshoot = start + (defaultPosition - start) * velocityPrediction;
-        prediction = overshoot + spidercontroller.getMovement() * stepTime;
+        prediction = overshoot + spider.getCurrentVelocityPerSecond() * stepTime;
 
         //Debug variables
         lastEndEffectorPos = endeffectorPosition;
@@ -222,7 +222,7 @@ public class IKStepper : MonoBehaviour {
 
         //Now shoot rays using the prediction to find an actual point on a surface.
         RaycastHit hitInfo;
-        int layer = spidercontroller.walkableLayer;
+        int layer = spider.walkableLayer;
 
         //Update Rays for new prediction Point
         castOutward.setEnd(prediction);
@@ -287,7 +287,7 @@ public class IKStepper : MonoBehaviour {
         }
         if (!allowedToStep()) {
             //I cant step but my target is not reachable. So i simply add the spiders movevector here
-            ikChain.setTarget(new TargetInfo(ikChain.getTarget().position + spidercontroller.getMovement(), ikChain.getTarget().normal));
+            ikChain.setTarget(new TargetInfo(ikChain.getTarget().position + spider.getCurrentVelocityPerFrame(), ikChain.getTarget().normal));
             return;
         }
         IEnumerator coroutineStepping = Step(target);
@@ -306,7 +306,7 @@ public class IKStepper : MonoBehaviour {
         TargetInfo lerpTarget;
         float time = Time.deltaTime;
         while (time < stepTime) {
-            lerpTarget.position = Vector3.Lerp(lastTarget.position, newTarget.position, time / stepTime) + stepHeight * stepAnimation.Evaluate(time / stepTime) * spidercontroller.transform.up;
+            lerpTarget.position = Vector3.Lerp(lastTarget.position, newTarget.position, time / stepTime) + stepHeight * stepAnimation.Evaluate(time / stepTime) * spider.transform.up;
             lerpTarget.normal = Vector3.Lerp(lastTarget.normal, newTarget.normal, time / stepTime);
             lerpTarget.comfortable = true;
 
@@ -337,19 +337,19 @@ public class IKStepper : MonoBehaviour {
     }
 
     private Vector3 getDefault() {
-        return spidercontroller.transform.TransformPoint(defaultPositionLocal);
+        return spider.transform.TransformPoint(defaultPositionLocal);
     }
 
     private Vector3 getTop() {
-        return spidercontroller.transform.TransformPoint(rayTopPosition);
+        return spider.transform.TransformPoint(rayTopPosition);
     }
 
     private Vector3 getBottom() {
-        return spidercontroller.transform.TransformPoint(rayBottomPosition);
+        return spider.transform.TransformPoint(rayBottomPosition);
     }
 
     private Vector3 getFrontalVector() {
-        return spidercontroller.transform.TransformDirection(frontalVectorLocal);
+        return spider.transform.TransformDirection(frontalVectorLocal);
     }
 
     private void drawDebug(bool points = true, bool steppingProcess = true, bool rayCasts = true, bool DOFArc = true) {
@@ -389,8 +389,8 @@ public class IKStepper : MonoBehaviour {
         }
 
         if (DOFArc) {
-            Vector3 v = spidercontroller.transform.TransformDirection(minOrient);
-            Vector3 w = spidercontroller.transform.TransformDirection(maxOrient);
+            Vector3 v = spider.transform.TransformDirection(minOrient);
+            Vector3 w = spider.transform.TransformDirection(maxOrient);
             DebugShapes.DrawCircleSection(rootJoint.getRotationPoint(), v, w, minDistance, ikChain.getChainLength(), Color.red);
         }
     }

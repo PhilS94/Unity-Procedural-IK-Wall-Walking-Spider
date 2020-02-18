@@ -4,23 +4,7 @@ using Raycasting;
 
 public class SpiderController : MonoBehaviour {
 
-    private Rigidbody rb;
-
-    [Header("Debug")]
-    public bool showDebug;
-
-    [Header("Scale of Transform")]
-    public float scale = 1.0f;
-
-    [Header("Movement")]
-    public CapsuleCollider col;
-    [Range(1, 5)]
-    public float walkSpeed;
-    [Range(1, 5)]
-    public float turnSpeed;
-    [Range(1, 10)]
-    public float normalAdjustSpeed;
-    public LayerMask walkableLayer;
+    public Spider spider;
 
     [Header("Camera")]
     public Camera cam;
@@ -38,93 +22,33 @@ public class SpiderController : MonoBehaviour {
     public LayerMask cameraInvisibleClipLayer;
     public LayerMask cameraClipLayer;
 
-    [Header("Ray Adjustments")]
-    [Range(0.0f, 1.0f)]
-    public float forwardRayLength;
-    [Range(0.0f, 1.0f)]
-    public float downRayLength;
-    [Range(0.1f, 1.0f)]
-    public float forwardRaySize = 0.66f;
-    [Range(0.1f, 1.0f)]
-    public float downRaySize = 0.9f;
-
-    private Vector3 currentDistancePerSecond;
-    private Vector3 currentNormal;
-    private float gravityOffDist = 0.05f;
-
-    private SphereCast downRay, forwardRay;
     private RayCast camToPlayer, playerToCam;
     float maxCameraDistance;
     private RaycastHit hitInfo;
     private RaycastHit[] camObstructions;
 
-    private struct groundInfo {
-        public bool isGrounded;
-        public Vector3 groundNormal;
-        public float distanceToGround;
-
-        public groundInfo(bool isGrd, Vector3 normal, float dist) {
-            isGrounded = isGrd;
-            groundNormal = normal;
-            distanceToGround = dist;
-        }
-    }
-
-    private groundInfo grdInfo;
-
-    private void Awake() {
-        rb = GetComponent<Rigidbody>();
-    }
-
     void Start() {
-        currentNormal = Vector3.up;
-
-        maxCameraDistance = Vector3.Distance(transform.position, cam.transform.position);
-
-        downRay = new SphereCast(transform.position, -transform.up, scale * downRayLength, downRaySize * scale * col.radius, transform, transform);
-        forwardRay = new SphereCast(transform.position, transform.forward, scale * forwardRayLength, forwardRaySize * scale * col.radius, transform, transform);
-
-        playerToCam = new RayCast(transform.position, cam.transform.position, transform, cam.transform);
-        camToPlayer = new RayCast(cam.transform.position, transform.position, cam.transform, transform);
+        maxCameraDistance = Vector3.Distance(spider.transform.position, cam.transform.position);
+        playerToCam = new RayCast(spider.transform.position, cam.transform.position, spider.transform, cam.transform);
+        camToPlayer = new RayCast(cam.transform.position, spider.transform.position, cam.transform, spider.transform);
     }
 
-    void FixedUpdate() {
-        // Dont apply gravity if close enough to ground
-        if (grdInfo.distanceToGround > gravityOffDist) {
-            rb.AddForce(-grdInfo.groundNormal * 1000.0f * Time.fixedDeltaTime); //Important using the groundnormal and not the lerping currentnormal here!
-        }
-    }
+
 
     void Update() {
-
         //** Movement **//
         Vector3 input = getInput();
-        input = RandomWalker.getMovement(cam.transform.forward, cam.transform.right, currentNormal);
 
-        // Only move when movevector and forward angle small enough
-        float distance = Mathf.Pow(Mathf.Clamp(Vector3.Dot(input, transform.forward), 0, 1), 4) * 0.1f * Time.deltaTime * walkSpeed * scale;
-        //Make sure per frame we wont move more than our downsphereRay radius, or we might lose the floor. This can significantly slow down the spider when having low frame rates!
-        distance = Mathf.Clamp(distance, 0, 0.99f * downRaySize);
-        currentDistancePerSecond = distance / Time.deltaTime * input;
-        walk(distance * input);
-        turn(input, Time.deltaTime * turnSpeed);
+        spider.walk(input, Time.deltaTime);
 
-        //** Ground Check **//
-        // Important doing this after the movement, since we want to know whats beneath us in the new position, as to not apply gravity if we walked too far over a wall 
-        grdInfo = GroundCheckSphere();
+        Quaternion tempCamRotation = cam.transform.rotation;
+        Vector3 tempCamPosition = cam.transform.position;
+        spider.turn(input, Time.deltaTime);
+        cam.transform.rotation = tempCamRotation;
+        cam.transform.position = tempCamPosition;
 
-
-        //** Rotation to normal **// 
-        Vector3 slerpNormal = Vector3.Slerp(currentNormal, grdInfo.groundNormal, normalAdjustSpeed * Time.deltaTime);
-        float slerpAngle = Vector3.SignedAngle(currentNormal, slerpNormal, cam.transform.right);
-        currentNormal = slerpNormal;
-        Vector3 right = Vector3.ProjectOnPlane(transform.right, currentNormal);
-        Vector3 forward = Vector3.Cross(right, currentNormal);
-        Quaternion goalrotation = Quaternion.LookRotation(forward, currentNormal);
-
-        //Apply the rotation to the spider and rotate camera halfway back vertically
-        transform.rotation = goalrotation;
-        RotateCameraVertical(-0.5f * slerpAngle);
+        // Since the spider might have adjusted its normal, rotate halfway back with the camera here (More smooth experience instead of camera freezing in place with every normal adjustment)
+        rotateCameraBack(0.5f);
 
         //** Camera movement **//
         RotateCameraHorizontal(Input.GetAxis("Mouse X") * XSensitivity);
@@ -132,40 +56,15 @@ public class SpiderController : MonoBehaviour {
         clipCamera();
         clipCameraInvisible();
 
-        //** Debug **//
-        if (showDebug) drawDebug();
+        if (spider.showDebug) drawDebug();
     }
-
-
-
-    //** Movement Methods **//
     private Vector3 getInput() {
-        return (Vector3.ProjectOnPlane(cam.transform.forward, currentNormal) * Input.GetAxis("Vertical") + (Vector3.ProjectOnPlane(cam.transform.right, currentNormal).normalized * Input.GetAxis("Horizontal"))).normalized;
-    }
-
-
-    void turn(Vector3 forward, float speed) {
-        if (forward == Vector3.zero) return;
-
-        Quaternion tempCamRotation = cam.transform.rotation;
-        Vector3 tempCamPosition = cam.transform.position;
-        transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(forward, currentNormal), 50.0f * speed);
-        cam.transform.rotation = tempCamRotation;
-        cam.transform.position = tempCamPosition;
-    }
-
-    void walk(Vector3 moveVector) {
-        transform.position += moveVector;
-    }
-
-    //Implemented so the IKStepper can use this to predict 
-    public Vector3 getMovement() {
-        return currentDistancePerSecond;
+        return (Vector3.ProjectOnPlane(cam.transform.forward, spider.transform.up) * Input.GetAxis("Vertical") + (Vector3.ProjectOnPlane(cam.transform.right, spider.transform.up).normalized * Input.GetAxis("Horizontal"))).normalized;
     }
 
     //** Camera Methods **//
     void RotateCameraHorizontal(float angle) {
-        cam.transform.RotateAround(transform.position, transform.up, angle);
+        cam.transform.RotateAround(spider.transform.position, spider.transform.up, angle);
     }
 
     void RotateCameraVertical(float angle) {
@@ -176,14 +75,29 @@ public class SpiderController : MonoBehaviour {
         if (angle < -180) angle += 360;
         //Now angle is of the form (-180,180]
 
-        float currentAngle = Vector3.SignedAngle(transform.up, transform.position - cam.transform.position, cam.transform.right); //Should always be positive
+        float currentAngle = Vector3.SignedAngle(spider.transform.up, spider.transform.position - cam.transform.position, cam.transform.right); //Should always be positive
         if (currentAngle + angle < camLowerAngleMargin) {
             angle = camLowerAngleMargin - currentAngle;
         }
         if (currentAngle + angle > 180.0f - camUpperAngleMargin) {
             angle = 180.0f - camUpperAngleMargin - currentAngle;
         }
-        cam.transform.RotateAround(transform.position, cam.transform.right, angle);
+        cam.transform.RotateAround(spider.transform.position, cam.transform.right, angle);
+    }
+
+
+    /*
+     * The Spider adjusts its normal to its surroundings every frame. Since the cameras transform is a child of the spiders transform,
+     * the camera will completely follow every rotation of the spider.
+     * This methods rotates the camera back to its original rotation before the normal adjustment by t,
+     * where t=0 is no rotation applied (that is as if this method was never called)
+     * and t=1 means rotating the camera completely back to its original rotation
+     */
+    void rotateCameraBack(float t) {
+        Vector3 n = spider.getLastNormal();
+        if (n == Vector3.zero) return;
+        float angle = Vector3.SignedAngle(spider.getLastNormal(), spider.transform.up, cam.transform.right);
+        RotateCameraVertical(Mathf.Clamp(t, 0, 1) * -angle);
     }
 
     void clipCamera() {
@@ -220,43 +134,18 @@ public class SpiderController : MonoBehaviour {
         }
     }
 
-    //** Ground Check Methods **//
-    private groundInfo GroundCheckSphere() {
-        if (forwardRay.castRay(out hitInfo, walkableLayer)) {
-            return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - scale * col.radius);
-        }
-
-        if (downRay.castRay(out hitInfo, walkableLayer)) {
-            return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - scale * col.radius);
-        }
-
-        return new groundInfo(false, Vector3.up, float.PositiveInfinity);
-    }
-
-    //** Get Methods **//
-    public CapsuleCollider getCapsuleCollider() {
-        return col;
-    }
 
     //** Debug Methods **//
     private void drawDebug() {
-        downRay.draw(Color.green);
-        forwardRay.draw(Color.blue);
         camToPlayer.draw(Color.white);
-
-        Vector3 borderpoint = transform.TransformPoint(col.center) + col.radius * scale * -transform.up;
-        Debug.DrawLine(borderpoint, borderpoint + gravityOffDist * -transform.up, Color.black);
-        Debug.DrawLine(transform.position, transform.position + 0.3f * scale * currentNormal, new Color(1, 0.5f, 0, 1));
     }
 
 #if UNITY_EDITOR
     void OnDrawGizmosSelected() {
-
-        if (!showDebug) return;
         if (UnityEditor.EditorApplication.isPlaying) return;
         if (!UnityEditor.Selection.Contains(transform.gameObject)) return;
+        if (spider == null || !spider.showDebug) return;
 
-        Awake();
         Start();
         drawDebug();
     }

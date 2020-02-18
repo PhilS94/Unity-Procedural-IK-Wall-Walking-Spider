@@ -13,7 +13,7 @@ public class IKChain : MonoBehaviour {
 
     public bool deactivateSolving = false;
 
-    public SpiderController spiderController;
+    public Spider spider;
 
     [Header("Chain")]
     public AHingeJoint[] joints;
@@ -85,7 +85,7 @@ public class IKChain : MonoBehaviour {
                 Ray debugRay = new Ray(debugTarget.position + height * Vector3.up, Vector3.down);
                 Debug.DrawLine(debugRay.origin, debugRay.origin + distance * debugRay.direction, Color.yellow);
 
-                if (Physics.Raycast(debugRay, out RaycastHit rayHit, distance, spiderController.walkableLayer, QueryTriggerInteraction.Ignore)) {
+                if (Physics.Raycast(debugRay, out RaycastHit rayHit, distance, spider.walkableLayer, QueryTriggerInteraction.Ignore)) {
                     newTarget = new TargetInfo(rayHit.point, rayHit.normal);
                 }
                 else {
