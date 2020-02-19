@@ -4,6 +4,7 @@ using UnityEngine;
 using Raycasting;
 
 public class Spider : MonoBehaviour {
+
     private Rigidbody rb;
 
     [Header("Debug")]
@@ -22,6 +23,19 @@ public class Spider : MonoBehaviour {
     public float normalAdjustSpeed;
     public LayerMask walkableLayer;
 
+    [Header("IK Legs")]
+    public Transform body;
+    public IKChain[] legs;
+    public bool deactivateLegCentroidAdjustment;
+    public bool deactivateLegNormalAdjustment;
+    private Vector3 bodyNormal;
+
+    [Header("Breathing")]
+    public bool deactivateBreathing;
+    [Range(1, 10)]
+    public float timeForOneBreathCycle;
+    [Range(0, 1)]
+    public float breatheMagnitude;
 
     [Header("Ray Adjustments")]
     [Range(0.0f, 1.0f)]
@@ -61,6 +75,7 @@ public class Spider : MonoBehaviour {
     void Start() {
         downRay = new SphereCast(transform.position, -transform.up, scale * downRayLength, downRaySize * scale * col.radius, transform, transform);
         forwardRay = new SphereCast(transform.position, transform.forward, scale * forwardRayLength, forwardRaySize * scale * col.radius, transform, transform);
+        bodyNormal = body.transform.InverseTransformDirection(transform.up);
     }
 
     void FixedUpdate() {
@@ -87,6 +102,18 @@ public class Spider : MonoBehaviour {
     void Update() {
         //** Debug **//
         if (showDebug) drawDebug();
+
+        if (!deactivateLegCentroidAdjustment) body.transform.position = getLegCentroid();
+
+        if (!deactivateLegNormalAdjustment) {
+            Vector3 defaultNormal = body.TransformDirection(bodyNormal);
+            Vector3 newNormal = GetLegsPlaneNormal();
+            body.transform.rotation = Quaternion.FromToRotation(defaultNormal, newNormal) * body.transform.rotation;
+            Debug.DrawLine(transform.position, transform.position + 5.0f * defaultNormal, Color.blue);
+        }
+
+        if (!deactivateBreathing) breathe();
+
     }
 
     /*
@@ -102,11 +129,7 @@ public class Spider : MonoBehaviour {
 
     public void turn(Vector3 goalForward, float speed) {
         if (goalForward == Vector3.zero) return;
-
-        Debug.DrawLine(transform.position, transform.position + goalForward * 5.0f, new Color(Time.time, 0, 0, 1.0f), 3.0f);
         goalForward = Vector3.ProjectOnPlane(goalForward, transform.up);
-        DebugShapes.DrawPoint(transform.position, new Color(0, 0, Time.time, 1.0f), 0.03f, 3.0f);
-        Debug.DrawLine(transform.position, transform.position + goalForward * 5.0f, new Color(0, 0, Time.time, 1.0f), 3.0f);
         transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(goalForward, transform.up), 50.0f * turnSpeed * speed);
     }
 
@@ -121,8 +144,15 @@ public class Spider : MonoBehaviour {
         transform.position += currentVelocity;
     }
 
+    private void breathe() {
+        float t = (Time.time * 2 * Mathf.PI / timeForOneBreathCycle) % (2 * Mathf.PI);
+        //Could use body.transform.up here if i ever tilt the body. But the local coordinate system of the body isnt so nice
+        Vector3 breatheOffset = transform.up * (0.5f * breatheMagnitude + (Mathf.Sin(t) * 0.5f * breatheMagnitude)) * col.radius * scale;
+        body.transform.position = transform.position + breatheOffset;
+    }
+
     public Vector3 getCurrentVelocityPerSecond() {
-        return currentVelocity / Time.deltaTime;
+        return currentVelocity / Time.fixedDeltaTime;
     }
 
     public Vector3 getCurrentVelocityPerFrame() {
@@ -132,6 +162,7 @@ public class Spider : MonoBehaviour {
     public Vector3 getLastNormal() {
         return lastNormal;
     }
+
     //** Ground Check Methods **//
     private groundInfo GroundCheckSphere() {
         if (forwardRay.castRay(out hitInfo, walkableLayer)) {
@@ -143,6 +174,46 @@ public class Spider : MonoBehaviour {
         }
 
         return new groundInfo(false, Vector3.up, float.PositiveInfinity);
+    }
+
+    //** IK-Chains (Legs) Methods **//
+
+    // Calculate the centroid (center of gravity) given by all end effector positions of the legs
+    private Vector3 getLegCentroid() {
+        if (legs == null) {
+            Debug.LogError("Cant calculate leg centroid, legs not assigned.");
+            return transform.position;
+        }
+
+        Vector3 position = Vector3.zero;
+        float weigth = 1 / (float)legs.Length;
+
+        // Go through all the legs, rotate the normal by it's offset
+        for (int i = 0; i < legs.Length; i++) {
+            position += legs[i].getEndEffector().position * weigth;
+        }
+        return position;
+    }
+
+    // Calculate the normal of the plane defined by leg positions, so we know how to rotate the body
+    private Vector3 GetLegsPlaneNormal() {
+        if (legs == null) {
+            Debug.LogError("Cant calculate normal, legs not assigned.");
+            return transform.up;
+        }
+
+        // float legRotWeigth = 1.0f;
+        //if (legRotWeigth <= 0f) return transform.up; 
+        //float legWeight = 1f / Mathf.Lerp(legs.Length,1f, legRotWeigth); // ???
+
+        Vector3 normal = transform.up;
+        float legWeight = 1f / legs.Length;
+
+        for (int i = 0; i < legs.Length; i++) {
+            normal += legWeight * legs[i].getTarget().normal;
+            //normal += legWeight * -legs[i].getEndEffector().transform.up; // The minus comes from the endeffectors local coordinate system being reversed
+        }
+        return normal;
     }
 
     //** Get Methods **//
