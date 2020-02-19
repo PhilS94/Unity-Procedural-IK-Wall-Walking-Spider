@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
+using Raycasting;
 
 public enum TargetMode {
     IKStepper,
@@ -31,6 +32,8 @@ public class IKChain : MonoBehaviour {
     private float error = 0.0f;
     private bool validChain;
 
+    private RayCast debugModeRay;
+
     private void Awake() {
         ikStepper = GetComponent<IKStepper>();
         chainLength = calculateChainLength();
@@ -39,6 +42,7 @@ public class IKChain : MonoBehaviour {
 
     private void Start() {
         setTarget(new TargetInfo(getEndEffector().position, Vector3.up));
+        debugModeRay = new RayCast(debugTarget.position + 1.0f * Vector3.up, debugTarget.position - 1.0f * Vector3.up, debugTarget, debugTarget);
     }
 
     float calculateChainLength() {
@@ -69,30 +73,22 @@ public class IKChain : MonoBehaviour {
     void Update() {
         if (deactivateSolving || !validChain) return;
 
-        TargetInfo newTarget;
+        if (targetMode == TargetMode.DebugTarget) {
+            setTarget(new TargetInfo(debugTarget.position, debugTarget.up));
+        }
+    }
 
-        switch (targetMode) {
-            case TargetMode.DebugTarget:
+    private void FixedUpdate() {
+        if (deactivateSolving || !validChain) return;
 
-                newTarget = new TargetInfo(debugTarget.position, debugTarget.up);
-                //ikStepper.checkInvalidTarget(newTarget); //Just for Debug Prints
-                setTarget(newTarget);
-                break;
-
-            case TargetMode.DebugTargetRay:
-                float height = 1.0f;
-                float distance = 1.1f;
-                Ray debugRay = new Ray(debugTarget.position + height * Vector3.up, Vector3.down);
-                Debug.DrawLine(debugRay.origin, debugRay.origin + distance * debugRay.direction, Color.yellow);
-
-                if (Physics.Raycast(debugRay, out RaycastHit rayHit, distance, spider.walkableLayer, QueryTriggerInteraction.Ignore)) {
-                    newTarget = new TargetInfo(rayHit.point, rayHit.normal);
-                }
-                else {
-                    newTarget = new TargetInfo(debugTarget.position, debugTarget.up);
-                }
-                setTarget(newTarget);
-                break;
+        if (targetMode == TargetMode.DebugTargetRay) {
+            debugModeRay.draw(Color.yellow);
+            if (debugModeRay.castRay(out RaycastHit hitInfo, spider.walkableLayer)) {
+                setTarget(new TargetInfo(hitInfo.point, hitInfo.normal));
+            }
+            else {
+                setTarget(new TargetInfo(debugTarget.position, debugTarget.up));
+            }
         }
     }
 
