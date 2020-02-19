@@ -151,9 +151,8 @@ public class IKStepper : MonoBehaviour {
         }
     }
 
-    void Update() {
-        timeSinceLastStep += Time.deltaTime;
-
+    private void FixedUpdate() {
+        timeSinceLastStep += Time.fixedDeltaTime;
         if (!ikChain.IKStepperActivated() || isStepping || !allowedToStep()) return;
 
         //If current target uncomfortable and there is a new comfortable target, step, otherwise just refresh the uncomfortable target.
