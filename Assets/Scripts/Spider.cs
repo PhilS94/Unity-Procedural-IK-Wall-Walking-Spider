@@ -26,12 +26,12 @@ public class Spider : MonoBehaviour {
     [Header("IK Legs")]
     public Transform body;
     public IKChain[] legs;
-    public bool deactivateLegCentroidAdjustment;
-    public bool deactivateLegNormalAdjustment;
-    private Vector3 bodyNormal;
+    public bool activateLegCentroidAdjustment;
+    public bool activateLegNormalAdjustment;
+    private Vector3 bodyUpLocal;
 
     [Header("Breathing")]
-    public bool deactivateBreathing;
+    public bool activateBreathing;
     [Range(1, 10)]
     public float timeForOneBreathCycle;
     [Range(0, 1)]
@@ -75,7 +75,7 @@ public class Spider : MonoBehaviour {
     void Start() {
         downRay = new SphereCast(transform.position, -transform.up, scale * downRayLength, downRaySize * scale * col.radius, transform, transform);
         forwardRay = new SphereCast(transform.position, transform.forward, scale * forwardRayLength, forwardRaySize * scale * col.radius, transform, transform);
-        bodyNormal = body.transform.InverseTransformDirection(transform.up);
+        bodyUpLocal = body.transform.InverseTransformDirection(transform.up);
     }
 
     void FixedUpdate() {
@@ -103,16 +103,22 @@ public class Spider : MonoBehaviour {
         //** Debug **//
         if (showDebug) drawDebug();
 
-        if (!deactivateLegCentroidAdjustment) body.transform.position = getLegCentroid();
+        Vector3 bodyUp = body.TransformDirection(bodyUpLocal);
 
-        if (!deactivateLegNormalAdjustment) {
-            Vector3 defaultNormal = body.TransformDirection(bodyNormal);
-            Vector3 newNormal = GetLegsPlaneNormal();
-            body.transform.rotation = Quaternion.FromToRotation(defaultNormal, newNormal) * body.transform.rotation;
-            Debug.DrawLine(transform.position, transform.position + 5.0f * defaultNormal, Color.blue);
+        //Doesnt ork the way i want it too! On sphere i go underground. I jiggle around when i go down my centroid moves down to.(Depends on errortolerance of IKSolver)
+        if (activateLegCentroidAdjustment) {
+            Vector3 centroid = getLegCentroid();
+            Vector3 heightOffset = Vector3.Project((centroid + scale * col.radius * bodyUp) - body.transform.position, bodyUp);
+            body.transform.position += heightOffset * Mathf.Clamp(Time.deltaTime * (0.1f * normalAdjustSpeed * scale), 0f, 1f);
+            // What if im underground?
         }
 
-        if (!deactivateBreathing) breathe();
+        if (activateLegNormalAdjustment) {
+            Vector3 newNormal = GetLegsPlaneNormal();
+            body.transform.rotation = Quaternion.Slerp(body.transform.rotation, Quaternion.FromToRotation(bodyUp, newNormal) * body.transform.rotation, Time.deltaTime * normalAdjustSpeed);
+        }
+
+        if (activateBreathing) breathe();
 
     }
 
@@ -144,13 +150,6 @@ public class Spider : MonoBehaviour {
         transform.position += currentVelocity;
     }
 
-    private void breathe() {
-        float t = (Time.time * 2 * Mathf.PI / timeForOneBreathCycle) % (2 * Mathf.PI);
-        //Could use body.transform.up here if i ever tilt the body. But the local coordinate system of the body isnt so nice
-        Vector3 breatheOffset = transform.up * (0.5f * breatheMagnitude + (Mathf.Sin(t) * 0.5f * breatheMagnitude)) * col.radius * scale;
-        body.transform.position = transform.position + breatheOffset;
-    }
-
     public Vector3 getCurrentVelocityPerSecond() {
         return currentVelocity / Time.fixedDeltaTime;
     }
@@ -178,11 +177,22 @@ public class Spider : MonoBehaviour {
 
     //** IK-Chains (Legs) Methods **//
 
+    //Doesnt work right now. I cant add sinus to the position i need to SET using sinus.
+    // Adding leads to e.g. for very high breath cycle time, a lot of additions 
+    private void breathe() {
+        float t = (Time.time * 2 * Mathf.PI / timeForOneBreathCycle) % (2 * Mathf.PI);
+
+
+        Vector3 breatheOffset = Mathf.Sin(t) * body.TransformDirection(bodyUpLocal) * Time.deltaTime * breatheMagnitude * 2f * col.radius * scale;
+        body.transform.position += breatheOffset;
+    }
+
+
     // Calculate the centroid (center of gravity) given by all end effector positions of the legs
     private Vector3 getLegCentroid() {
         if (legs == null) {
             Debug.LogError("Cant calculate leg centroid, legs not assigned.");
-            return transform.position;
+            return body.transform.position;
         }
 
         Vector3 position = Vector3.zero;
@@ -232,6 +242,7 @@ public class Spider : MonoBehaviour {
         Vector3 borderpoint = transform.TransformPoint(col.center) + col.radius * scale * -transform.up;
         Debug.DrawLine(borderpoint, borderpoint + gravityOffDist * -transform.up, Color.black);
         Debug.DrawLine(transform.position, transform.position + 0.3f * scale * transform.up, new Color(1, 0.5f, 0, 1));
+        Debug.DrawLine(transform.position, transform.position + 0.3f * scale * body.TransformDirection(bodyUpLocal), Color.blue);
     }
 
 #if UNITY_EDITOR
