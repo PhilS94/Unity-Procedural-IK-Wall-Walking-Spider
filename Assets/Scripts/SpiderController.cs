@@ -62,7 +62,9 @@ public class SpiderController : MonoBehaviour {
 
     //I feel like heres a bug since the spider when climbing walls sways to the right or left slighlty
     private Vector3 getInput() {
-        return Quaternion.FromToRotation(spider.transform.up, spider.getGroundNormal()) * (Vector3.ProjectOnPlane(cam.transform.forward, spider.transform.up) * Input.GetAxis("Vertical") + (Vector3.ProjectOnPlane(cam.transform.right, spider.transform.up) * Input.GetAxis("Horizontal"))).normalized; ;
+        Vector3 input = (Vector3.ProjectOnPlane(cam.transform.forward, spider.transform.up) * Input.GetAxis("Vertical") + (Vector3.ProjectOnPlane(cam.transform.right, spider.transform.up) * Input.GetAxis("Horizontal"))).normalized;
+        Quaternion fromTo = spider.getLookRotation(spider.transform.right, spider.getGroundNormal()) * Quaternion.Inverse(spider.transform.rotation);
+        return fromTo * input;
     }
 
     //** Camera Methods **//

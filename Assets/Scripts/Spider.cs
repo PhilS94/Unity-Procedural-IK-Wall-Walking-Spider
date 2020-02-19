@@ -14,7 +14,7 @@ public class Spider : MonoBehaviour {
 
     [Header("Movement")]
     public CapsuleCollider col;
-    [Range(1, 5)]
+    [Range(1, 10)]
     public float walkSpeed;
     [Range(1, 5)]
     public float turnSpeed;
@@ -69,9 +69,7 @@ public class Spider : MonoBehaviour {
 
         //** Rotation to normal **// 
         Vector3 slerpNormal = Vector3.Slerp(transform.up, grdInfo.groundNormal, normalAdjustSpeed * Time.fixedDeltaTime);
-        Vector3 right = Vector3.ProjectOnPlane(transform.right, slerpNormal);
-        Vector3 forward = Vector3.Cross(right, slerpNormal);
-        Quaternion goalrotation = Quaternion.LookRotation(forward, slerpNormal);
+        Quaternion goalrotation = getLookRotation(transform.right, slerpNormal);
 
         // Save last Normal for access
         lastNormal = transform.up;
@@ -89,6 +87,17 @@ public class Spider : MonoBehaviour {
     void Update() {
         //** Debug **//
         if (showDebug) drawDebug();
+    }
+
+    /*
+     * Returns the rotation with specified right and up direction (right will be projected onto the plane given by up)
+     */
+    public Quaternion getLookRotation(Vector3 right, Vector3 up) {
+        if (up == Vector3.zero || right == Vector3.zero) return Quaternion.identity;
+        Vector3 projRight = Vector3.ProjectOnPlane(right, up);
+        if (projRight == Vector3.zero) return Quaternion.identity;
+        Vector3 forward = Vector3.Cross(projRight, up);
+        return Quaternion.LookRotation(forward, up);
     }
 
     public void turn(Vector3 goalForward, float speed) {

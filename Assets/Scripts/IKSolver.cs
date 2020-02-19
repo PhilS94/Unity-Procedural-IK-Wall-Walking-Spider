@@ -16,7 +16,7 @@ public struct TargetInfo {
 
 public class IKSolver : MonoBehaviour {
 
-    private static int maxIterations = 15;
+    private static int maxIterations = 10;
     public static float tolerance = 0.05f;
     private static float weight = 1.0f;
     private static float footAngleToNormal = 20.0f; // 0 means parallel to ground (Orthogonal to plane normal)
