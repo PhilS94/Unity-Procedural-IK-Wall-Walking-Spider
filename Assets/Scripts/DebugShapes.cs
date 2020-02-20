@@ -80,7 +80,7 @@ public class DebugShapes : MonoBehaviour {
         Debug.DrawLine(points[3], points[0], col);
     }
 
-    public static void DrawCircle(Vector3 pos, Vector3 normal, float radius, Color col) {
+    public static void DrawCircle(Vector3 pos, Vector3 normal, float radius, Color col,float duration=0) {
 
         int l = 16;
 
@@ -102,12 +102,12 @@ public class DebugShapes : MonoBehaviour {
 
         // Draw circle
         for (int k = 0; k < l - 1; k++) {
-            Debug.DrawLine(p[k], p[k + 1], col);
+            Debug.DrawLine(p[k], p[k + 1], col, duration);
         }
-        Debug.DrawLine(p[l - 1], p[0], col);
+        Debug.DrawLine(p[l - 1], p[0], col, duration);
     }
 
-    public static void DrawCircleSection(Vector3 pos, Vector3 min, Vector3 max, float minRadius, float maxRadius, Color col) {
+    public static void DrawCircleSection(Vector3 pos, Vector3 min, Vector3 max, float minRadius, float maxRadius, Color col,float duration=0) {
 
         if (min == Vector3.zero || max == Vector3.zero) {
             Debug.LogWarning("Min and Max Vector not allowed to be zero.");
@@ -140,16 +140,16 @@ public class DebugShapes : MonoBehaviour {
 
         // Draw circles
         for (int k = 0; k < l - 1; k++) {
-            Debug.DrawLine(p[k], p[k + 1], col);
-            Debug.DrawLine(P[k], P[k + 1], col);
+            Debug.DrawLine(p[k], p[k + 1], col, duration);
+            Debug.DrawLine(P[k], P[k + 1], col, duration);
         }
 
         // Connect inner to outer circle 
-        Debug.DrawLine(p[0], P[0], col);
-        Debug.DrawLine(p[l - 1], P[l - 1], col);
+        Debug.DrawLine(p[0], P[0], col, duration);
+        Debug.DrawLine(p[l - 1], P[l - 1], col, duration);
     }
 
-    public static void DrawSphere(Vector3 pos, float radius, Color col) {
+    public static void DrawSphere(Vector3 pos, float radius, Color col, float duration = 0) {
 
         int l = 3;
 
@@ -165,9 +165,9 @@ public class DebugShapes : MonoBehaviour {
             Z[k] = pos - Vector3.forward * radius + (k + 1) * step * Vector3.forward;
             float angle = Mathf.Lerp(-Mathf.PI / 2, Mathf.PI / 2, (float)(k + 1) / (l + 1));
             float r = Mathf.Cos(angle) * radius; //Calculated wrong
-            DrawCircle(horiz[k], Vector3.right, r, col);
-            DrawCircle(vert[k], Vector3.up, r, col);
-            DrawCircle(Z[k], Vector3.forward, r, col);
+            DrawCircle(horiz[k], Vector3.right, r, col, duration);
+            DrawCircle(vert[k], Vector3.up, r, col, duration);
+            DrawCircle(Z[k], Vector3.forward, r, col, duration);
         }
         //Camera cam = UnityEditor.SceneView.lastActiveSceneView.camera;
         //if (cam != null) DrawCircle(pos, -cam.transform.forward, radius, col);
@@ -291,19 +291,19 @@ public class DebugShapes : MonoBehaviour {
         */
     }
 
-    public static void DrawSphereRay(Vector3 start, Vector3 direction, float distance, float radius, int amount, Color col) {
+    public static void DrawSphereRay(Vector3 start, Vector3 direction, float distance, float radius, int amount, Color col, float duration = 0) {
 
         Vector3 endPoint = start + (radius + distance) * direction;
         Vector3 endPointSphereCenter = endPoint - (radius * direction);
 
         for (int i = 0; i < amount; i++) {
-            DrawSphere(Vector3.Lerp(start, endPointSphereCenter, (float)i / (amount - 1)), radius, new Color(col.r, col.g, col.b, 0.5f));
+            DrawSphere(Vector3.Lerp(start, endPointSphereCenter, (float)i / (amount - 1)), radius, new Color(col.r, col.g, col.b, 0.5f), duration);
         }
-        Debug.DrawLine(start, endPoint, col);
+        Debug.DrawLine(start, endPoint, col, duration);
     }
 
-    public static void DrawSphereRay(Vector3 start, Vector3 end, float radius, int amount, Color col) {
+    public static void DrawSphereRay(Vector3 start, Vector3 end, float radius, int amount, Color col,float duration=0) {
         Vector3 v = end - start;
-        DrawSphereRay(start, v.normalized, v.magnitude, radius, amount, col);
+        DrawSphereRay(start, v.normalized, v.magnitude, radius, amount, col, duration);
     }
 }

@@ -80,7 +80,7 @@ namespace Raycasting {
 
         public abstract RaycastHit[] castRayAll(int layerMask, QueryTriggerInteraction q = QueryTriggerInteraction.Ignore);
 
-        public abstract void draw(Color col);
+        public abstract void draw(Color col, float duration=0);
     }
 
 
@@ -107,8 +107,8 @@ namespace Raycasting {
             return Physics.RaycastAll(getOrigin(), v, v.magnitude, layerMask, q);
         }
 
-        public override void draw(Color col) {
-            Debug.DrawLine(getOrigin(), getEnd(), col);
+        public override void draw(Color col, float duration=0) {
+            Debug.DrawLine(getOrigin(), getEnd(), col,duration);
         }
     }
 
@@ -155,8 +155,8 @@ namespace Raycasting {
             return Physics.SphereCastAll(getOrigin(), getRadius(), v.normalized, v.magnitude, layerMask, q);
         }
 
-        public override void draw(Color col) {
-            DebugShapes.DrawSphereRay(getOrigin(), getEnd(), getRadius(), 5, col);
+        public override void draw(Color col,float duration=0) {
+            DebugShapes.DrawSphereRay(getOrigin(), getEnd(), getRadius(), 5, col,duration);
         }
     }
 }
