@@ -46,6 +46,7 @@ public class Spider : MonoBehaviour {
     public float forwardRaySize = 0.66f;
     [Range(0.1f, 1.0f)]
     public float downRaySize = 0.9f;
+    private float downRayRadius;
 
     private Vector3 currentVelocity;
     private Vector3 lastNormal;
@@ -73,7 +74,8 @@ public class Spider : MonoBehaviour {
     }
 
     void Start() {
-        downRay = new SphereCast(transform.position, -transform.up, scale * downRayLength, downRaySize * scale * col.radius, transform, transform);
+        downRayRadius = downRaySize * scale * col.radius;
+        downRay = new SphereCast(transform.position, -transform.up, scale * downRayLength, downRayRadius, transform, transform);
         forwardRay = new SphereCast(transform.position, transform.forward, scale * forwardRayLength, forwardRaySize * scale * col.radius, transform, transform);
         bodyUpLocal = body.transform.InverseTransformDirection(transform.up);
     }
@@ -115,6 +117,7 @@ public class Spider : MonoBehaviour {
 
         if (activateLegNormalAdjustment) {
             Vector3 newNormal = GetLegsPlaneNormal();
+            //Make sure there is never a rotation around transform.up!
             body.transform.rotation = Quaternion.Slerp(body.transform.rotation, Quaternion.FromToRotation(bodyUp, newNormal) * body.transform.rotation, Time.deltaTime * normalAdjustSpeed);
         }
 
@@ -145,7 +148,7 @@ public class Spider : MonoBehaviour {
         float distance = Mathf.Pow(Mathf.Clamp(Vector3.Dot(direction, transform.forward), 0, 1), 4) * 0.1f * walkSpeed * speed * scale;
         //Make sure per frame we wont move more than our downsphereRay radius, or we might lose the floor.
         //It is advised to call this method every fixed frame since collision is calculated on a fixed frame basis.
-        distance = Mathf.Clamp(distance, 0, 0.99f * downRaySize);
+        distance = Mathf.Clamp(distance, 0, 0.99f * downRayRadius);
         currentVelocity = distance * direction;
         transform.position += currentVelocity;
     }
@@ -154,7 +157,7 @@ public class Spider : MonoBehaviour {
         return currentVelocity / Time.fixedDeltaTime;
     }
 
-    public Vector3 getCurrentVelocityPerFrame() {
+    public Vector3 getCurrentVelocityPerFixedFrame() {
         return currentVelocity;
     }
 
@@ -216,14 +219,14 @@ public class Spider : MonoBehaviour {
         //if (legRotWeigth <= 0f) return transform.up; 
         //float legWeight = 1f / Mathf.Lerp(legs.Length,1f, legRotWeigth); // ???
 
-        Vector3 normal = transform.up;
+        Vector3 normal = Vector3.zero;
         float legWeight = 1f / legs.Length;
 
         for (int i = 0; i < legs.Length; i++) {
             normal += legWeight * legs[i].getTarget().normal;
             //normal += legWeight * -legs[i].getEndEffector().transform.up; // The minus comes from the endeffectors local coordinate system being reversed
         }
-        return normal;
+        return (normal + transform.up).normalized;
     }
 
     //** Get Methods **//
