@@ -26,6 +26,19 @@ public class SpiderController : MonoBehaviour {
     float maxCameraDistance;
     private RaycastHit hitInfo;
     private RaycastHit[] camObstructions;
+    
+    private struct ShaderInfo {
+        public Shader shader;
+        public Color color;
+        
+        public ShaderInfo(Shader m_Shader, Color m_Color)
+        {
+            shader = m_Shader;
+            color = m_Color;
+        }
+    }
+
+    private ShaderInfo[] camObstructionsShaders;
 
     void Start() {
         maxCameraDistance = Vector3.Distance(spider.transform.position, cam.transform.position);
@@ -123,18 +136,26 @@ public class SpiderController : MonoBehaviour {
             for (int k = 0; k < camObstructions.Length; k++) {
                 MeshRenderer mesh = camObstructions[k].transform.GetComponent<MeshRenderer>();
                 if (mesh != null) {
-                    mesh.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+
+                    mesh.material.shader = camObstructionsShaders[k].shader;
+                    mesh.material.color = camObstructionsShaders[k].color;
+                    //mesh.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
                 }
             }
         }
 
         // Now transparent all new obstructions
         camObstructions = camToPlayer.castRayAll(cameraInvisibleClipLayer);
-
+        camObstructionsShaders = new ShaderInfo[camObstructions.Length];
         for (int k = 0; k < camObstructions.Length; k++) {
             MeshRenderer mesh = camObstructions[k].transform.GetComponent<MeshRenderer>();
             if (mesh != null) {
-                mesh.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
+                camObstructionsShaders[k] = new ShaderInfo(mesh.material.shader, mesh.material.color);
+                mesh.material.shader = Shader.Find("Transparent/Diffuse");
+                Color tempColor = mesh.material.color;
+                tempColor.a = 0.8F;
+                mesh.material.color = tempColor;
+                //mesh.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
             }
         }
     }
