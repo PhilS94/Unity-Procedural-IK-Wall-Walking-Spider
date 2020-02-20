@@ -47,9 +47,11 @@ public class IKStepper : MonoBehaviour {
     [Range(-1.0f, 1.0f)]
     public float defaultOffsetStride;
 
-    [Header("Ray Points")]
+    [Header("Ray Adjustments")]
     public Vector3 rayTopPosition;
     public Vector3 rayBottomPosition;
+    [Range(0, 4.0f)]
+    public float rayHeight;
 
     private IKChain ikChain;
 
@@ -57,7 +59,6 @@ public class IKStepper : MonoBehaviour {
     private bool waitingForStep = false;
 
     private float minDistance;
-    private float height = 2.0f;
 
     private Cast castFrontal;
     private Cast castDown;
@@ -126,7 +127,7 @@ public class IKStepper : MonoBehaviour {
         Vector3 def = p + (minDistance + 0.5f * diameter) * midOrient;
 
         def += defaultOffsetLength * 0.5f * diameter * midOrient;
-        def += defaultOffsetHeight * height * normal; //Would want to use spider.transform.up instead?
+        def += defaultOffsetHeight * rayHeight * normal; //Would want to use spider.transform.up instead?
         def += defaultOffsetStride * Vector3.Cross(midOrient, rootJoint.getRotationAxis()) * ((minDistance + (0.5f * (1f + defaultOffsetLength) * diameter)) / chainLength) * Mathf.Sin(0.5f * rootJoint.getAngleRange());
 
         return spider.transform.InverseTransformPoint(def);
@@ -145,22 +146,22 @@ public class IKStepper : MonoBehaviour {
 
         if (castMode == CastMode.RayCast) {
             castFrontal = new RayCast(top, top + frontal, parent, parent);
-            castDown = new RayCast(prediction + normal * height, -normal, 2 * height, null, null);
+            castDown = new RayCast(prediction + normal * rayHeight, -normal, 2 * rayHeight, null, null);
             castOutward = new RayCast(top, prediction, parent, null);
             castInwards = new RayCast(prediction, bottom, null, parent);
             castInwardsClose = new RayCast(prediction, bottomClose, null, parent);
-            castDefaultDown = new RayCast(defaultPos + normal * height, -normal, 2 * height, parent, parent);
+            castDefaultDown = new RayCast(defaultPos + normal * rayHeight, -normal, 2 * rayHeight, parent, parent);
             castDefaultOutward = new RayCast(top, defaultPos, parent, parent);
             castDefaultInward = new RayCast(defaultPos, bottom, parent, parent);
         }
         else {
             float r = spider.scale * radius;
             castFrontal = new SphereCast(top, top + frontal, r, parent, parent);
-            castDown = new SphereCast(prediction + normal * height, -normal, 2 * height, r, null, null);
+            castDown = new SphereCast(prediction + normal * rayHeight, -normal, 2 * rayHeight, r, null, null);
             castOutward = new SphereCast(top, prediction, r, parent, null);
             castInwards = new SphereCast(prediction, bottom, r, null, parent);
             castInwardsClose = new SphereCast(prediction, bottomClose, r, null, parent);
-            castDefaultDown = new SphereCast(defaultPos + normal * height, -normal, 2 * height, r, parent, parent);
+            castDefaultDown = new SphereCast(defaultPos + normal * rayHeight, -normal, 2 * rayHeight, r, parent, parent);
             castDefaultOutward = new SphereCast(top, defaultPos, r, parent, parent);
             castDefaultInward = new SphereCast(defaultPos, bottom, r, parent, parent);
         }
@@ -239,8 +240,8 @@ public class IKStepper : MonoBehaviour {
 
         //Update Rays for new prediction Point
         castOutward.setEnd(prediction);
-        castDown.setOrigin(prediction + normal * height);
-        castDown.setEnd(prediction - normal * height);
+        castDown.setOrigin(prediction + normal * rayHeight);
+        castDown.setEnd(prediction - normal * rayHeight);
         castInwards.setOrigin(prediction);
         castInwardsClose.setOrigin(prediction);
 
@@ -293,7 +294,7 @@ public class IKStepper : MonoBehaviour {
 
         // Return default position
         if (showDebug) Debug.Log("No ray was able to find a target position. Therefore i will return a default position.");
-        return new TargetInfo(defaultPosition + 0.2f * height * normal, normal, false);
+        return new TargetInfo(defaultPosition + 0.5f * rayHeight * normal, normal, false);
     }
 
     /*
@@ -317,7 +318,7 @@ public class IKStepper : MonoBehaviour {
         if (!allowedToStep()) {
             if (showDebug) Debug.Log(gameObject.name + " is waiting for step now.");
             waitingForStep = true;
-            ikChain.setTarget(new TargetInfo(ikChain.getTarget().position + 2f * spider.getCurrentVelocityPerFixedFrame(), ikChain.getTarget().normal));
+            ikChain.setTarget(new TargetInfo(ikChain.getTarget().position + 2f * spider.getCurrentVelocityPerFixedFrame() + 0.1f * rayHeight * spider.transform.up, ikChain.getTarget().normal));
             yield return null;
             ikChain.deactivateSolving = true;
 
