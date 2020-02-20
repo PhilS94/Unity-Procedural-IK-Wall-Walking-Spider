@@ -54,6 +54,7 @@ public class IKStepper : MonoBehaviour {
     private IKChain ikChain;
 
     private bool isStepping = false;
+    private bool waitingForStep = false;
 
     private float minDistance;
     private float height = 2.0f;
@@ -62,6 +63,7 @@ public class IKStepper : MonoBehaviour {
     private Cast castDown;
     private Cast castOutward;
     private Cast castInwards;
+    private Cast castInwardsClose;
     private Cast castDefaultDown;
     private Cast castDefaultOutward;
     private Cast castDefaultInward;
@@ -88,7 +90,7 @@ public class IKStepper : MonoBehaviour {
     void Start() {
         // Set important parameters
         timeSinceLastStep = 2 * stepCooldown; // Make sure im allowed to step at start
-        minDistance = 0.2f * ikChain.getChainLength(); ;
+        minDistance = 0.2f * ikChain.getChainLength();
 
         //Set Default Position
         defaultPositionLocal = calculateDefault();
@@ -105,19 +107,29 @@ public class IKStepper : MonoBehaviour {
 
     private Vector3 calculateDefault() {
         float chainLength = ikChain.getChainLength();
-        Vector3 toEnd = (Vector3.ProjectOnPlane(ikChain.getEndEffector().position - rootJoint.getRotationPoint(), rootJoint.getRotationAxis())).normalized;
+        float diameter = chainLength - minDistance;
+
+        //Be careful with the use of transform.up and rootjoint.getRotationAxis(). In my case they are equivalent with the exception of the right side being inverted.
+        //However they can be different and this has to be noticed here. The code below is probably wrong for the general case.
+        Vector3 normal = spider.transform.up;
+
+        Vector3 toEnd = ikChain.getEndEffector().position - rootJoint.getRotationPoint();
+        toEnd = Vector3.ProjectOnPlane(toEnd, normal).normalized;
+        Vector3 p = rootJoint.getRotationPoint() - spider.getCapsuleCollider().radius * normal;
+
         Vector3 midOrient = Quaternion.AngleAxis(0.5f * (rootJoint.maxAngle + rootJoint.minAngle), rootJoint.getRotationAxis()) * toEnd;
 
         //Set the following debug variables for the DOF Arc
         minOrient = spider.transform.InverseTransformDirection(Quaternion.AngleAxis(rootJoint.minAngle, rootJoint.getRotationAxis()) * toEnd);
         maxOrient = spider.transform.InverseTransformDirection(Quaternion.AngleAxis(rootJoint.maxAngle, rootJoint.getRotationAxis()) * toEnd);
 
-        Vector3 def = spider.transform.InverseTransformPoint(rootJoint.getRotationPoint() + (minDistance + 0.5f * (chainLength - minDistance)) * midOrient);
-        def.y = -spider.getCapsuleCollider().radius;
-        def += defaultOffsetLength * midOrient.normalized * 0.5f * (chainLength - minDistance) * 1 / spider.scale;
-        def += defaultOffsetHeight * rootJoint.getRotationAxis() * height * 1 / spider.scale;
-        def += defaultOffsetStride * Vector3.Cross(midOrient.normalized, rootJoint.getRotationAxis()) * ((minDistance + (0.5f + 0.5f * defaultOffsetLength) * (chainLength - minDistance)) / chainLength) * Mathf.Sin(0.5f * rootJoint.getAngleRange()) * 1 / spider.scale;
-        return def;
+        Vector3 def = p + (minDistance + 0.5f * diameter) * midOrient;
+
+        def += defaultOffsetLength * 0.5f * diameter * midOrient;
+        def += defaultOffsetHeight * height * normal; //Would want to use spider.transform.up instead?
+        def += defaultOffsetStride * Vector3.Cross(midOrient, rootJoint.getRotationAxis()) * ((minDistance + (0.5f * (1f + defaultOffsetLength) * diameter)) / chainLength) * Mathf.Sin(0.5f * rootJoint.getAngleRange());
+
+        return spider.transform.InverseTransformPoint(def);
     }
 
     private void initializeCasts() {
@@ -127,6 +139,7 @@ public class IKStepper : MonoBehaviour {
         Vector3 defaultPos = getDefault();
         Vector3 top = getTop();
         Vector3 bottom = getBottom();
+        Vector3 bottomClose = parent.position - 2f * spider.col.radius * spider.scale * normal;
         Vector3 frontal = getFrontalVector();
         prediction = defaultPos;
 
@@ -135,6 +148,7 @@ public class IKStepper : MonoBehaviour {
             castDown = new RayCast(prediction + normal * height, -normal, 2 * height, null, null);
             castOutward = new RayCast(top, prediction, parent, null);
             castInwards = new RayCast(prediction, bottom, null, parent);
+            castInwardsClose = new RayCast(prediction, bottomClose, null, parent);
             castDefaultDown = new RayCast(defaultPos + normal * height, -normal, 2 * height, parent, parent);
             castDefaultOutward = new RayCast(top, defaultPos, parent, parent);
             castDefaultInward = new RayCast(defaultPos, bottom, parent, parent);
@@ -145,6 +159,7 @@ public class IKStepper : MonoBehaviour {
             castDown = new SphereCast(prediction + normal * height, -normal, 2 * height, r, null, null);
             castOutward = new SphereCast(top, prediction, r, parent, null);
             castInwards = new SphereCast(prediction, bottom, r, null, parent);
+            castInwardsClose = new SphereCast(prediction, bottomClose, r, null, parent);
             castDefaultDown = new SphereCast(defaultPos + normal * height, -normal, 2 * height, r, parent, parent);
             castDefaultOutward = new SphereCast(top, defaultPos, r, parent, parent);
             castDefaultInward = new SphereCast(defaultPos, bottom, r, parent, parent);
@@ -153,30 +168,29 @@ public class IKStepper : MonoBehaviour {
 
     private void FixedUpdate() {
         timeSinceLastStep += Time.fixedDeltaTime;
-        if (!ikChain.IKStepperActivated() || isStepping || !allowedToStep()) return;
+        if (!ikChain.IKStepperActivated() || isStepping || waitingForStep) return;
 
         //If current target uncomfortable and there is a new comfortable target, step, otherwise just refresh the uncomfortable target.
         if (!ikChain.getTarget().comfortable) {
-            TargetInfo newTarget = calcNewTarget();
-            if (newTarget.comfortable) step(newTarget);
-            else ikChain.setTarget(newTarget);
+            step();
         }
 
         //If current target comfortable but target not close enough anymore even after the last CCD iteration, step
         else if (ikChain.getError() > IKSolver.tolerance) {
-            step(calcNewTarget());
+            //if (showDebug) { Debug.Log(gameObject.name + " wants to step since error to big"); Debug.Break();}
+            step();
         }
 
         // Alternativaly step if too close to root joint
         else if (Vector3.Distance(rootJoint.getRotationPoint(), ikChain.getTarget().position) < minDistance) {
-            step(calcNewTarget());
+            step();
         }
 
         // Force Step by Pressing Space
-        if (Input.GetKeyDown(KeyCode.Space)) step(calcNewTarget());
+        if (Input.GetKeyDown(KeyCode.Space)) step();
     }
 
-    private void LateUpdate() {
+    private void Update() {
         if (showDebug) drawDebug();
     }
 
@@ -228,6 +242,7 @@ public class IKStepper : MonoBehaviour {
         castDown.setOrigin(prediction + normal * height);
         castDown.setEnd(prediction - normal * height);
         castInwards.setOrigin(prediction);
+        castInwardsClose.setOrigin(prediction);
 
         // Frontal Ray
         if (castFrontal.castRay(out hitInfo, layer)) {
@@ -271,60 +286,88 @@ public class IKStepper : MonoBehaviour {
             return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
 
+        if (castInwardsClose.castRay(out hitInfo, layer)) {
+            if (showDebug) Debug.Log("Got Targetpoint shooting inwards very closely.");
+            return new TargetInfo(hitInfo.point, hitInfo.normal);
+        }
+
         // Return default position
         if (showDebug) Debug.Log("No ray was able to find a target position. Therefore i will return a default position.");
-        return new TargetInfo(defaultPosition + 0.25f * height * normal, normal, false);
+        return new TargetInfo(defaultPosition + 0.2f * height * normal, normal, false);
     }
 
     /*
     * If im walking so fast that  one legs keeps wanna step after step complete, one leg might not step at all since its never able to
     * Could implement a some sort of a queue where i enqueue chains that want to step next?
     */
-    private void step(TargetInfo target) {
-        if (isStepping) {
-            return;
-        }
-        if (!allowedToStep()) {
-            //I cant step but my target is not reachable. So i simply add the spiders movevector here
-            ikChain.setTarget(new TargetInfo(ikChain.getTarget().position + spider.getCurrentVelocityPerFrame(), ikChain.getTarget().normal));
-            return;
-        }
-        IEnumerator coroutineStepping = Step(target);
+    private void step() {
+        IEnumerator coroutineStepping = Step();
         StartCoroutine(coroutineStepping);
-        if (syncChain != null) syncChain.step(syncChain.calcNewTarget());
+        if (syncChain != null) syncChain.step();
     }
 
     /*
-    * Coroutine for stepping since i want to actually see the stepping process instead of it happening all within one frame
+    * Coroutine for stepping since i want to actually see the stepping process.
+    * If im not allowed to step yet (this happens if the async leg is currently stepping or my step cooldown hasnt finished yet,
+    * then ill wait until i can.
     */
-    private IEnumerator Step(TargetInfo newTarget) {
-        if (showDebug) Debug.Log(gameObject.name + " starts stepping now.");
-        if (pauseOnStep) Debug.Break();
-        isStepping = true;
-        TargetInfo lastTarget = ikChain.getTarget();
-        TargetInfo lerpTarget;
-        float time = Time.deltaTime;
-        while (time < stepTime) {
-            lerpTarget.position = Vector3.Lerp(lastTarget.position, newTarget.position, time / stepTime) + stepHeight * stepAnimation.Evaluate(time / stepTime) * spider.transform.up;
-            lerpTarget.normal = Vector3.Lerp(lastTarget.normal, newTarget.normal, time / stepTime);
-            lerpTarget.comfortable = true;
+    private IEnumerator Step() {
 
-            time += Time.deltaTime;
-            ikChain.setTarget(lerpTarget);
+        // First wait until im allowed to step
+        if (!allowedToStep()) {
+            if (showDebug) Debug.Log(gameObject.name + " is waiting for step now.");
+            waitingForStep = true;
+            ikChain.setTarget(new TargetInfo(ikChain.getTarget().position + 2f * spider.getCurrentVelocityPerFixedFrame(), ikChain.getTarget().normal));
             yield return null;
+            ikChain.deactivateSolving = true;
+
+            while (!allowedToStep()) {
+                if (showDebug) Debug.Log(gameObject.name + " not allowed to step yet.");
+                yield return null;
+            }
+            ikChain.deactivateSolving = false;
+            waitingForStep = false;
         }
+
+        // Then start the stepping
+        if (showDebug) Debug.Log(gameObject.name + " starts stepping now.");
+        TargetInfo newTarget = calcNewTarget();
+
+        // We only step between comfortable positions. Otherwise we would be in the case of leg in air where we dont want to indefinitely step.
+        // Try to think of a different way to implement this without using the comfortable parameter?
+        if (ikChain.getTarget().comfortable || newTarget.comfortable) {
+            isStepping = true;
+            TargetInfo lastTarget = ikChain.getTarget();
+            TargetInfo lerpTarget;
+            float time = 0;
+
+            while (time < stepTime) {
+                lerpTarget.position = Vector3.Lerp(lastTarget.position, newTarget.position, time / stepTime) + stepHeight * stepAnimation.Evaluate(time / stepTime) * spider.transform.up;
+                lerpTarget.normal = Vector3.Lerp(lastTarget.normal, newTarget.normal, time / stepTime);
+                lerpTarget.comfortable = true;
+
+                time += Time.deltaTime;
+                ikChain.setTarget(lerpTarget);
+                yield return null;
+            }
+            isStepping = false;
+            timeSinceLastStep = 0.0f;
+        }
+
         ikChain.setTarget(newTarget);
-        isStepping = false;
-        timeSinceLastStep = 0.0f;
     }
 
     private bool allowedToStep() {
+        if (!ikChain.getTarget().comfortable) {
+            return true;
+        }
         if (timeSinceLastStep < stepCooldown) {
             return false;
         }
         if (asyncChain != null && asyncChain.getIsStepping()) {
             return false;
         }
+        //Carefull here could end in infinite loop
         if (syncChain != null && syncChain.asyncChain != null && syncChain.asyncChain.getIsStepping()) {
             return false;
         }
@@ -351,46 +394,50 @@ public class IKStepper : MonoBehaviour {
         return spider.transform.TransformDirection(frontalVectorLocal);
     }
 
-    private void drawDebug(bool points = true, bool steppingProcess = true, bool rayCasts = true, bool DOFArc = true) {
+    private void drawDebug(bool points = true, bool steppingProcess = true, bool rayCasts = true, bool DOFArc = true, float duration = 0) {
 
         if (points) {
             // Default Position
-            DebugShapes.DrawPoint(getDefault(), Color.magenta, debugIconScale);
+            DebugShapes.DrawPoint(getDefault(), Color.magenta, debugIconScale, duration);
 
             //Draw the top and bottom ray points
-            DebugShapes.DrawPoint(getTop(), Color.green, debugIconScale);
-            DebugShapes.DrawPoint(getBottom(), Color.green, debugIconScale);
+            DebugShapes.DrawPoint(getTop(), Color.green, debugIconScale, duration);
+            DebugShapes.DrawPoint(getBottom(), Color.green, debugIconScale, duration);
 
             //Target Point
             if (isStepping) DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, debugIconScale, 2 * stepTime);
-            else DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, debugIconScale);
+            else DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, debugIconScale, duration);
         }
 
         if (steppingProcess) {
             //Draw the prediction process
-            DebugShapes.DrawPoint(lastEndEffectorPos, Color.white, debugIconScale);
-            DebugShapes.DrawPoint(projPrediction, Color.grey, debugIconScale);
-            DebugShapes.DrawPoint(overshootPrediction, Color.green, debugIconScale);
-            DebugShapes.DrawPoint(prediction, Color.red, debugIconScale);
-            Debug.DrawLine(lastEndEffectorPos, projPrediction, Color.white);
-            Debug.DrawLine(projPrediction, overshootPrediction, Color.grey);
-            Debug.DrawLine(overshootPrediction, prediction, Color.green);
+            DebugShapes.DrawPoint(lastEndEffectorPos, Color.white, debugIconScale, duration);
+            DebugShapes.DrawPoint(projPrediction, Color.grey, debugIconScale, duration);
+            DebugShapes.DrawPoint(overshootPrediction, Color.green, debugIconScale, duration);
+            DebugShapes.DrawPoint(prediction, Color.red, debugIconScale, duration);
+            Debug.DrawLine(lastEndEffectorPos, projPrediction, Color.white, duration);
+            Debug.DrawLine(projPrediction, overshootPrediction, Color.grey, duration);
+            Debug.DrawLine(overshootPrediction, prediction, Color.green, duration);
         }
 
         if (rayCasts) {
-            castFrontal.draw(Color.green);
-            castOutward.draw(Color.yellow);
-            castDown.draw(Color.yellow);
-            castInwards.draw(Color.yellow);
-            castDefaultOutward.draw(Color.magenta);
-            castDefaultDown.draw(Color.magenta);
-            castDefaultInward.draw(Color.magenta);
+            castFrontal.draw(Color.green, duration);
+            castOutward.draw(Color.yellow, duration);
+            castDown.draw(Color.yellow, duration);
+            castInwards.draw(Color.yellow, duration);
+            castDefaultOutward.draw(Color.magenta, duration);
+            castDefaultDown.draw(Color.magenta, duration);
+            castDefaultInward.draw(Color.magenta, duration);
+            castInwardsClose.draw(Color.yellow, duration);
         }
 
         if (DOFArc) {
             Vector3 v = spider.transform.TransformDirection(minOrient);
             Vector3 w = spider.transform.TransformDirection(maxOrient);
-            DebugShapes.DrawCircleSection(rootJoint.getRotationPoint(), v, w, minDistance, ikChain.getChainLength(), Color.red);
+            Vector3 p = spider.transform.InverseTransformPoint(rootJoint.getRotationPoint());
+            p.y = defaultPositionLocal.y;
+            p = spider.transform.TransformPoint(p);
+            DebugShapes.DrawCircleSection(p, v, w, minDistance, ikChain.getChainLength(), Color.red, duration);
         }
     }
 
