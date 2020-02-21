@@ -49,6 +49,7 @@ public class Spider : MonoBehaviour {
     private float downRayRadius;
 
     private Vector3 currentVelocity;
+    private bool isMoving;
     private Vector3 lastNormal;
     private float gravityOffDist = 0.05f;
 
@@ -78,6 +79,7 @@ public class Spider : MonoBehaviour {
         downRay = new SphereCast(transform.position, -transform.up, scale * downRayLength, downRayRadius, transform, transform);
         forwardRay = new SphereCast(transform.position, transform.forward, scale * forwardRayLength, forwardRaySize * scale * col.radius, transform, transform);
         bodyUpLocal = body.transform.InverseTransformDirection(transform.up);
+        isMoving = false;
     }
 
     void FixedUpdate() {
@@ -137,12 +139,18 @@ public class Spider : MonoBehaviour {
     }
 
     public void turn(Vector3 goalForward, float speed) {
-        if (goalForward == Vector3.zero) return;
+        if (goalForward == Vector3.zero || speed == 0) return;
         goalForward = Vector3.ProjectOnPlane(goalForward, transform.up);
         transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(goalForward, transform.up), 50.0f * turnSpeed * speed);
     }
 
     public void walk(Vector3 direction, float speed) {
+        if (direction == Vector3.zero || speed == 0) {
+            currentVelocity = Vector3.zero;
+            isMoving = false;
+            return;
+        }
+        isMoving = true;
         direction = direction.normalized;
         // Increase velocity as the direction and forward vector of spider get closer together
         float distance = Mathf.Pow(Mathf.Clamp(Vector3.Dot(direction, transform.forward), 0, 1), 4) * 0.1f * walkSpeed * speed * scale;
@@ -151,6 +159,10 @@ public class Spider : MonoBehaviour {
         distance = Mathf.Clamp(distance, 0, 0.99f * downRayRadius);
         currentVelocity = distance * direction;
         transform.position += currentVelocity;
+    }
+
+    public bool getIsMoving() {
+        return isMoving;
     }
 
     public Vector3 getCurrentVelocityPerSecond() {
