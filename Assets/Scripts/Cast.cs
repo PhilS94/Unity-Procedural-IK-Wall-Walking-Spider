@@ -76,9 +76,9 @@ namespace Raycasting {
         public void setOrigin(Vector3 m_Origin) { origin.setWorldPosition(m_Origin); }
         public void setEnd(Vector3 m_end) { end.setWorldPosition(m_end); }
         public void setDistance(float m_distance) { Vector3 p = getOrigin(); end.setWorldPosition(p + (getEnd() - p).normalized * m_distance); }
-        public abstract bool castRay(out RaycastHit hitInfo, int layerMask, QueryTriggerInteraction q = QueryTriggerInteraction.Ignore);
+        public abstract bool castRay(out RaycastHit hitInfo, LayerMask layerMask, QueryTriggerInteraction q = QueryTriggerInteraction.Ignore);
 
-        public abstract RaycastHit[] castRayAll(int layerMask, QueryTriggerInteraction q = QueryTriggerInteraction.Ignore);
+        public abstract RaycastHit[] castRayAll(LayerMask layerMask, QueryTriggerInteraction q = QueryTriggerInteraction.Ignore);
 
         public abstract void draw(Color col, float duration=0);
     }
@@ -97,12 +97,12 @@ namespace Raycasting {
         public RayCast(Vector3 m_origin, Vector3 m_end, Transform m_parentOrigin, Transform m_parentEnd) : base(m_origin, m_end, m_parentOrigin, m_parentEnd) { }
 
 
-        public override bool castRay(out RaycastHit hitInfo, int layerMask, QueryTriggerInteraction q = QueryTriggerInteraction.Ignore) {
+        public override bool castRay(out RaycastHit hitInfo, LayerMask layerMask, QueryTriggerInteraction q = QueryTriggerInteraction.Ignore) {
             Vector3 v = getDirection();
             return Physics.Raycast(getOrigin(), v.normalized, out hitInfo, v.magnitude, layerMask, q);
         }
 
-        public override RaycastHit[] castRayAll(int layerMask, QueryTriggerInteraction q = QueryTriggerInteraction.Ignore) {
+        public override RaycastHit[] castRayAll(LayerMask layerMask, QueryTriggerInteraction q = QueryTriggerInteraction.Ignore) {
             Vector3 v = getDirection();
             return Physics.RaycastAll(getOrigin(), v, v.magnitude, layerMask, q);
         }
@@ -145,12 +145,12 @@ namespace Raycasting {
 
         public void setRadius(float m_radius) { radius = (origin.getParent() == null) ? m_radius : m_radius / origin.getParent().lossyScale.z; }
 
-        public override bool castRay(out RaycastHit hitInfo, int layerMask, QueryTriggerInteraction q = QueryTriggerInteraction.Ignore) {
+        public override bool castRay(out RaycastHit hitInfo, LayerMask layerMask, QueryTriggerInteraction q = QueryTriggerInteraction.Ignore) {
             Vector3 v = getDirection();
             return Physics.SphereCast(getOrigin(), getRadius(), v.normalized, out hitInfo, v.magnitude, layerMask, q);
         }
 
-        public override RaycastHit[] castRayAll(int layerMask, QueryTriggerInteraction q = QueryTriggerInteraction.Ignore) {
+        public override RaycastHit[] castRayAll(LayerMask layerMask, QueryTriggerInteraction q = QueryTriggerInteraction.Ignore) {
             Vector3 v = getDirection();
             return Physics.SphereCastAll(getOrigin(), getRadius(), v.normalized, v.magnitude, layerMask, q);
         }
