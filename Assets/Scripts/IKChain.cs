@@ -12,16 +12,19 @@ public enum TargetMode {
 
 public class IKChain : MonoBehaviour {
 
+    [Header("Debug")]
+    public bool printDebugLogs;
+    public bool solveFrameByFrame;
     public bool deactivateSolving = false;
-
-    public Spider spider;
 
     [Header("Chain")]
     public AHingeJoint[] joints;
     public Transform endEffector;
+    public bool adjustLastJointToNormal;
 
     [Header("Target Mode")]
     public TargetMode targetMode;
+    public LayerMask debugTargetRayLayer;
 
     // Assign these if corresponding mode is selected
     public Transform debugTarget;
@@ -31,6 +34,7 @@ public class IKChain : MonoBehaviour {
     private TargetInfo currentTarget;
     private float error = 0.0f;
     private bool validChain;
+    private bool pause = false;
 
     private RayCast debugModeRay;
 
@@ -83,7 +87,7 @@ public class IKChain : MonoBehaviour {
 
         if (targetMode == TargetMode.DebugTargetRay) {
             debugModeRay.draw(Color.yellow);
-            if (debugModeRay.castRay(out RaycastHit hitInfo, spider.walkableLayer)) {
+            if (debugModeRay.castRay(out RaycastHit hitInfo, debugTargetRayLayer)) {
                 setTarget(new TargetInfo(hitInfo.point, hitInfo.normal));
             }
             else {
@@ -93,13 +97,24 @@ public class IKChain : MonoBehaviour {
     }
 
     private void LateUpdate() {
-        if (deactivateSolving || !validChain) return;
-        solve();
+        if (deactivateSolving || pause || !validChain) return;
+
+        // We only want to solve if we moved away too much, since we want to prevent calling solve when the last solving wasnt able to be solve.
+        // Compare the current distance and the last registered error.
+        // If the distance changed, either the target or the endeffector moved, thus we need to solve again.
+        if (Mathf.Abs(Vector3.Distance(endEffector.position, currentTarget.position) - error) > float.Epsilon) solve();
     }
 
     public void solve() {
-        IKSolver.solveCCD(ref joints, endEffector, currentTarget, true);
-        error = Vector3.Distance(endEffector.position, currentTarget.position);
+        if (solveFrameByFrame) {
+            StartCoroutine(IKSolver.solveChainCCDFrameByFrame(joints, endEffector, currentTarget, adjustLastJointToNormal, printDebugLogs));
+            deactivateSolving = true;
+            //Important here is that the coroutine has to update the error after it is done
+        }
+        else {
+            IKSolver.solveChainCCD(ref joints, endEffector, currentTarget, adjustLastJointToNormal, printDebugLogs);
+            error = Vector3.Distance(endEffector.position, currentTarget.position);
+        }
     }
 
     public float getChainLength() {
@@ -131,6 +146,14 @@ public class IKChain : MonoBehaviour {
         return error;
     }
 
+    public void pauseSolving() {
+        pause = true;
+    }
+
+    public void unpauseSolving() {
+        pause = false;
+    }
+
 #if UNITY_EDITOR
     void OnDrawGizmosSelected() {
 
@@ -146,7 +169,7 @@ public class IKChain : MonoBehaviour {
         for (int k = 0; k < joints.Length - 1; k++) {
             Debug.DrawLine(joints[k].getRotationPoint(), joints[k + 1].getRotationPoint(), Color.green);
         }
-        Debug.DrawLine(joints[joints.Length-1].getRotationPoint(), endEffector.position, Color.green);
+        Debug.DrawLine(joints[joints.Length - 1].getRotationPoint(), endEffector.position, Color.green);
     }
 
 #endif

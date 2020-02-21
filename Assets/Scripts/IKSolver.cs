@@ -7,7 +7,7 @@ public struct TargetInfo {
     public Vector3 normal;
     public bool comfortable;
 
-    public TargetInfo(Vector3 m_position, Vector3 m_normal, bool m_comfortable=true) {
+    public TargetInfo(Vector3 m_position, Vector3 m_normal, bool m_comfortable = true) {
         position = m_position;
         normal = m_normal;
         comfortable = m_comfortable;
@@ -18,6 +18,7 @@ public class IKSolver : MonoBehaviour {
 
     private static int maxIterations = 10;
     public static float tolerance = 0.05f;
+    public static float minimumChangePerIteration = 0.001f;
     private static float weight = 1.0f;
     private static float footAngleToNormal = 20.0f; // 0 means parallel to ground (Orthogonal to plane normal)
 
@@ -28,74 +29,132 @@ public class IKSolver : MonoBehaviour {
      * @param3 target:       The target information the algorithm should solve for.
      * @param4 hasFoot:      If set to true, the last joint will adjust to the normal given by the target. 
      */
-    public static void solveCCD(ref AHingeJoint[] joints, Transform endEffector, TargetInfo target, bool hasFoot = false) {
-        AHingeJoint joint;
-        Vector3 toEnd;
-        Vector3 toTarget;
-        Vector3 rotAxis;
-        float angle;
-
+    public static void solveChainCCD(ref AHingeJoint[] joints, Transform endEffector, TargetInfo target, bool hasFoot = false, bool printDebugLogs = false) {
         int iteration = 0;
-
-        // If Endeffector is below Hyperplane defined by target i offset the target slightly above the plane, so the following algorithm will solve from above the hyperplane
-        if (Vector3.Dot(endEffector.position - target.position, target.normal) < 0) {
-            //target.position += tolerance * target.normal.normalized;
-        }
-
         float error = Vector3.Distance(target.position, endEffector.position);
-
-        /*
-        //Too prevent self collision, Keep track of exterior angles of the spanned polygon and make sure the sum does not exceed 360
-        // Only works for convex polygon though i think
-        float[] interiorAngles = new float[joints.Length];
-        float anglesum = 0;
-        for (int j = 0; j < joints.Length; j++) {
-            int j_l = mod(j - 1, joints.Length);
-            int j_r = mod(j + 1, joints.Length);
-            Vector3 v = joints[j].getRotationPoint() - joints[j_l].getRotationPoint();
-            Vector3 w = joints[j_r].getRotationPoint() - joints[j].getRotationPoint();
-            interiorAngles[j] = Vector3.SignedAngle(v, w, joints[j].getRotationAxis());
-            anglesum += interiorAngles[j];
-        }
-        */
+        float oldError;
+        float errorDelta;
 
         //If only the normal changes but my error is within tolerance, i will not adjust the normal here, maybe fix this
         while (iteration < maxIterations && error > tolerance) {
+
             for (int i = 0; i < joints.Length; i++) {
-
-                //This line ensures that the we start with the last joint, but then chronologically, e.g.
-                // Length = 5
-                // i = 0,1,2,3,4
-                // k = i-1 mod 5,that is: 4 0 1 2 3
+                //This line ensures that the we start with the last joint, but then chronologically, e.g. k= 4 0 1 2 3
                 int k = mod((i - 1), joints.Length);
-
-                joint = joints[k];
-                rotAxis = joint.getRotationAxis();
-                toEnd = Vector3.ProjectOnPlane((endEffector.position - joint.getRotationPoint()), rotAxis);
-                toTarget = Vector3.ProjectOnPlane(target.position - joint.getRotationPoint(), rotAxis);
-
-                if (toTarget == Vector3.zero || toEnd == Vector3.zero) continue; // If singularity, skip. ToEnd should never be zero in my configuration though
-
-                //This is a special case, where i want the foot, that is the last joint of the chain to adjust to the normal it hit
-                if (iteration < maxIterations / 2 && k == joints.Length - 1 && hasFoot) {
-                    angle = footAngleToNormal + 90.0f - Vector3.SignedAngle(Vector3.ProjectOnPlane(target.normal, rotAxis), toEnd, rotAxis); //Here toEnd only works because ill use this only for the last joint. instead you would want to use the vector from joint[i] to joint[i+1]
-                }
-                else {
-                    angle = Vector3.SignedAngle(toEnd, toTarget, rotAxis);
-                    angle *= weight;
-                    angle *= joint.getWeight();
-                    float kValue = 1.0f / (joints.Length * error);
-                    angle *= Mathf.Clamp(kValue, float.Epsilon, 1.0f); // k-Faktor //Have to update the error every forloop here
-                }
-
-                joint.applyRotation(angle);
+                solveJointCCD(ref joints[k], ref endEffector, ref target, hasFoot && k == joints.Length - 1);
             }
-            error = Vector3.Distance(target.position, endEffector.position); //Refresh the error so we can check if we are already close enough for the while loop check
             iteration++;
+
+            oldError = error;
+            error = Vector3.Distance(target.position, endEffector.position);
+            errorDelta = Mathf.Abs(oldError - error);
+            if (errorDelta < minimumChangePerIteration) {
+                if (printDebugLogs) Debug.Log("Only moved " + errorDelta + ". Therefore i give up solving.");
+                break;
+            }
         }
-        //if (iteration>0) Debug.Log("Completed CCD with " + iteration + " iterations and an error of "+ error);
+
+        if (printDebugLogs) {
+            if (iteration == maxIterations) Debug.Log(endEffector.gameObject.name + " could not solve with " + iteration + " iterations. The error is " + error);
+            if (iteration != maxIterations && iteration > 0) Debug.Log(endEffector.gameObject.name + " completed CCD with " + iteration + " iterations and an error of " + error);
+        }
     }
 
+    private static void solveJointCCD(ref AHingeJoint joint, ref Transform endEffector, ref TargetInfo target, bool adjustToTargetNormal) {
+        Vector3 rotPoint = joint.getRotationPoint();
+        Vector3 rotAxis = joint.getRotationAxis();
+        Vector3 toEnd = Vector3.ProjectOnPlane((endEffector.position - rotPoint), rotAxis);
+        Vector3 toTarget = Vector3.ProjectOnPlane(target.position - rotPoint, rotAxis);
+
+        // If singularity, skip. ToEnd should never be zero in my configuration though
+        if (toTarget == Vector3.zero || toEnd == Vector3.zero) return;
+
+        float angle;
+
+        //This is a special case, where i want the foot, that is the last joint of the chain to adjust to the normal it hit
+        if (adjustToTargetNormal) {
+            angle = footAngleToNormal + 90.0f - Vector3.SignedAngle(Vector3.ProjectOnPlane(target.normal, rotAxis), toEnd, rotAxis);
+        }
+        else {
+            angle = Vector3.SignedAngle(toEnd, toTarget, rotAxis);
+            angle *= weight;
+            angle *= joint.getWeight();
+            //float kValue = 1.0f / (joints.Length * error);
+            //angle *= Mathf.Clamp(kValue, float.Epsilon, 1.0f); // k-Faktor //Have to update the error every forloop here
+        }
+        joint.applyRotation(angle);
+    }
+
+    /*
+     * This coroutine is a copy paste of the original CCD solver above. It exists due to debug reasons.
+     * It allows me to go through the iterations steps frame by frame and pause the editor.
+     */
+    public static IEnumerator solveChainCCDFrameByFrame(AHingeJoint[] joints, Transform endEffector, TargetInfo target, bool hasFoot = false, bool printDebugLogs = false) {
+        int iteration = 0;
+        float error = Vector3.Distance(target.position, endEffector.position);
+        float oldError;
+        float errorDelta;
+
+        if (printDebugLogs) Debug.Log(endEffector.gameObject.name + " is starting the CCD solving process.");
+        Debug.Break();
+        yield return null;
+
+        while (iteration < maxIterations && error > tolerance) {
+
+            if (printDebugLogs) Debug.Log("Starting iteration " + iteration + " with an error of " + error);
+            Debug.Break();
+            yield return null;
+
+            for (int i = 0; i < joints.Length; i++) {
+                int k = mod((i - 1), joints.Length);
+
+                // start: Not clean but for now just initialize variables again and draw stuff here
+                Vector3 rotPoint = joints[k].getRotationPoint();
+                Vector3 rotAxis = joints[k].getRotationAxis();
+                Vector3 toEnd = Vector3.ProjectOnPlane((endEffector.position - rotPoint), rotAxis);
+                Vector3 toTarget = Vector3.ProjectOnPlane(target.position - rotPoint, rotAxis);
+                DebugShapes.DrawPlane(rotPoint, rotAxis, toTarget, 1.0f, Color.yellow);
+                Debug.DrawLine(rotPoint, rotPoint + toTarget, Color.blue);
+                Debug.DrawLine(rotPoint, rotPoint + toEnd, Color.red);
+                // end
+
+                if (printDebugLogs) Debug.Log("Iteration " + iteration + ", joint " + joints[k].gameObject.name + " gonna happen now.");
+                Debug.Break();
+                yield return null;
+
+                solveJointCCD(ref joints[k], ref endEffector, ref target, hasFoot && k == joints.Length - 1);
+
+                // start: Not clean but for now just initialize variables again and draw stuff here
+                toEnd = Vector3.ProjectOnPlane((endEffector.position - rotPoint), rotAxis);
+                DebugShapes.DrawPlane(rotPoint, rotAxis, toTarget, 1.0f, Color.yellow);
+                Debug.DrawLine(rotPoint, rotPoint + toTarget, Color.blue);
+                Debug.DrawLine(rotPoint, rotPoint + toEnd, Color.red);
+                // end
+
+                if (printDebugLogs) Debug.Log("Iteration " + iteration + ", joint " + joints[k].gameObject.name + " done.");
+                Debug.Break();
+                yield return null;
+            }
+            iteration++;
+
+            oldError = error;
+            error = Vector3.Distance(target.position, endEffector.position);
+            errorDelta = Mathf.Abs(oldError - error);
+            if (errorDelta < minimumChangePerIteration) {
+                if (printDebugLogs) Debug.Log("Only moved " + errorDelta + ". Therefore i give up solving");
+                Debug.Break();
+                break;
+            }
+        }
+
+        if (printDebugLogs) {
+            if (error > tolerance) Debug.Log(endEffector.gameObject.name + " could not solve with " + iteration + " iterations. The error is " + error);
+            else Debug.Log(endEffector.gameObject.name + " completed solving with " + iteration + " iterations and an error of " + error);
+        }
+        Debug.Break();
+        yield return null;
+
+    }
 
     // Slighly messy since Unity does not provide Matrix class so i had to work with two dimensional arrays and convert to Vector3 if needed
     public static void solveJacobianTranspose(ref AHingeJoint[] joints, Transform endEffector, TargetInfo target, bool hasFoot = false) {
