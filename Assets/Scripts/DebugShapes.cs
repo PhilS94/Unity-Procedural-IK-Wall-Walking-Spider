@@ -80,7 +80,27 @@ public class DebugShapes : MonoBehaviour {
         Debug.DrawLine(points[3], points[0], col);
     }
 
-    public static void DrawCircle(Vector3 pos, Vector3 normal, float radius, Color col,float duration=0) {
+    public static void DrawPlane(Vector3 pos, Vector3 normal, Vector3 tangent, float size, Color col, float duration = 0) {
+
+        tangent = tangent.normalized;
+        normal = normal.normalized;
+        Vector3 cross = Vector3.Cross(normal, tangent);
+
+
+        Vector3 a = pos + 0.5f * size * tangent + 0.5f * size * cross;
+        Vector3 b = pos - 0.5f * size * tangent + 0.5f * size * cross;
+        Vector3 c = pos - 0.5f * size * tangent - 0.5f * size * cross;
+        Vector3 d = pos + 0.5f * size * tangent - 0.5f * size * cross;
+
+        Debug.DrawLine(a, b, col, duration);
+        Debug.DrawLine(a, c, col, duration);
+        Debug.DrawLine(a, d, col, duration);
+        Debug.DrawLine(b, c, col, duration);
+        Debug.DrawLine(b, d, col, duration);
+        Debug.DrawLine(c, d, col, duration);
+    }
+
+    public static void DrawCircle(Vector3 pos, Vector3 normal, float radius, Color col, float duration = 0) {
 
         int l = 16;
 
@@ -107,7 +127,7 @@ public class DebugShapes : MonoBehaviour {
         Debug.DrawLine(p[l - 1], p[0], col, duration);
     }
 
-    public static void DrawCircleSection(Vector3 pos, Vector3 min, Vector3 max, float minRadius, float maxRadius, Color col,float duration=0) {
+    public static void DrawCircleSection(Vector3 pos, Vector3 min, Vector3 max, float minRadius, float maxRadius, Color col, float duration = 0) {
 
         if (min == Vector3.zero || max == Vector3.zero) {
             Debug.LogWarning("Min and Max Vector not allowed to be zero.");
@@ -302,7 +322,7 @@ public class DebugShapes : MonoBehaviour {
         Debug.DrawLine(start, endPoint, col, duration);
     }
 
-    public static void DrawSphereRay(Vector3 start, Vector3 end, float radius, int amount, Color col,float duration=0) {
+    public static void DrawSphereRay(Vector3 start, Vector3 end, float radius, int amount, Color col, float duration = 0) {
         Vector3 v = end - start;
         DrawSphereRay(start, v.normalized, v.magnitude, radius, amount, col, duration);
     }
