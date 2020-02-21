@@ -6,7 +6,7 @@ using Raycasting;
 [RequireComponent(typeof(IKChain))]
 public class IKStepper : MonoBehaviour {
 
-    public Spider spider;
+    private Spider spider;
 
     [Header("Debug")]
 
@@ -33,9 +33,6 @@ public class IKStepper : MonoBehaviour {
     public float stepCooldown = 0.5f;
     private float timeSinceLastStep;
 
-    [Range(0.0f, 2.0f)]
-    public float stopSteppingAfterSecondsStill;
-
     public AnimationCurve stepAnimation;
 
     public CastMode castMode;
@@ -60,7 +57,6 @@ public class IKStepper : MonoBehaviour {
 
     private bool isStepping = false;
     private bool waitingForStep = false;
-    private float timeStandingStill;
 
     private float minDistance;
 
@@ -88,6 +84,7 @@ public class IKStepper : MonoBehaviour {
 
     private void Awake() {
         ikChain = GetComponent<IKChain>();
+        spider = ikChain.spider;
         rootJoint = ikChain.getRootJoint();
     }
 
@@ -95,7 +92,6 @@ public class IKStepper : MonoBehaviour {
         // Set important parameters
         timeSinceLastStep = 2 * stepCooldown; // Make sure im allowed to step at start
         minDistance = 0.2f * ikChain.getChainLength();
-        timeStandingStill = 0f;
 
         //Set Default Position
         defaultPositionLocal = calculateDefault();
@@ -172,36 +168,27 @@ public class IKStepper : MonoBehaviour {
     }
 
     private void FixedUpdate() {
-        if (!ikChain.IKStepperActivated()) return;
-
-        // Increase timers
         timeSinceLastStep += Time.fixedDeltaTime;
-        if (!spider.getIsMoving()) timeStandingStill += Time.fixedDeltaTime;
-        else timeStandingStill = 0f;
+        if (!ikChain.IKStepperActivated() || isStepping || waitingForStep) return;
 
-        // If im currently in the stepping process i have no business doing anything besides that.
-        if (isStepping || waitingForStep) return;
-
-        // If ive been standing still for a certain time, i dont allow any more stepping. This fixes the indefinite stepping going on.
-        if (timeStandingStill > stopSteppingAfterSecondsStill) {
-            return;
+        //If current target uncomfortable and there is a new comfortable target, step, otherwise just refresh the uncomfortable target.
+        if (!ikChain.getTarget().comfortable) {
+            step();
         }
 
-        //If current target uncomfortable and there is a new comfortable target, step
-        if (!ikChain.getTarget().comfortable) step();
-
-
-        //If the error of the IK solver gets to big, that is if it cant solve for the current target appropriately anymore, step.
-        // This is the main way this class determines if it needs to step.
-        else if (ikChain.getError() > IKSolver.tolerance)  step();
-
+        //If current target comfortable but target not close enough anymore even after the last CCD iteration, step
+        else if (ikChain.getError() > IKSolver.tolerance) {
+            //if (showDebug) { Debug.Log(gameObject.name + " wants to step since error to big"); Debug.Break();}
+            step();
+        }
 
         // Alternativaly step if too close to root joint
-        else if (Vector3.Distance(rootJoint.getRotationPoint(), ikChain.getTarget().position) < minDistance) step();
-
+        else if (Vector3.Distance(rootJoint.getRotationPoint(), ikChain.getTarget().position) < minDistance) {
+            step();
+        }
 
         // Force Step by Pressing Space
-        else if (Input.GetKeyDown(KeyCode.Space)) step();
+        if (Input.GetKeyDown(KeyCode.Space)) step();
     }
 
     private void Update() {
@@ -326,7 +313,6 @@ public class IKStepper : MonoBehaviour {
     * then ill wait until i can.
     */
     private IEnumerator Step() {
-        if (pauseOnStep) Debug.Break();
 
         // First wait until im allowed to step
         if (!allowedToStep()) {
@@ -334,18 +320,17 @@ public class IKStepper : MonoBehaviour {
             waitingForStep = true;
             ikChain.setTarget(new TargetInfo(ikChain.getTarget().position + 2f * spider.getCurrentVelocityPerFixedFrame() + 0.1f * rayHeight * spider.transform.up, ikChain.getTarget().normal));
             yield return null;
-            ikChain.pauseSolving();
+            ikChain.deactivateSolving = true;
 
             while (!allowedToStep()) {
                 if (showDebug) Debug.Log(gameObject.name + " not allowed to step yet.");
                 yield return null;
             }
-            ikChain.unpauseSolving();
+            ikChain.deactivateSolving = false;
             waitingForStep = false;
         }
 
         // Then start the stepping
-        if (pauseOnStep) Debug.Break();
         if (showDebug) Debug.Log(gameObject.name + " starts stepping now.");
         TargetInfo newTarget = calcNewTarget();
 
@@ -371,7 +356,6 @@ public class IKStepper : MonoBehaviour {
         }
 
         ikChain.setTarget(newTarget);
-        if (showDebug) Debug.Log(gameObject.name + " completed stepping.");
     }
 
     private bool allowedToStep() {
@@ -411,41 +395,41 @@ public class IKStepper : MonoBehaviour {
         return spider.transform.TransformDirection(frontalVectorLocal);
     }
 
-    private void drawDebug(bool points = true, bool steppingProcess = true, bool rayCasts = true, bool DOFArc = true) {
+    private void drawDebug(bool points = true, bool steppingProcess = true, bool rayCasts = true, bool DOFArc = true, float duration = 0) {
 
         if (points) {
             // Default Position
-            DebugShapes.DrawPoint(getDefault(), Color.magenta, debugIconScale);
+            DebugShapes.DrawPoint(getDefault(), Color.magenta, debugIconScale, duration);
 
             //Draw the top and bottom ray points
-            DebugShapes.DrawPoint(getTop(), Color.green, debugIconScale);
-            DebugShapes.DrawPoint(getBottom(), Color.green, debugIconScale);
+            DebugShapes.DrawPoint(getTop(), Color.green, debugIconScale, duration);
+            DebugShapes.DrawPoint(getBottom(), Color.green, debugIconScale, duration);
 
             //Target Point
             if (isStepping) DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, debugIconScale, 2 * stepTime);
-            else DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, debugIconScale);
+            else DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, debugIconScale, duration);
         }
 
         if (steppingProcess) {
             //Draw the prediction process
-            DebugShapes.DrawPoint(lastEndEffectorPos, Color.white, debugIconScale);
-            DebugShapes.DrawPoint(projPrediction, Color.grey, debugIconScale);
-            DebugShapes.DrawPoint(overshootPrediction, Color.green, debugIconScale);
-            DebugShapes.DrawPoint(prediction, Color.red, debugIconScale);
-            Debug.DrawLine(lastEndEffectorPos, projPrediction, Color.white);
-            Debug.DrawLine(projPrediction, overshootPrediction, Color.grey);
-            Debug.DrawLine(overshootPrediction, prediction, Color.green);
+            DebugShapes.DrawPoint(lastEndEffectorPos, Color.white, debugIconScale, duration);
+            DebugShapes.DrawPoint(projPrediction, Color.grey, debugIconScale, duration);
+            DebugShapes.DrawPoint(overshootPrediction, Color.green, debugIconScale, duration);
+            DebugShapes.DrawPoint(prediction, Color.red, debugIconScale, duration);
+            Debug.DrawLine(lastEndEffectorPos, projPrediction, Color.white, duration);
+            Debug.DrawLine(projPrediction, overshootPrediction, Color.grey, duration);
+            Debug.DrawLine(overshootPrediction, prediction, Color.green, duration);
         }
 
         if (rayCasts) {
-            castFrontal.draw(Color.green);
-            castOutward.draw(Color.yellow);
-            castDown.draw(Color.yellow);
-            castInwards.draw(Color.yellow);
-            castDefaultOutward.draw(Color.magenta);
-            castDefaultDown.draw(Color.magenta);
-            castDefaultInward.draw(Color.magenta);
-            castInwardsClose.draw(Color.yellow);
+            castFrontal.draw(Color.green, duration);
+            castOutward.draw(Color.yellow, duration);
+            castDown.draw(Color.yellow, duration);
+            castInwards.draw(Color.yellow, duration);
+            castDefaultOutward.draw(Color.magenta, duration);
+            castDefaultDown.draw(Color.magenta, duration);
+            castDefaultInward.draw(Color.magenta, duration);
+            castInwardsClose.draw(Color.yellow, duration);
         }
 
         if (DOFArc) {
@@ -454,7 +438,7 @@ public class IKStepper : MonoBehaviour {
             Vector3 p = spider.transform.InverseTransformPoint(rootJoint.getRotationPoint());
             p.y = defaultPositionLocal.y;
             p = spider.transform.TransformPoint(p);
-            DebugShapes.DrawCircleSection(p, v, w, minDistance, ikChain.getChainLength(), Color.red);
+            DebugShapes.DrawCircleSection(p, v, w, minDistance, ikChain.getChainLength(), Color.red, duration);
         }
     }
 
