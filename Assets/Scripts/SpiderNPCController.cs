@@ -44,8 +44,10 @@ public class SpiderNPCController : MonoBehaviour {
         }
     }
     private Vector3 getDirection() {
-        float vertical = 2.0f * (Mathf.PerlinNoise(Time.time * perlinStepDirection, startValue) - 0.5f); // Range [-1,1]
-        float horizontal = 2.0f * (Mathf.PerlinNoise(Time.time * perlinStepDirection, startValue + 0.3f) - 0.5f); // Range [-1,1]
+
+        //Get random values between [-1,1] using perlin noise
+        float vertical = 2.0f * (Mathf.PerlinNoise(Time.time * perlinStepDirection, startValue) - 0.5f);
+        float horizontal = 2.0f * (Mathf.PerlinNoise(Time.time * perlinStepDirection, startValue + 0.3f) - 0.5f);
         return (getVectorInThisCoordinateSystem((X * horizontal + Z * vertical).normalized));
     }
 
