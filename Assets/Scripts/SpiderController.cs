@@ -22,6 +22,9 @@ public class SpiderController : MonoBehaviour {
     public LayerMask cameraInvisibleClipLayer;
     public LayerMask cameraClipLayer;
 
+    [Range(0, 0.5f)]
+    public float cameraClipMargin = 0.1f;
+
     private RayCast camToPlayer, playerToCam;
     float maxCameraDistance;
     private RaycastHit hitInfo;
@@ -42,8 +45,8 @@ public class SpiderController : MonoBehaviour {
 
     void Start() {
         maxCameraDistance = Vector3.Distance(spider.transform.position, cam.transform.position);
-        playerToCam = new RayCast(spider.transform.position, cam.transform.position, spider.transform, cam.transform);
-        camToPlayer = new RayCast(cam.transform.position, spider.transform.position, cam.transform, spider.transform);
+        playerToCam = new RayCast(spider.transform.position, cam.transform.position, transform, null);
+        camToPlayer = new RayCast(cam.transform.position, spider.transform.position, cam.transform, transform);
     }
 
     private void FixedUpdate() {
@@ -67,7 +70,7 @@ public class SpiderController : MonoBehaviour {
         //** Camera movement **//
         RotateCameraHorizontal(Input.GetAxis("Mouse X") * XSensitivity);
         RotateCameraVertical(-Input.GetAxis("Mouse Y") * YSensitivity);
-        //clipCamera();
+        clipCamera();
         clipCameraInvisible();
 
         if (spider.showDebug) drawDebug();
@@ -119,11 +122,11 @@ public class SpiderController : MonoBehaviour {
     }
 
     void clipCamera() {
-        float margin = 0.05f;
-
+        playerToCam.setEnd(cam.transform.position);
         playerToCam.setDistance(maxCameraDistance);
+
         if (playerToCam.castRay(out hitInfo, cameraClipLayer)) {
-            cam.transform.position = hitInfo.point - margin * playerToCam.getDirection().normalized;
+            cam.transform.position = hitInfo.point - cameraClipMargin * playerToCam.getDirection();
         }
         else {
             cam.transform.position = playerToCam.getEnd();
