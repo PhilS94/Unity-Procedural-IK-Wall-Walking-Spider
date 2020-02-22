@@ -11,9 +11,10 @@ public class IKStepper : MonoBehaviour {
     [Header("Debug")]
 
     public bool showDebug;
+    public bool printDebugLogs;
+    public bool pauseOnStep = false;
     [Range(0.01f, 1.0f)]
     public float debugIconScale = 0.1f;
-    public bool pauseOnStep = false;
 
     [Header("Stepping")]
 
@@ -64,14 +65,7 @@ public class IKStepper : MonoBehaviour {
 
     private float minDistance;
 
-    private Cast castFrontal;
-    private Cast castDown;
-    private Cast castOutward;
-    private Cast castInwards;
-    private Cast castInwardsClose;
-    private Cast castDefaultDown;
-    private Cast castDefaultOutward;
-    private Cast castDefaultInward;
+    private Dictionary<string, Cast> casts;
 
     private AHingeJoint rootJoint;
     private Vector3 defaultPositionLocal;
@@ -84,6 +78,7 @@ public class IKStepper : MonoBehaviour {
     private Vector3 overshootPrediction;
     private Vector3 minOrient;
     private Vector3 maxOrient;
+    private string lastHitRay;
 
 
     private void Awake() {
@@ -137,6 +132,11 @@ public class IKStepper : MonoBehaviour {
         return spider.transform.InverseTransformPoint(def);
     }
 
+    /*
+     * This method defines the RayCasts/SphereCasts in a dictionary with a corresponding key
+     * The order in which they appear in the dictionary is the order in which they will be casted.
+     * This order is of very high importance, so choose smartly.
+     */
     private void initializeCasts() {
 
         Transform parent = spider.transform;
@@ -147,28 +147,29 @@ public class IKStepper : MonoBehaviour {
         Vector3 bottomClose = parent.position - 2f * spider.col.radius * spider.scale * normal;
         Vector3 frontal = getFrontalVector();
         prediction = defaultPos;
+        float r = spider.scale * radius;
 
-        if (castMode == CastMode.RayCast) {
-            castFrontal = new RayCast(top, top + frontal, parent, parent);
-            castDown = new RayCast(prediction + normal * rayHeight, -normal, 2 * rayHeight, null, null);
-            castOutward = new RayCast(top, prediction, parent, null);
-            castInwards = new RayCast(prediction, bottom, null, parent);
-            castInwardsClose = new RayCast(prediction, bottomClose, null, parent);
-            castDefaultDown = new RayCast(defaultPos + normal * rayHeight, -normal, 2 * rayHeight, parent, parent);
-            castDefaultOutward = new RayCast(top, defaultPos, parent, parent);
-            castDefaultInward = new RayCast(defaultPos, bottom, parent, parent);
-        }
-        else {
-            float r = spider.scale * radius;
-            castFrontal = new SphereCast(top, top + frontal, r, parent, parent);
-            castDown = new SphereCast(prediction + normal * rayHeight, -normal, 2 * rayHeight, r, null, null);
-            castOutward = new SphereCast(top, prediction, r, parent, null);
-            castInwards = new SphereCast(prediction, bottom, r, null, parent);
-            castInwardsClose = new SphereCast(prediction, bottomClose, r, null, parent);
-            castDefaultDown = new SphereCast(defaultPos + normal * rayHeight, -normal, 2 * rayHeight, r, parent, parent);
-            castDefaultOutward = new SphereCast(top, defaultPos, r, parent, parent);
-            castDefaultInward = new SphereCast(defaultPos, bottom, r, parent, parent);
-        }
+        // Note that Prediction Out will never hit a targetpoint on a flat surface or hole since it stop at the prediction point which is on
+        // default height, that is the height where the collider stops.
+        casts = new Dictionary<string, Cast> {
+            { "Frontal", getCast(top, top + frontal, r, parent, parent) },
+            { "Prediction Out", getCast(top, prediction, r, parent, null) },
+            { "Prediction Down", getCast(prediction + normal * rayHeight, prediction - normal * rayHeight, r, null, null) },
+            { "Prediction In", getCast(prediction, bottom, r, null, parent) },
+            { "Prediction In Close", getCast(prediction, bottomClose, r, null, parent) },
+            { "Default Down", getCast(defaultPos + normal * rayHeight, defaultPos - normal * rayHeight, r, parent, parent) },
+            { "Default Out", getCast(top, defaultPos, r, parent, parent) },
+            { "Default In", getCast(defaultPos, bottom, r, parent, parent) }
+        };
+    }
+
+    /*
+     * Depending on the cast mode selected this method returns either a RayCast or a SphereCast with the given start, end and parents.
+     * The parameter radius is redundant if cast mode Raycast is selected but needed for the SphereCast.
+     */
+    private Cast getCast(Vector3 start, Vector3 end, float radius, Transform parentStart, Transform parentEnd) {
+        if (castMode == CastMode.RayCast) return new RayCast(start, end, parentStart, parentEnd);
+        else return new SphereCast(start, end, radius, parentStart, parentEnd);
     }
 
     private void FixedUpdate() {
@@ -193,7 +194,7 @@ public class IKStepper : MonoBehaviour {
 
         //If the error of the IK solver gets to big, that is if it cant solve for the current target appropriately anymore, step.
         // This is the main way this class determines if it needs to step.
-        else if (ikChain.getError() > IKSolver.tolerance)  step();
+        else if (ikChain.getError() > IKSolver.tolerance) step();
 
 
         // Alternativaly step if too close to root joint
@@ -251,62 +252,25 @@ public class IKStepper : MonoBehaviour {
         RaycastHit hitInfo;
         int layer = spider.walkableLayer;
 
-        //Update Rays for new prediction Point
-        castOutward.setEnd(prediction);
-        castDown.setOrigin(prediction + normal * rayHeight);
-        castDown.setEnd(prediction - normal * rayHeight);
-        castInwards.setOrigin(prediction);
-        castInwardsClose.setOrigin(prediction);
-
-        // Frontal Ray
-        if (castFrontal.castRay(out hitInfo, layer)) {
-            if (showDebug) Debug.Log("Got Targetpoint from frontal.");
-            return new TargetInfo(hitInfo.point, hitInfo.normal);
+        //Update Casts for new prediction point. Do this more smartly?
+        foreach (var cast in casts) {
+            if (cast.Key == "Prediction Out") { cast.Value.setEnd(prediction); }
+            if (cast.Key == "Prediction Down") { cast.Value.setOrigin(prediction + normal * rayHeight); cast.Value.setEnd(prediction - normal * rayHeight); }
+            if (cast.Key == "Prediction In") { cast.Value.setOrigin(prediction); }
+            if (cast.Key == "Prediction In Close") { cast.Value.setOrigin(prediction); }
         }
 
-        // Outwards to prediction
-        if (castOutward.castRay(out hitInfo, layer)) {
-            if (showDebug) Debug.Log("Got Targetpoint shooting outwards to prediction.");
-            return new TargetInfo(hitInfo.point, hitInfo.normal);
-        }
-
-        //Straight down through prediction point
-        if (castDown.castRay(out hitInfo, layer)) {
-            if (showDebug) Debug.Log("Got Targetpoint shooting down to prediction.");
-            return new TargetInfo(hitInfo.point, hitInfo.normal);
-        }
-
-        // Inwards from prediction
-        if (castInwards.castRay(out hitInfo, layer)) {
-            if (showDebug) Debug.Log("Got Targetpoint shooting inwards from prediction.");
-            return new TargetInfo(hitInfo.point, hitInfo.normal);
-        }
-
-        // Outwards to default position
-        if (castDefaultOutward.castRay(out hitInfo, layer)) {
-            if (showDebug) Debug.Log("Got Targetpoint shooting outwards to default point.");
-            return new TargetInfo(hitInfo.point, hitInfo.normal);
-        }
-
-        //Straight down to default point
-        if (castDefaultDown.castRay(out hitInfo, layer)) {
-            if (showDebug) Debug.Log("Got Targetpoint shooting down to default point.");
-            return new TargetInfo(hitInfo.point, hitInfo.normal);
-        }
-
-        // Inwards from default point
-        if (castDefaultInward.castRay(out hitInfo, layer)) {
-            if (showDebug) Debug.Log("Got Targetpoint shooting inwards from default point.");
-            return new TargetInfo(hitInfo.point, hitInfo.normal);
-        }
-
-        if (castInwardsClose.castRay(out hitInfo, layer)) {
-            if (showDebug) Debug.Log("Got Targetpoint shooting inwards very closely.");
-            return new TargetInfo(hitInfo.point, hitInfo.normal);
+        //Iterate through all casts to until i find a target position.
+        foreach (var cast in casts) {
+            if (cast.Value.castRay(out hitInfo, layer)) {
+                if (printDebugLogs) Debug.Log("Got a target point from the cast '" + cast.Key + "'.");
+                lastHitRay = cast.Key;
+                return new TargetInfo(hitInfo.point, hitInfo.normal);
+            }
         }
 
         // Return default position
-        if (showDebug) Debug.Log("No ray was able to find a target position. Therefore i will return a default position.");
+        if (printDebugLogs) Debug.Log("No ray was able to find a target position. Therefore i will return a default position.");
         return new TargetInfo(defaultPosition + 0.5f * rayHeight * normal, normal, false);
     }
 
@@ -330,14 +294,13 @@ public class IKStepper : MonoBehaviour {
 
         // First wait until im allowed to step
         if (!allowedToStep()) {
-            if (showDebug) Debug.Log(gameObject.name + " is waiting for step now.");
+            if (printDebugLogs) Debug.Log(gameObject.name + " is waiting for step now.");
             waitingForStep = true;
             ikChain.setTarget(new TargetInfo(ikChain.getTarget().position + 2f * spider.getCurrentVelocityPerFixedFrame() + 0.1f * rayHeight * spider.transform.up, ikChain.getTarget().normal));
             yield return null;
             ikChain.pauseSolving();
 
             while (!allowedToStep()) {
-                if (showDebug) Debug.Log(gameObject.name + " not allowed to step yet.");
                 yield return null;
             }
             ikChain.unpauseSolving();
@@ -346,7 +309,7 @@ public class IKStepper : MonoBehaviour {
 
         // Then start the stepping
         if (pauseOnStep) Debug.Break();
-        if (showDebug) Debug.Log(gameObject.name + " starts stepping now.");
+        if (printDebugLogs) Debug.Log(gameObject.name + " starts stepping now.");
         TargetInfo newTarget = calcNewTarget();
 
         // We only step between comfortable positions. Otherwise we would be in the case of leg in air where we dont want to indefinitely step.
@@ -371,7 +334,7 @@ public class IKStepper : MonoBehaviour {
         }
 
         ikChain.setTarget(newTarget);
-        if (showDebug) Debug.Log(gameObject.name + " completed stepping.");
+        if (printDebugLogs) Debug.Log(gameObject.name + " completed stepping.");
     }
 
     private bool allowedToStep() {
@@ -438,14 +401,10 @@ public class IKStepper : MonoBehaviour {
         }
 
         if (rayCasts) {
-            castFrontal.draw(Color.green);
-            castOutward.draw(Color.yellow);
-            castDown.draw(Color.yellow);
-            castInwards.draw(Color.yellow);
-            castDefaultOutward.draw(Color.magenta);
-            castDefaultDown.draw(Color.magenta);
-            castDefaultInward.draw(Color.magenta);
-            castInwardsClose.draw(Color.yellow);
+            foreach (var cast in casts) {
+                if (cast.Key == lastHitRay) cast.Value.draw(new Color(1.0f, 0.5f, 0f, 1f));
+                else cast.Value.draw(Color.yellow);
+            }
         }
 
         if (DOFArc) {
