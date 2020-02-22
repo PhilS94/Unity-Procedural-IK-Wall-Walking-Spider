@@ -68,6 +68,7 @@ public class IKStepper : MonoBehaviour {
     private float minDistance;
 
     private Dictionary<string, Cast> casts;
+    RaycastHit hitInfo;
 
     private AHingeJoint rootJoint;
     private Vector3 defaultPositionLocal;
@@ -145,10 +146,16 @@ public class IKStepper : MonoBehaviour {
         Vector3 normal = parent.up;
         Vector3 defaultPos = getDefault();
         Vector3 top = getTopFocalPoint();
-        Vector3 bottom = getBottomFocalPoint();
-        Vector3 bottomClose = parent.position - 1.5f * spider.col.radius * spider.scale * normal;
         Vector3 frontalStartPosition = getFrontalStartPosition();
         Vector3 frontal = getFrontalVector();
+
+        Vector3 bottom = getBottomFocalPoint();
+        Vector3 bottomEnd = parent.position - 1.0f * spider.col.radius * spider.scale * normal;
+
+        Vector3 bottom1 = bottom + (bottomEnd - bottom) / 4f;
+        Vector3 bottom2 = bottom + 2f * (bottomEnd - bottom) / 4f;
+        Vector3 bottom3 = bottom + 3f * (bottomEnd - bottom) / 4f;
+
         prediction = defaultPos;
         float r = spider.scale * radius;
 
@@ -159,10 +166,17 @@ public class IKStepper : MonoBehaviour {
             { "Prediction Out", getCast(top, prediction, r, parent, null) },
             { "Prediction Down", getCast(prediction + normal * downRayLength, prediction - normal * downRayLength, r, null, null) },
             { "Prediction In", getCast(prediction, bottom, r, null, parent) },
-            { "Prediction In Close", getCast(prediction, bottomClose, r, null, parent) },
+            { "Prediction In 1", getCast(prediction, bottom1, r, null, parent) },
+            { "Prediction In 2", getCast(prediction, bottom2, r, null, parent) },
+            { "Prediction In 3", getCast(prediction, bottom3, r, null, parent) },
+            { "Prediction In End", getCast(prediction, bottomEnd, r, null, parent) },
             { "Default Down", getCast(defaultPos + normal * downRayLength, defaultPos - normal * downRayLength, r, parent, parent) },
             { "Default Out", getCast(top, defaultPos, r, parent, parent) },
-            { "Default In", getCast(defaultPos, bottom, r, parent, parent) }
+            { "Default In", getCast(defaultPos, bottom, r, parent, parent) },
+            { "Default In 1", getCast(defaultPos, bottom1, r, parent, parent) },
+            { "Default In 2", getCast(defaultPos, bottom2, r, parent, parent) },
+            { "Default In 3", getCast(defaultPos, bottom3, r, parent, parent) },
+            { "Default In End", getCast(defaultPos, bottomEnd, r, parent, parent) }
         };
     }
 
@@ -219,6 +233,15 @@ public class IKStepper : MonoBehaviour {
      */
     private TargetInfo calcNewTarget() {
 
+        int layer = spider.walkableLayer;
+
+        //If there is no collider in reach there is no need to calculate a new target, just return default here.
+        //This should cut down runtime cost if the spider is not grounded (e.g. in the air).
+        //However this does add an extra calculation if grounded, increases it slighly.
+        if (Physics.OverlapSphere(rootJoint.getRotationPoint(), ikChain.getChainLength(), layer, QueryTriggerInteraction.Ignore) == null) {
+            return getDefaultTarget();
+        }
+
         Vector3 endeffectorPosition = ikChain.getEndEffector().position;
         Vector3 defaultPosition = getDefault();
         Vector3 normal = spider.transform.up;
@@ -252,29 +275,41 @@ public class IKStepper : MonoBehaviour {
         overshootPrediction = overshoot;
 
         //Now shoot rays using the prediction to find an actual point on a surface.
-        RaycastHit hitInfo;
-        int layer = spider.walkableLayer;
 
         //Update Casts for new prediction point. Do this more smartly?
         foreach (var cast in casts) {
             if (cast.Key == "Prediction Out") { cast.Value.setEnd(prediction); }
-            if (cast.Key == "Prediction Down") { cast.Value.setOrigin(prediction + normal * downRayLength); cast.Value.setEnd(prediction - normal * downRayLength); }
-            if (cast.Key == "Prediction In") { cast.Value.setOrigin(prediction); }
-            if (cast.Key == "Prediction In Close") { cast.Value.setOrigin(prediction); }
+            else if (cast.Key == "Prediction Down") { cast.Value.setOrigin(prediction + normal * downRayLength); cast.Value.setEnd(prediction - normal * downRayLength); }
+            else if (cast.Key == "Prediction In") { cast.Value.setOrigin(prediction); }
+            else if (cast.Key == "Prediction In 1") { cast.Value.setOrigin(prediction); }
+            else if (cast.Key == "Prediction In 2") { cast.Value.setOrigin(prediction); }
+            else if (cast.Key == "Prediction In 3") { cast.Value.setOrigin(prediction); }
+            else if (cast.Key == "Prediction In End") { cast.Value.setOrigin(prediction); }
         }
 
         //Iterate through all casts to until i find a target position.
         foreach (var cast in casts) {
+
+            //If the spider cant see the ray origin there is no need to cast
+            if (new RayCast(spider.transform.position, cast.Value.getOrigin()).castRay(out hitInfo, layer)) continue;
+
             if (cast.Value.castRay(out hitInfo, layer)) {
                 if (printDebugLogs) Debug.Log("Got a target point from the cast '" + cast.Key + "'.");
                 lastHitRay = cast.Key;
                 return new TargetInfo(hitInfo.point, hitInfo.normal);
+
             }
         }
 
         // Return default position
         if (printDebugLogs) Debug.Log("No ray was able to find a target position. Therefore i will return a default position.");
-        return new TargetInfo(defaultPosition + 0.5f * downRayLength * normal, normal, false);
+        return getDefaultTarget();
+    }
+
+    public TargetInfo getDefaultTarget() {
+        Vector3 normal = spider.transform.up;
+        float height = 2f * spider.col.radius;
+        return new TargetInfo(getDefault() + height * normal, normal, false);
     }
 
     /*
@@ -401,16 +436,25 @@ public class IKStepper : MonoBehaviour {
             DebugShapes.DrawPoint(lastEndEffectorPos, Color.white, debugIconScale);
             DebugShapes.DrawPoint(projPrediction, Color.grey, debugIconScale);
             DebugShapes.DrawPoint(overshootPrediction, Color.green, debugIconScale);
-            DebugShapes.DrawPoint(prediction, Color.red, debugIconScale);
+            DebugShapes.DrawPoint(prediction, Color.yellow, debugIconScale);
             Debug.DrawLine(lastEndEffectorPos, projPrediction, Color.white);
             Debug.DrawLine(projPrediction, overshootPrediction, Color.grey);
             Debug.DrawLine(overshootPrediction, prediction, Color.green);
         }
 
         if (rayCasts) {
+            Color magenta = Color.Lerp(Color.magenta, Color.white, 0.5f);
+            Color yellow = Color.Lerp(Color.yellow, Color.white, 0.5f);
+            Color cyan = Color.Lerp(Color.cyan, Color.white, 0.5f);
+            Color col;
             foreach (var cast in casts) {
-                if (cast.Key == lastHitRay) cast.Value.draw(new Color(1.0f, 0.5f, 0f, 1f));
-                else cast.Value.draw(Color.yellow);
+                if (cast.Key.Contains("Default")) col = Color.magenta;
+                else if (cast.Key.Contains("Prediction")) col = Color.yellow;
+                else if (cast.Key.Contains("Frontal")) col = Color.cyan;
+                else col = Color.black;
+
+                if (cast.Key != lastHitRay) col = Color.Lerp(col, Color.white, 0.75f);
+                cast.Value.draw(col);
             }
         }
 
