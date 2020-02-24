@@ -50,8 +50,14 @@ public class IKStepper : MonoBehaviour {
     [Range(-1.0f, 1.0f)]
     public float defaultOffsetStride;
 
+
+    [Header("Last Resort IK Target Position")]
+    [Range(0f, 1.0f)]
+    public float lastResortHeight;
+
     [Header("Ray Adjustments")]
-    public Vector3 rayFrontalStartPosition;
+    [Range(0f, 1f)]
+    public float rayFrontalHeight;// War vorher 0.08
     [Range(0f, 1f)]
     public float rayFrontalLength;
     public Vector3 rayTopFocalPoint;
@@ -72,7 +78,7 @@ public class IKStepper : MonoBehaviour {
 
     private AHingeJoint rootJoint;
     private Vector3 defaultPositionLocal;
-    private Vector3 frontalVectorLocal;
+    private Vector3 lastResortPositionLocal;
     private Vector3 prediction;
 
     //Debug Variables
@@ -97,9 +103,7 @@ public class IKStepper : MonoBehaviour {
 
         //Set Default Position
         defaultPositionLocal = calculateDefault();
-
-        // Calc frontal vector
-        frontalVectorLocal = Vector3.ProjectOnPlane(defaultPositionLocal - rayFrontalStartPosition, spider.transform.up).normalized * ikChain.getChainLength() * rayFrontalLength;
+        lastResortPositionLocal = defaultPositionLocal + new Vector3(0, lastResortHeight * 4f * spider.col.radius, 0);
 
         // Initialize prediction
         prediction = getDefault();
@@ -145,24 +149,25 @@ public class IKStepper : MonoBehaviour {
         Transform parent = spider.transform;
         Vector3 normal = parent.up;
         Vector3 defaultPos = getDefault();
+        prediction = defaultPos;
+
         Vector3 top = getTopFocalPoint();
         Vector3 frontalStartPosition = getFrontalStartPosition();
-        Vector3 frontal = getFrontalVector();
+        Vector3 frontalEndPosition = getFrontalEndPosition(prediction);
 
         Vector3 bottom = getBottomFocalPoint();
-        Vector3 bottomEnd = parent.position - 1.0f * spider.col.radius * spider.scale * normal;
+        Vector3 bottomEnd = parent.position - 1.1f * spider.col.radius * spider.scale * normal;
 
         Vector3 bottom1 = bottom + (bottomEnd - bottom) / 4f;
         Vector3 bottom2 = bottom + 2f * (bottomEnd - bottom) / 4f;
         Vector3 bottom3 = bottom + 3f * (bottomEnd - bottom) / 4f;
 
-        prediction = defaultPos;
         float r = spider.scale * radius;
 
         // Note that Prediction Out will never hit a targetpoint on a flat surface or hole since it stop at the prediction point which is on
         // default height, that is the height where the collider stops.
         casts = new Dictionary<string, Cast> {
-            { "Frontal", getCast(frontalStartPosition, frontalStartPosition + frontal, r, parent, parent) },
+            { "Frontal Prediction", getCast(frontalStartPosition, frontalEndPosition, r, parent, null) },
             { "Prediction Out", getCast(top, prediction, r, parent, null) },
             { "Prediction Down", getCast(prediction + normal * downRayLength, prediction - normal * downRayLength, r, null, null) },
             { "Prediction In", getCast(prediction, bottom, r, null, parent) },
@@ -278,7 +283,8 @@ public class IKStepper : MonoBehaviour {
 
         //Update Casts for new prediction point. Do this more smartly?
         foreach (var cast in casts) {
-            if (cast.Key == "Prediction Out") { cast.Value.setEnd(prediction); }
+            if (cast.Key == "Frontal Prediction") { cast.Value.setEnd(getFrontalEndPosition(prediction)); }
+            else if (cast.Key == "Prediction Out") { cast.Value.setEnd(prediction); }
             else if (cast.Key == "Prediction Down") { cast.Value.setOrigin(prediction + normal * downRayLength); cast.Value.setEnd(prediction - normal * downRayLength); }
             else if (cast.Key == "Prediction In") { cast.Value.setOrigin(prediction); }
             else if (cast.Key == "Prediction In 1") { cast.Value.setOrigin(prediction); }
@@ -290,11 +296,15 @@ public class IKStepper : MonoBehaviour {
         //Iterate through all casts to until i find a target position.
         foreach (var cast in casts) {
 
-            //If the spider cant see the ray origin there is no need to cast
+            //If the spider cant see the ray origin there is no need to cast: Consider using a different layer here, since there can be objects in the way that are not walkable surfaces.
             if (new RayCast(spider.transform.position, cast.Value.getOrigin()).castRay(out hitInfo, layer)) continue;
 
             if (cast.Value.castRay(out hitInfo, layer)) {
-                if (printDebugLogs) Debug.Log("Got a target point from the cast '" + cast.Key + "'.");
+
+                //For the frontal ray we only allow not too steep slopes, that is +-65°
+                if (cast.Key == "Frontal" && Vector3.Angle(cast.Value.getDirection(), hitInfo.normal) < 180f - 65f) continue;
+
+                if (printDebugLogs) Debug.Log("Got a target point from the cast '" + cast.Key + "'lastHitRay = cast.Key.");
                 lastHitRay = cast.Key;
                 return new TargetInfo(hitInfo.point, hitInfo.normal);
 
@@ -307,9 +317,7 @@ public class IKStepper : MonoBehaviour {
     }
 
     public TargetInfo getDefaultTarget() {
-        Vector3 normal = spider.transform.up;
-        float height = 2f * spider.col.radius;
-        return new TargetInfo(getDefault() + height * normal, normal, false);
+        return new TargetInfo(getLastResort(), spider.transform.up, false);
     }
 
     /*
@@ -400,6 +408,10 @@ public class IKStepper : MonoBehaviour {
         return spider.transform.TransformPoint(defaultPositionLocal);
     }
 
+    private Vector3 getLastResort() {
+        return spider.transform.TransformPoint(lastResortPositionLocal);
+    }
+
     private Vector3 getTopFocalPoint() {
         return spider.transform.TransformPoint(rayTopFocalPoint);
     }
@@ -409,11 +421,12 @@ public class IKStepper : MonoBehaviour {
     }
 
     private Vector3 getFrontalStartPosition() {
-        return spider.transform.TransformPoint(rayFrontalStartPosition);
+        return spider.transform.position + spider.scale * rayFrontalHeight * spider.transform.up;
     }
 
-    private Vector3 getFrontalVector() {
-        return spider.transform.TransformDirection(frontalVectorLocal);
+    private Vector3 getFrontalEndPosition(Vector3 predictionPoint) {
+        Vector3 p = getFrontalStartPosition();
+        return p + Vector3.ProjectOnPlane(predictionPoint - p, spider.transform.up).normalized * rayFrontalLength * ikChain.getChainLength();
     }
 
     private void drawDebug(bool points = true, bool steppingProcess = true, bool rayCasts = true, bool DOFArc = true) {
@@ -421,6 +434,10 @@ public class IKStepper : MonoBehaviour {
         if (points) {
             // Default Position
             DebugShapes.DrawPoint(getDefault(), Color.magenta, debugIconScale);
+
+            // Last Resort Position
+            DebugShapes.DrawPoint(getLastResort(), Color.red, debugIconScale);
+
 
             //Draw the top and bottom ray points
             DebugShapes.DrawPoint(getTopFocalPoint(), Color.green, debugIconScale);
@@ -449,8 +466,8 @@ public class IKStepper : MonoBehaviour {
             Color col;
             foreach (var cast in casts) {
                 if (cast.Key.Contains("Default")) col = Color.magenta;
-                else if (cast.Key.Contains("Prediction")) col = Color.yellow;
                 else if (cast.Key.Contains("Frontal")) col = Color.cyan;
+                else if (cast.Key.Contains("Prediction")) col = Color.yellow;
                 else col = Color.black;
 
                 if (cast.Key != lastHitRay) col = Color.Lerp(col, Color.white, 0.75f);
