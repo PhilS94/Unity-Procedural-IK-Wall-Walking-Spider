@@ -28,6 +28,10 @@ public class Spider : MonoBehaviour {
     public IKChain[] legs;
     public bool activateLegCentroidAdjustment;
     public bool activateLegNormalAdjustment;
+    [Range(0, 10)]
+    public float legNormalAdjustmentSpeed;
+    [Range(0, 1)]
+    public float legNormalWeight;
     private Vector3 bodyUpLocal;
 
     [Header("Breathing")]
@@ -117,10 +121,13 @@ public class Spider : MonoBehaviour {
             // What if im underground?
         }
 
+        //Doesnt work, gets a Twist. I think the reason is that
         if (activateLegNormalAdjustment) {
             Vector3 newNormal = GetLegsPlaneNormal();
-            //Make sure there is never a rotation around transform.up!
-            body.transform.rotation = Quaternion.Slerp(body.transform.rotation, Quaternion.FromToRotation(bodyUp, newNormal) * body.transform.rotation, Time.deltaTime * normalAdjustSpeed);
+            float angleZ = Vector3.SignedAngle(Vector3.ProjectOnPlane(bodyUp, transform.forward), Vector3.ProjectOnPlane(newNormal, transform.forward), transform.forward);
+            body.transform.rotation = Quaternion.AngleAxis(angleZ, transform.forward) *body.transform.rotation;
+            float angleX = Vector3.SignedAngle(Vector3.ProjectOnPlane(bodyUp, transform.right), Vector3.ProjectOnPlane(newNormal, transform.right), transform.right);
+            body.transform.rotation = Quaternion.AngleAxis(angleX, transform.right) * body.transform.rotation;
         }
 
         if (activateBreathing) breathe();
@@ -238,7 +245,7 @@ public class Spider : MonoBehaviour {
             normal += legWeight * legs[i].getTarget().normal;
             //normal += legWeight * -legs[i].getEndEffector().transform.up; // The minus comes from the endeffectors local coordinate system being reversed
         }
-        return (normal + transform.up).normalized;
+        return Vector3.Slerp(transform.up, normal, legNormalWeight);
     }
 
     //** Get Methods **//
