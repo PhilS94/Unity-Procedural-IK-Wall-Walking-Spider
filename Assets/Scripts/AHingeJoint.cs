@@ -39,7 +39,7 @@ public class AHingeJoint : MonoBehaviour {
     public float weight = 1.0f;
 
     [Header("Debug")]
-    [Range(0.1f, 20.0f)]
+    [Range(1f, 10.0f)]
     public float debugIconScale = 1.0f;
 
     private Vector3 rotationAxis;
@@ -201,8 +201,9 @@ public class AHingeJoint : MonoBehaviour {
     }
 
     // Normal i would return rotPoint, but i call this function from the awakre function of CCDiKSolver
+    // Here i use the lossy scale component y for scaling. Therefore these can get inaccurate
     public Vector3 getRotationPoint() {
-        return transform.position + rotationPointOffset.x * transform.right + rotationPointOffset.y * transform.up + rotationPointOffset.z * transform.forward;
+        return transform.position + 0.01f * transform.lossyScale.y * (rotationPointOffset.x * transform.right + rotationPointOffset.y * transform.up + rotationPointOffset.z * transform.forward);
     }
 
     public Vector3 getOrientation() {
@@ -218,7 +219,7 @@ public class AHingeJoint : MonoBehaviour {
     }
 
     public Vector3 getMidOrientation() {
-        return Quaternion.AngleAxis(0.5f*(maxAngle-minAngle), rotationAxis) * minOrientation;
+        return Quaternion.AngleAxis(0.5f * (maxAngle - minAngle), rotationAxis) * minOrientation;
     }
 
     public float getAngleRange() {
@@ -230,30 +231,31 @@ public class AHingeJoint : MonoBehaviour {
         if (!UnityEditor.Selection.Contains(transform.gameObject)) return;
 
         updateValues(); //to refresh all the below values to be drawn
+        float scale = transform.lossyScale.y * 0.005f * debugIconScale;
 
         //RotAxis
         Gizmos.color = Color.blue;
-        Gizmos.DrawLine(rotPoint, rotPoint + debugIconScale * rotationAxis);
+        Gizmos.DrawLine(rotPoint, rotPoint + scale * rotationAxis);
 
         //RotPoint
         Gizmos.color = Color.green;
-        Gizmos.DrawSphere(rotPoint, 0.01f * debugIconScale);
+        Gizmos.DrawSphere(rotPoint, 0.01f * scale);
 
         // Rotation Limit Arc
         UnityEditor.Handles.color = Color.yellow;
-        UnityEditor.Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, maxAngle - minAngle, 0.2f * debugIconScale);
+        UnityEditor.Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, maxAngle - minAngle, 0.2f * scale);
 
         // Current Rotation Used Arc
         UnityEditor.Handles.color = Color.red;
-        UnityEditor.Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, currentAngle - minAngle, 0.1f * debugIconScale);
+        UnityEditor.Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, currentAngle - minAngle, 0.1f * scale);
 
         // Current Rotation used (same as above) just an additional line to emphasize
         Gizmos.color = Color.red;
-        Gizmos.DrawLine(rotPoint, rotPoint + 0.2f * debugIconScale * orientation);
+        Gizmos.DrawLine(rotPoint, rotPoint + 0.2f * scale * orientation);
 
         // Default Rotation
         Gizmos.color = Color.magenta;
-        Gizmos.DrawLine(rotPoint, rotPoint + 0.2f * debugIconScale * defaultOrientation);
+        Gizmos.DrawLine(rotPoint, rotPoint + 0.2f * scale * defaultOrientation);
     }
 #endif
 }

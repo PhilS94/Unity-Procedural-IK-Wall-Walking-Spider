@@ -3,6 +3,18 @@ using System.Collections;
 
 public class DebugShapes : MonoBehaviour {
 
+    public static void DrawLine(Vector3 pos, Vector3 end, Color col, float duration = 0f) {
+        Debug.DrawLine(pos, end, col, duration);
+    }
+
+    public static void DrawRay(Vector3 pos, Vector3 direction, Color col, float duration = 0f) {
+        Debug.DrawLine(pos, pos + direction, col, duration);
+    }
+
+    public static void DrawRay(Vector3 pos, Vector3 direction, float distance, Color col, float duration = 0f) {
+        Debug.DrawLine(pos, direction.normalized * distance, col, duration);
+    }
+
     public static void DrawPoint(Vector3 pos, Color col, float scale, float duration = 0.0f) {
         Vector3[] points = new Vector3[]
         {
@@ -35,25 +47,25 @@ public class DebugShapes : MonoBehaviour {
 
     }
 
-    public static void DrawCube(Vector3 pos, Color col, Vector3 scale) {
-        Vector3 halfScale = scale * 0.5f;
+    public static void DrawCube(Vector3 pos, Color col, Vector3 scale, float duration = 0f) {
+        Vector3 t = scale * 0.5f;
 
-        Vector3[] points = new Vector3[]
+        Vector3[] p = new Vector3[]
         {
-            pos + new Vector3(halfScale.x,      halfScale.y,    halfScale.z),
-            pos + new Vector3(-halfScale.x,     halfScale.y,    halfScale.z),
-            pos + new Vector3(-halfScale.x,     -halfScale.y,   halfScale.z),
-            pos + new Vector3(halfScale.x,      -halfScale.y,   halfScale.z),
-            pos + new Vector3(halfScale.x,      halfScale.y,    -halfScale.z),
-            pos + new Vector3(-halfScale.x,     halfScale.y,    -halfScale.z),
-            pos + new Vector3(-halfScale.x,     -halfScale.y,   -halfScale.z),
-            pos + new Vector3(halfScale.x,      -halfScale.y,   -halfScale.z),
+            pos + new Vector3(t.x,      t.y,    t.z),
+            pos + new Vector3(-t.x,     t.y,    t.z),
+            pos + new Vector3(-t.x,     -t.y,   t.z),
+            pos + new Vector3(t.x,      -t.y,   t.z),
+            pos + new Vector3(t.x,      t.y,    -t.z),
+            pos + new Vector3(-t.x,     t.y,    -t.z),
+            pos + new Vector3(-t.x,     -t.y,   -t.z),
+            pos + new Vector3(t.x,      -t.y,   -t.z),
         };
 
-        Debug.DrawLine(points[0], points[1], col);
-        Debug.DrawLine(points[1], points[2], col);
-        Debug.DrawLine(points[2], points[3], col);
-        Debug.DrawLine(points[3], points[0], col);
+        Debug.DrawLine(p[0], p[1], col,duration);
+        Debug.DrawLine(p[1], p[2], col,duration);
+        Debug.DrawLine(p[2], p[3], col,duration);
+        Debug.DrawLine(p[3], p[0], col,duration);
     }
 
     public static void DrawRect(Rect rect, Color col) {
@@ -64,20 +76,20 @@ public class DebugShapes : MonoBehaviour {
     }
 
     public static void DrawRect(Vector3 pos, Color col, Vector3 scale) {
-        Vector3 halfScale = scale * 0.5f;
+        Vector3 t = scale * 0.5f;
 
-        Vector3[] points = new Vector3[]
+        Vector3[] p = new Vector3[]
         {
-            pos + new Vector3(halfScale.x,      halfScale.y,    halfScale.z),
-            pos + new Vector3(-halfScale.x,     halfScale.y,    halfScale.z),
-            pos + new Vector3(-halfScale.x,     -halfScale.y,   halfScale.z),
-            pos + new Vector3(halfScale.x,      -halfScale.y,   halfScale.z),
+            pos + new Vector3(t.x,      t.y,    t.z),
+            pos + new Vector3(-t.x,     t.y,    t.z),
+            pos + new Vector3(-t.x,     -t.y,   t.z),
+            pos + new Vector3(t.x,      -t.y,   t.z),
         };
 
-        Debug.DrawLine(points[0], points[1], col);
-        Debug.DrawLine(points[1], points[2], col);
-        Debug.DrawLine(points[2], points[3], col);
-        Debug.DrawLine(points[3], points[0], col);
+        Debug.DrawLine(p[0], p[1], col);
+        Debug.DrawLine(p[1], p[2], col);
+        Debug.DrawLine(p[2], p[3], col);
+        Debug.DrawLine(p[3], p[0], col);
     }
 
     public static void DrawPlane(Vector3 pos, Vector3 normal, Vector3 tangent, float size, Color col, float duration = 0) {
@@ -85,7 +97,6 @@ public class DebugShapes : MonoBehaviour {
         tangent = tangent.normalized;
         normal = normal.normalized;
         Vector3 cross = Vector3.Cross(normal, tangent);
-
 
         Vector3 a = pos + 0.5f * size * tangent + 0.5f * size * cross;
         Vector3 b = pos - 0.5f * size * tangent + 0.5f * size * cross;
@@ -193,7 +204,7 @@ public class DebugShapes : MonoBehaviour {
         //if (cam != null) DrawCircle(pos, -cam.transform.forward, radius, col);
     }
 
-    public static void DrawSphereSection(Vector3 pos, Vector3 lowLeft, Vector3 lowRight, Vector3 upLeft, Vector3 upRight, float minRadius, float maxRadius, int subDivisions, Color col) {
+    public static void DrawSphereSection(Vector3 pos, Vector3 lowLeft, Vector3 lowRight, Vector3 upLeft, Vector3 upRight, float minRadius, float maxRadius, Color col) {
 
         int l = 9;
 

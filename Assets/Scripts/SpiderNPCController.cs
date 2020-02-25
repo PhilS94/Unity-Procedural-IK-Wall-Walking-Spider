@@ -39,8 +39,8 @@ public class SpiderNPCController : MonoBehaviour {
 
     private void Update() {
         if (showDebug) {
-            Debug.DrawLine(spider.transform.position, spider.transform.position + getVectorInThisCoordinateSystem(X) * 0.5f * spider.scale, Color.red);
-            Debug.DrawLine(spider.transform.position, spider.transform.position + getVectorInThisCoordinateSystem(Z) * 0.5f * spider.scale, Color.blue);
+            Debug.DrawLine(spider.transform.position, spider.transform.position + getVectorInThisCoordinateSystem(X) * 0.5f * spider.getScale(), Color.red);
+            Debug.DrawLine(spider.transform.position, spider.transform.position + getVectorInThisCoordinateSystem(Z) * 0.5f * spider.getScale(), Color.blue);
         }
     }
     private Vector3 getDirection() {

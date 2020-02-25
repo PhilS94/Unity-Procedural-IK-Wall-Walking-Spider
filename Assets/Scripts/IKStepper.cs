@@ -13,8 +13,8 @@ public class IKStepper : MonoBehaviour {
     public bool showDebug;
     public bool printDebugLogs;
     public bool pauseOnStep = false;
-    [Range(0.01f, 1.0f)]
-    public float debugIconScale = 0.1f;
+    [Range(1, 10.0f)]
+    public float debugIconScale;
 
     [Header("Stepping")]
 
@@ -62,8 +62,9 @@ public class IKStepper : MonoBehaviour {
     public float rayFrontalLength;
     public Vector3 rayTopFocalPoint;
     public Vector3 rayBottomFocalPoint;
-    [Range(0, 4.0f)]
-    public float downRayLength;
+    [Range(0f, 1f)]
+    public float downRayLength; //was 2
+    private float scaledDownRayLength;
 
     private IKChain ikChain;
 
@@ -79,6 +80,7 @@ public class IKStepper : MonoBehaviour {
     private AHingeJoint rootJoint;
     private Vector3 defaultPositionLocal;
     private Vector3 lastResortPositionLocal;
+    private Vector3 frontalStartPositionLocal;
     private Vector3 prediction;
 
     //Debug Variables
@@ -103,7 +105,8 @@ public class IKStepper : MonoBehaviour {
 
         //Set Default Position
         defaultPositionLocal = calculateDefault();
-        lastResortPositionLocal = defaultPositionLocal + new Vector3(0, lastResortHeight * 4f * spider.col.radius, 0);
+        lastResortPositionLocal = defaultPositionLocal + new Vector3(0, lastResortHeight * 4f * spider.getNonScaledColliderRadius(), 0);
+        frontalStartPositionLocal = new Vector3(0, rayFrontalHeight * 4f * spider.getNonScaledColliderRadius(), 0);
 
         // Initialize prediction
         prediction = getDefault();
@@ -122,7 +125,8 @@ public class IKStepper : MonoBehaviour {
 
         Vector3 toEnd = ikChain.getEndEffector().position - rootJoint.getRotationPoint();
         toEnd = Vector3.ProjectOnPlane(toEnd, normal).normalized;
-        Vector3 p = rootJoint.getRotationPoint() - spider.getCapsuleCollider().radius * normal;
+
+        Vector3 p = spider.getColliderBottomPoint() + Vector3.ProjectOnPlane(rootJoint.getRotationPoint() - spider.transform.position, normal);
 
         Vector3 midOrient = Quaternion.AngleAxis(0.5f * (rootJoint.maxAngle + rootJoint.minAngle), rootJoint.getRotationAxis()) * toEnd;
 
@@ -133,7 +137,7 @@ public class IKStepper : MonoBehaviour {
         Vector3 def = p + (minDistance + 0.5f * diameter) * midOrient;
 
         def += defaultOffsetLength * 0.5f * diameter * midOrient;
-        def += defaultOffsetHeight * downRayLength * normal; //Would want to use spider.transform.up instead?
+        def += defaultOffsetHeight * 2f*spider.getColliderRadius() * normal;
         def += defaultOffsetStride * Vector3.Cross(midOrient, rootJoint.getRotationAxis()) * ((minDistance + (0.5f * (1f + defaultOffsetLength) * diameter)) / chainLength) * Mathf.Sin(0.5f * rootJoint.getAngleRange());
 
         return spider.transform.InverseTransformPoint(def);
@@ -146,6 +150,8 @@ public class IKStepper : MonoBehaviour {
      */
     private void initializeCasts() {
 
+        scaledDownRayLength = 6f * downRayLength * spider.getColliderRadius();
+
         Transform parent = spider.transform;
         Vector3 normal = parent.up;
         Vector3 defaultPos = getDefault();
@@ -156,26 +162,28 @@ public class IKStepper : MonoBehaviour {
         Vector3 frontalEndPosition = getFrontalEndPosition(prediction);
 
         Vector3 bottom = getBottomFocalPoint();
-        Vector3 bottomEnd = parent.position - 1.1f * spider.col.radius * spider.scale * normal;
+        Vector3 bottomEnd = parent.position - 1.1f * spider.getColliderRadius() * normal;
 
         Vector3 bottom1 = bottom + (bottomEnd - bottom) / 4f;
         Vector3 bottom2 = bottom + 2f * (bottomEnd - bottom) / 4f;
         Vector3 bottom3 = bottom + 3f * (bottomEnd - bottom) / 4f;
 
-        float r = spider.scale * radius;
+        //The scaled radius
+        //The scaled radius
+        float r = spider.getScale() * radius;
 
         // Note that Prediction Out will never hit a targetpoint on a flat surface or hole since it stop at the prediction point which is on
         // default height, that is the height where the collider stops.
         casts = new Dictionary<string, Cast> {
             { "Frontal Prediction", getCast(frontalStartPosition, frontalEndPosition, r, parent, null) },
             { "Prediction Out", getCast(top, prediction, r, parent, null) },
-            { "Prediction Down", getCast(prediction + normal * downRayLength, prediction - normal * downRayLength, r, null, null) },
+            { "Prediction Down", getCast(prediction + normal * scaledDownRayLength, prediction - normal * scaledDownRayLength, r, null, null) },
             { "Prediction In", getCast(prediction, bottom, r, null, parent) },
             { "Prediction In 1", getCast(prediction, bottom1, r, null, parent) },
             { "Prediction In 2", getCast(prediction, bottom2, r, null, parent) },
             { "Prediction In 3", getCast(prediction, bottom3, r, null, parent) },
             { "Prediction In End", getCast(prediction, bottomEnd, r, null, parent) },
-            { "Default Down", getCast(defaultPos + normal * downRayLength, defaultPos - normal * downRayLength, r, parent, parent) },
+            { "Default Down", getCast(defaultPos + normal * scaledDownRayLength, defaultPos - normal * scaledDownRayLength, r, parent, parent) },
             { "Default Out", getCast(top, defaultPos, r, parent, parent) },
             { "Default In", getCast(defaultPos, bottom, r, parent, parent) },
             { "Default In 1", getCast(defaultPos, bottom1, r, parent, parent) },
@@ -285,7 +293,7 @@ public class IKStepper : MonoBehaviour {
         foreach (var cast in casts) {
             if (cast.Key == "Frontal Prediction") { cast.Value.setEnd(getFrontalEndPosition(prediction)); }
             else if (cast.Key == "Prediction Out") { cast.Value.setEnd(prediction); }
-            else if (cast.Key == "Prediction Down") { cast.Value.setOrigin(prediction + normal * downRayLength); cast.Value.setEnd(prediction - normal * downRayLength); }
+            else if (cast.Key == "Prediction Down") { cast.Value.setOrigin(prediction + normal * scaledDownRayLength); cast.Value.setEnd(prediction - normal * scaledDownRayLength); }
             else if (cast.Key == "Prediction In") { cast.Value.setOrigin(prediction); }
             else if (cast.Key == "Prediction In 1") { cast.Value.setOrigin(prediction); }
             else if (cast.Key == "Prediction In 2") { cast.Value.setOrigin(prediction); }
@@ -342,7 +350,7 @@ public class IKStepper : MonoBehaviour {
         if (!allowedToStep()) {
             if (printDebugLogs) Debug.Log(gameObject.name + " is waiting for step now.");
             waitingForStep = true;
-            ikChain.setTarget(new TargetInfo(ikChain.getTarget().position + 2f * spider.getCurrentVelocityPerFixedFrame() + 0.1f * downRayLength * spider.transform.up, ikChain.getTarget().normal));
+            ikChain.setTarget(new TargetInfo(ikChain.getTarget().position + 2f * spider.getCurrentVelocityPerFixedFrame() + 0.1f * scaledDownRayLength * spider.transform.up, ikChain.getTarget().normal));
             yield return null;
             ikChain.pauseSolving();
 
@@ -367,7 +375,7 @@ public class IKStepper : MonoBehaviour {
             float time = 0;
 
             while (time < stepTime) {
-                lerpTarget.position = Vector3.Lerp(lastTarget.position, newTarget.position, time / stepTime) + stepHeight * stepAnimation.Evaluate(time / stepTime) * spider.transform.up;
+                lerpTarget.position = Vector3.Lerp(lastTarget.position, newTarget.position, time / stepTime) + stepHeight * 0.01f * spider.getScale() * stepAnimation.Evaluate(time / stepTime) * spider.transform.up;
                 lerpTarget.normal = Vector3.Lerp(lastTarget.normal, newTarget.normal, time / stepTime);
                 lerpTarget.comfortable = true;
 
@@ -421,7 +429,7 @@ public class IKStepper : MonoBehaviour {
     }
 
     private Vector3 getFrontalStartPosition() {
-        return spider.transform.position + spider.scale * rayFrontalHeight * spider.transform.up;
+        return spider.transform.TransformPoint(frontalStartPositionLocal);
     }
 
     private Vector3 getFrontalEndPosition(Vector3 predictionPoint) {
@@ -431,29 +439,30 @@ public class IKStepper : MonoBehaviour {
 
     private void drawDebug(bool points = true, bool steppingProcess = true, bool rayCasts = true, bool DOFArc = true) {
 
+        float scale = spider.getScale() *0.0001f* debugIconScale;
         if (points) {
             // Default Position
-            DebugShapes.DrawPoint(getDefault(), Color.magenta, debugIconScale);
+            DebugShapes.DrawPoint(getDefault(), Color.magenta, scale);
 
             // Last Resort Position
-            DebugShapes.DrawPoint(getLastResort(), Color.red, debugIconScale);
+            DebugShapes.DrawPoint(getLastResort(), Color.red, scale);
 
 
             //Draw the top and bottom ray points
-            DebugShapes.DrawPoint(getTopFocalPoint(), Color.green, debugIconScale);
-            DebugShapes.DrawPoint(getBottomFocalPoint(), Color.green, debugIconScale);
+            DebugShapes.DrawPoint(getTopFocalPoint(), Color.green, scale);
+            DebugShapes.DrawPoint(getBottomFocalPoint(), Color.green, scale);
 
             //Target Point
-            if (isStepping) DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, debugIconScale, 2 * stepTime);
-            else DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, debugIconScale);
+            if (isStepping) DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, scale, 2 * stepTime);
+            else DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, scale);
         }
 
         if (steppingProcess) {
             //Draw the prediction process
-            DebugShapes.DrawPoint(lastEndEffectorPos, Color.white, debugIconScale);
-            DebugShapes.DrawPoint(projPrediction, Color.grey, debugIconScale);
-            DebugShapes.DrawPoint(overshootPrediction, Color.green, debugIconScale);
-            DebugShapes.DrawPoint(prediction, Color.yellow, debugIconScale);
+            DebugShapes.DrawPoint(lastEndEffectorPos, Color.white, scale);
+            DebugShapes.DrawPoint(projPrediction, Color.grey, scale);
+            DebugShapes.DrawPoint(overshootPrediction, Color.green, scale);
+            DebugShapes.DrawPoint(prediction, Color.yellow, scale);
             Debug.DrawLine(lastEndEffectorPos, projPrediction, Color.white);
             Debug.DrawLine(projPrediction, overshootPrediction, Color.grey);
             Debug.DrawLine(overshootPrediction, prediction, Color.green);

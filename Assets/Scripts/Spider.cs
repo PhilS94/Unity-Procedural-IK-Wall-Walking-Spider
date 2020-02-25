@@ -10,9 +10,6 @@ public class Spider : MonoBehaviour {
     [Header("Debug")]
     public bool showDebug;
 
-    [Header("Scale of Transform")]
-    public float scale = 1.0f;
-
     [Header("Movement")]
     public CapsuleCollider col;
     [Range(1, 10)]
@@ -22,6 +19,8 @@ public class Spider : MonoBehaviour {
     [Range(1, 10)]
     public float normalAdjustSpeed;
     public LayerMask walkableLayer;
+    [Range(0, 1)]
+    public float gravityOffDistance;
 
     [Header("IK Legs")]
     public Transform body;
@@ -52,10 +51,10 @@ public class Spider : MonoBehaviour {
     public float downRaySize = 0.9f;
     private float downRayRadius;
 
+    private float scale;
     private Vector3 currentVelocity;
     private bool isMoving;
     private Vector3 lastNormal;
-    private float gravityOffDist = 0.05f;
 
     private SphereCast downRay, forwardRay;
     private RaycastHit hitInfo;
@@ -75,13 +74,21 @@ public class Spider : MonoBehaviour {
     private groundInfo grdInfo;
 
     private void Awake() {
+        //Set the scale for all the variables that will refer to this, such as distances (walkspeed, gravityOffdistance, ...), rays etc.
+        //This allows the transform to be scaled without breaking anything.
+        float x = transform.localScale.x; float y = transform.localScale.y; float z = transform.localScale.z;
+        if (Mathf.Abs(x - y) > float.Epsilon || Mathf.Abs(x - z) > float.Epsilon || Mathf.Abs(y - z) > float.Epsilon) {
+            Debug.LogWarning("The xyz scales of the Spider are not equal. Please make sure they are. The scale of the spider is defaulted to be the Y scale and a lot of values depend on this scale.");
+        }
+        scale = transform.localScale.y;
         rb = GetComponent<Rigidbody>();
     }
 
     void Start() {
-        downRayRadius = downRaySize * scale * col.radius;
-        downRay = new SphereCast(transform.position, -transform.up, scale * downRayLength, downRayRadius, transform, transform);
-        forwardRay = new SphereCast(transform.position, transform.forward, scale * forwardRayLength, forwardRaySize * scale * col.radius, transform, transform);
+        downRayRadius = downRaySize * getColliderRadius();
+        float forwardRayRadius = forwardRaySize * getColliderRadius();
+        downRay = new SphereCast(transform.position, -transform.up, downRayLength * getColliderLength(), downRayRadius, transform, transform);
+        forwardRay = new SphereCast(transform.position, transform.forward, forwardRayLength * getColliderLength(), forwardRayRadius, transform, transform);
         bodyUpLocal = body.transform.InverseTransformDirection(transform.up);
         isMoving = false;
     }
@@ -102,7 +109,7 @@ public class Spider : MonoBehaviour {
 
 
         // Dont apply gravity if close enough to ground
-        if (grdInfo.distanceToGround > gravityOffDist) {
+        if (grdInfo.distanceToGround > getGravityOffDistance()) {
             rb.AddForce(-grdInfo.groundNormal * 1000.0f * Time.fixedDeltaTime); //Important using the groundnormal and not the lerping currentnormal here!
         }
     }
@@ -116,8 +123,8 @@ public class Spider : MonoBehaviour {
         //Doesnt ork the way i want it too! On sphere i go underground. I jiggle around when i go down my centroid moves down to.(Depends on errortolerance of IKSolver)
         if (activateLegCentroidAdjustment) {
             Vector3 centroid = getLegCentroid();
-            Vector3 heightOffset = Vector3.Project((centroid + scale * col.radius * bodyUp) - body.transform.position, bodyUp);
-            body.transform.position += heightOffset * Mathf.Clamp(Time.deltaTime * (0.1f * normalAdjustSpeed * scale), 0f, 1f);
+            Vector3 heightOffset = Vector3.Project((centroid + getColliderRadius() * bodyUp) - body.transform.position, bodyUp);
+            body.transform.position += heightOffset * Mathf.Clamp(Time.deltaTime * (0.1f * normalAdjustSpeed * getScale()), 0f, 1f);
             // What if im underground?
         }
 
@@ -125,7 +132,7 @@ public class Spider : MonoBehaviour {
         if (activateLegNormalAdjustment) {
             Vector3 newNormal = GetLegsPlaneNormal();
             float angleZ = Vector3.SignedAngle(Vector3.ProjectOnPlane(bodyUp, transform.forward), Vector3.ProjectOnPlane(newNormal, transform.forward), transform.forward);
-            body.transform.rotation = Quaternion.AngleAxis(angleZ, transform.forward) *body.transform.rotation;
+            body.transform.rotation = Quaternion.AngleAxis(angleZ, transform.forward) * body.transform.rotation;
             float angleX = Vector3.SignedAngle(Vector3.ProjectOnPlane(bodyUp, transform.right), Vector3.ProjectOnPlane(newNormal, transform.right), transform.right);
             body.transform.rotation = Quaternion.AngleAxis(angleX, transform.right) * body.transform.rotation;
         }
@@ -160,7 +167,7 @@ public class Spider : MonoBehaviour {
         isMoving = true;
         direction = direction.normalized;
         // Increase velocity as the direction and forward vector of spider get closer together
-        float distance = Mathf.Pow(Mathf.Clamp(Vector3.Dot(direction, transform.forward), 0, 1), 4) * 0.1f * walkSpeed * speed * scale;
+        float distance = Mathf.Pow(Mathf.Clamp(Vector3.Dot(direction, transform.forward), 0, 1), 4) * 0.02f * walkSpeed * speed * getScale();
         //Make sure per frame we wont move more than our downsphereRay radius, or we might lose the floor.
         //It is advised to call this method every fixed frame since collision is calculated on a fixed frame basis.
         distance = Mathf.Clamp(distance, 0, 0.99f * downRayRadius);
@@ -187,11 +194,11 @@ public class Spider : MonoBehaviour {
     //** Ground Check Methods **//
     private groundInfo GroundCheckSphere() {
         if (forwardRay.castRay(out hitInfo, walkableLayer)) {
-            return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - scale * col.radius);
+            return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - getColliderRadius());
         }
 
         if (downRay.castRay(out hitInfo, walkableLayer)) {
-            return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - scale * col.radius);
+            return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - getColliderRadius());
         }
 
         return new groundInfo(false, Vector3.up, float.PositiveInfinity);
@@ -205,7 +212,7 @@ public class Spider : MonoBehaviour {
         float t = (Time.time * 2 * Mathf.PI / timeForOneBreathCycle) % (2 * Mathf.PI);
 
 
-        Vector3 breatheOffset = Mathf.Sin(t) * body.TransformDirection(bodyUpLocal) * Time.deltaTime * breatheMagnitude * 2f * col.radius * scale;
+        Vector3 breatheOffset = Mathf.Sin(t) * body.TransformDirection(bodyUpLocal) * Time.deltaTime * breatheMagnitude * 2f * getColliderRadius();
         body.transform.position += breatheOffset;
     }
 
@@ -249,22 +256,50 @@ public class Spider : MonoBehaviour {
     }
 
     //** Get Methods **//
-    public CapsuleCollider getCapsuleCollider() {
-        return col;
+    public float getScale() {
+        return scale;
     }
 
+    public float getColliderRadius() {
+        return getScale() * col.radius;
+    }
+
+    public float getNonScaledColliderRadius() {
+        return col.radius;
+    }
+
+    public float getColliderLength() {
+        return getScale() * col.height;
+    }
+
+    public Vector3 getColliderCenter() {
+        return transform.TransformPoint(col.center);
+    }
+
+    public Vector3 getColliderBottomPoint() {
+        return transform.TransformPoint(col.center - col.radius * new Vector3(0, 1, 0));
+    }
+
+    public float getGravityOffDistance() {
+        return gravityOffDistance * getColliderRadius();
+    }
     public Vector3 getGroundNormal() {
         return grdInfo.groundNormal;
     }
 
     //** Debug Methods **//
     private void drawDebug() {
+        //Draw the two Sphere Rays
         downRay.draw(Color.green);
         forwardRay.draw(Color.blue);
-        Vector3 borderpoint = transform.TransformPoint(col.center) + col.radius * scale * -transform.up;
-        Debug.DrawLine(borderpoint, borderpoint + gravityOffDist * -transform.up, Color.black);
-        Debug.DrawLine(transform.position, transform.position + 0.3f * scale * transform.up, new Color(1, 0.5f, 0, 1));
-        Debug.DrawLine(transform.position, transform.position + 0.3f * scale * body.TransformDirection(bodyUpLocal), Color.blue);
+
+        //Draw the Gravity off distance
+        Vector3 borderpoint = getColliderBottomPoint();
+        Debug.DrawLine(borderpoint, borderpoint + getGravityOffDistance() * -transform.up, Color.magenta);
+
+        //Draw the current transform.up and the bodys current Y orientation
+        Debug.DrawLine(transform.position, transform.position + 2f * getColliderRadius() * transform.up, new Color(1, 0.5f, 0, 1));
+        Debug.DrawLine(transform.position, transform.position + 2f * getColliderRadius() * body.TransformDirection(bodyUpLocal), Color.blue);
     }
 
 #if UNITY_EDITOR
