@@ -51,7 +51,6 @@ public class Spider : MonoBehaviour {
     public float downRaySize = 0.9f;
     private float downRayRadius;
 
-    private float scale;
     private Vector3 currentVelocity;
     private bool isMoving;
     private Vector3 lastNormal;
@@ -75,12 +74,12 @@ public class Spider : MonoBehaviour {
 
     private void Awake() {
         //Set the scale for all the variables that will refer to this, such as distances (walkspeed, gravityOffdistance, ...), rays etc.
-        //This allows the transform to be scaled without breaking anything.
+        //This allows the transform to be scaled without breaking anything. 
+        // I chose to set the scale as the lossyscale Y coordinate.
         float x = transform.localScale.x; float y = transform.localScale.y; float z = transform.localScale.z;
         if (Mathf.Abs(x - y) > float.Epsilon || Mathf.Abs(x - z) > float.Epsilon || Mathf.Abs(y - z) > float.Epsilon) {
             Debug.LogWarning("The xyz scales of the Spider are not equal. Please make sure they are. The scale of the spider is defaulted to be the Y scale and a lot of values depend on this scale.");
         }
-        scale = transform.localScale.y;
         rb = GetComponent<Rigidbody>();
     }
 
@@ -257,7 +256,7 @@ public class Spider : MonoBehaviour {
 
     //** Get Methods **//
     public float getScale() {
-        return scale;
+        return transform.lossyScale.y;
     }
 
     public float getColliderRadius() {

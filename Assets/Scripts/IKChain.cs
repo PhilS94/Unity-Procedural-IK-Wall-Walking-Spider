@@ -106,15 +106,24 @@ public class IKChain : MonoBehaviour {
     }
 
     public void solve() {
+
         if (solveFrameByFrame) {
-            StartCoroutine(IKSolver.solveChainCCDFrameByFrame(joints, endEffector, currentTarget, adjustLastJointToNormal, printDebugLogs));
+            StartCoroutine(IKSolver.solveChainCCDFrameByFrame(joints, endEffector, currentTarget, getTolerance(), getMinimumChangePerIterationOfSolving(), adjustLastJointToNormal, printDebugLogs));
             deactivateSolving = true;
-            //Important here is that the coroutine has to update the error after it is done
+            //Important here is that the coroutine has to update the error after it is done. Not implemented yet here
         }
         else {
-            IKSolver.solveChainCCD(ref joints, endEffector, currentTarget, adjustLastJointToNormal, printDebugLogs);
+            IKSolver.solveChainCCD(ref joints, endEffector, currentTarget, getTolerance(), getMinimumChangePerIterationOfSolving(), adjustLastJointToNormal, printDebugLogs);
             error = Vector3.Distance(endEffector.position, currentTarget.position);
         }
+    }
+
+    public float getTolerance() {
+        return transform.lossyScale.y * 0.0005f;
+    }
+
+    public float getMinimumChangePerIterationOfSolving() {
+        return transform.lossyScale.y * 0.00001f;
     }
 
     public float getChainLength() {

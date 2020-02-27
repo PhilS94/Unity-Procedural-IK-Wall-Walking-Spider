@@ -17,8 +17,6 @@ public struct TargetInfo {
 public class IKSolver : MonoBehaviour {
 
     private static int maxIterations = 10;
-    public static float tolerance = 0.05f;
-    public static float minimumChangePerIteration = 0.001f;
     private static float weight = 1.0f;
     private static float footAngleToNormal = 20.0f; // 0 means parallel to ground (Orthogonal to plane normal)
 
@@ -29,7 +27,8 @@ public class IKSolver : MonoBehaviour {
      * @param3 target:       The target information the algorithm should solve for.
      * @param4 hasFoot:      If set to true, the last joint will adjust to the normal given by the target. 
      */
-    public static void solveChainCCD(ref AHingeJoint[] joints, Transform endEffector, TargetInfo target, bool hasFoot = false, bool printDebugLogs = false) {
+    public static void solveChainCCD(ref AHingeJoint[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, bool hasFoot = false, bool printDebugLogs = false) {
+
         int iteration = 0;
         float error = Vector3.Distance(target.position, endEffector.position);
         float oldError;
@@ -89,7 +88,8 @@ public class IKSolver : MonoBehaviour {
      * This coroutine is a copy paste of the original CCD solver above. It exists due to debug reasons.
      * It allows me to go through the iterations steps frame by frame and pause the editor.
      */
-    public static IEnumerator solveChainCCDFrameByFrame(AHingeJoint[] joints, Transform endEffector, TargetInfo target, bool hasFoot = false, bool printDebugLogs = false) {
+    public static IEnumerator solveChainCCDFrameByFrame(AHingeJoint[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, bool hasFoot = false, bool printDebugLogs = false) {
+
         int iteration = 0;
         float error = Vector3.Distance(target.position, endEffector.position);
         float oldError;
@@ -157,7 +157,8 @@ public class IKSolver : MonoBehaviour {
     }
 
     // Slighly messy since Unity does not provide Matrix class so i had to work with two dimensional arrays and convert to Vector3 if needed
-    public static void solveJacobianTranspose(ref AHingeJoint[] joints, Transform endEffector, TargetInfo target, bool hasFoot = false) {
+    // Havent tested this thorougly yet, so dont call this
+    public static void solveJacobianTranspose(ref AHingeJoint[] joints, Transform endEffector, TargetInfo target, float tolerance, bool hasFoot = false) {
         Vector3 error = target.position - endEffector.position;
         float[] err = new float[] { error.x, error.y, error.z };
         float[,] J = new float[3, joints.Length];

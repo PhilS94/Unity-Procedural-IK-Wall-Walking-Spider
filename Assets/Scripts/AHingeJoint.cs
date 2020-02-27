@@ -5,6 +5,11 @@ using UnityEngine;
 
 public class AHingeJoint : MonoBehaviour {
 
+
+    [Header("Debug")]
+    [Range(1f, 10.0f)]
+    public float debugIconScale = 1.0f;
+
     public bool deactivateJoint = false;
     public bool useRotationLimits = true;
 
@@ -37,10 +42,6 @@ public class AHingeJoint : MonoBehaviour {
     [Header("Joint Weigth")]
     [Range(0.0f, 1.0f)]
     public float weight = 1.0f;
-
-    [Header("Debug")]
-    [Range(1f, 10.0f)]
-    public float debugIconScale = 1.0f;
 
     private Vector3 rotationAxis;
     private Vector3 perpendicular;

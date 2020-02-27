@@ -66,7 +66,6 @@ public class SpiderController : MonoBehaviour {
 
     void Update() {
 
-
         //** Camera movement **//
         RotateCameraHorizontal(Input.GetAxis("Mouse X") * XSensitivity);
         RotateCameraVertical(-Input.GetAxis("Mouse Y") * YSensitivity);

@@ -118,6 +118,7 @@ public class IKStepper : MonoBehaviour {
     private Vector3 calculateDefault() {
         float chainLength = ikChain.getChainLength();
         float diameter = chainLength - minDistance;
+        Vector3 rootRotAxis = rootJoint.getRotationAxis();
 
         //Be careful with the use of transform.up and rootjoint.getRotationAxis(). In my case they are equivalent with the exception of the right side being inverted.
         //However they can be different and this has to be noticed here. The code below is probably wrong for the general case.
@@ -126,20 +127,19 @@ public class IKStepper : MonoBehaviour {
         Vector3 toEnd = ikChain.getEndEffector().position - rootJoint.getRotationPoint();
         toEnd = Vector3.ProjectOnPlane(toEnd, normal).normalized;
 
-        Vector3 p = spider.getColliderBottomPoint() + Vector3.ProjectOnPlane(rootJoint.getRotationPoint() - spider.transform.position, normal);
+        Vector3 pivot = spider.getColliderBottomPoint() + Vector3.ProjectOnPlane(rootJoint.getRotationPoint() - spider.transform.position, normal);
 
-        Vector3 midOrient = Quaternion.AngleAxis(0.5f * (rootJoint.maxAngle + rootJoint.minAngle), rootJoint.getRotationAxis()) * toEnd;
+        Vector3 midOrient = Quaternion.AngleAxis(0.5f * (rootJoint.maxAngle + rootJoint.minAngle), rootRotAxis) * toEnd;
 
         //Set the following debug variables for the DOF Arc
-        minOrient = spider.transform.InverseTransformDirection(Quaternion.AngleAxis(rootJoint.minAngle, rootJoint.getRotationAxis()) * toEnd);
-        maxOrient = spider.transform.InverseTransformDirection(Quaternion.AngleAxis(rootJoint.maxAngle, rootJoint.getRotationAxis()) * toEnd);
+        minOrient = spider.transform.InverseTransformDirection(Quaternion.AngleAxis(rootJoint.minAngle, rootRotAxis) * toEnd);
+        maxOrient = spider.transform.InverseTransformDirection(Quaternion.AngleAxis(rootJoint.maxAngle, rootRotAxis) * toEnd);
 
-        Vector3 def = p + (minDistance + 0.5f * diameter) * midOrient;
-
-        def += defaultOffsetLength * 0.5f * diameter * midOrient;
-        def += defaultOffsetHeight * 2f*spider.getColliderRadius() * normal;
-        def += defaultOffsetStride * Vector3.Cross(midOrient, rootJoint.getRotationAxis()) * ((minDistance + (0.5f * (1f + defaultOffsetLength) * diameter)) / chainLength) * Mathf.Sin(0.5f * rootJoint.getAngleRange());
-
+        // Now set the default position using the given stride, length and height
+        Vector3 defOrientation = Quaternion.AngleAxis(defaultOffsetStride * 0.5f * rootJoint.getAngleRange(), rootRotAxis) * midOrient;
+        Vector3 def = pivot;
+        def += (minDistance + 0.5f * (1f + defaultOffsetLength) * diameter) * defOrientation;
+        def += defaultOffsetHeight * 2f * spider.getColliderRadius() * rootRotAxis;
         return spider.transform.InverseTransformPoint(def);
     }
 
@@ -224,7 +224,7 @@ public class IKStepper : MonoBehaviour {
 
         //If the error of the IK solver gets to big, that is if it cant solve for the current target appropriately anymore, step.
         // This is the main way this class determines if it needs to step.
-        else if (ikChain.getError() > IKSolver.tolerance) step();
+        else if (ikChain.getError() > ikChain.getTolerance()) step();
 
 
         // Alternativaly step if too close to root joint
@@ -236,7 +236,10 @@ public class IKStepper : MonoBehaviour {
     }
 
     private void Update() {
-        if (showDebug) drawDebug();
+
+        #if UNITY_EDITOR
+        if (showDebug && UnityEditor.Selection.Contains(transform.gameObject)) drawDebug();
+        #endif
     }
 
     /*
@@ -439,7 +442,7 @@ public class IKStepper : MonoBehaviour {
 
     private void drawDebug(bool points = true, bool steppingProcess = true, bool rayCasts = true, bool DOFArc = true) {
 
-        float scale = spider.getScale() *0.0001f* debugIconScale;
+        float scale = spider.getScale() * 0.0001f * debugIconScale;
         if (points) {
             // Default Position
             DebugShapes.DrawPoint(getDefault(), Color.magenta, scale);
@@ -494,8 +497,11 @@ public class IKStepper : MonoBehaviour {
         }
     }
 
+
+
+
 #if UNITY_EDITOR
-    private void OnDrawGizmosSelected() {
+        private void OnDrawGizmosSelected() {
         if (UnityEditor.EditorApplication.isPlaying) return;
         if (!UnityEditor.Selection.Contains(transform.gameObject)) return;
         if (!showDebug) return;
