@@ -31,8 +31,8 @@ public class SpiderNPCController : MonoBehaviour {
     private void FixedUpdate() {
         Vector3 input = getDirection();
         float speed = getSpeed(0, 1);
-        spider.walk(speed * input);
-        spider.turn(input, speed);
+        spider.walk(input);
+        spider.turn(input);
 
         //Debug.DrawLine(spider.transform.position, spider.transform.position + input * 5.0f, Color.cyan);
     }
