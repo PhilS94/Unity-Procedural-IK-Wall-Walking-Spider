@@ -29,13 +29,14 @@ public class SpiderController : MonoBehaviour {
     float maxCameraDistance;
     private RaycastHit hitInfo;
     private RaycastHit[] camObstructions;
-    
+
+    private Vector3 velocity=Vector3.zero;
+
     private struct ShaderInfo {
         public Shader shader;
         public Color color;
-        
-        public ShaderInfo(Shader m_Shader, Color m_Color)
-        {
+
+        public ShaderInfo(Shader m_Shader, Color m_Color) {
             shader = m_Shader;
             color = m_Color;
         }
@@ -52,19 +53,22 @@ public class SpiderController : MonoBehaviour {
     private void FixedUpdate() {
         //** Movement **//
         Vector3 input = getInput();
-        spider.walk(input, Time.fixedDeltaTime);
+
+        //Adds an acceleration/deceleration to smooth out the movement.
+        velocity = Vector3.Slerp(velocity, input, 0.1f);
+
+        spider.walk(velocity);
 
         Quaternion tempCamRotation = cam.transform.rotation;
         Vector3 tempCamPosition = cam.transform.position;
-        spider.turn(input, Time.fixedDeltaTime);
+        spider.turn(input);
         cam.transform.rotation = tempCamRotation;
         cam.transform.position = tempCamPosition;
-
-        // Since the spider might have adjusted its normal, rotate halfway back with the camera here (More smooth experience instead of camera freezing in place with every normal adjustment)
-        rotateCameraBack(0.5f);
     }
 
     void Update() {
+        // Since the spider might have adjusted its normal, rotate halfway back with the camera here (More smooth experience instead of camera freezing in place with every normal adjustment)
+        rotateCameraBack(0.5f);
 
         //** Camera movement **//
         RotateCameraHorizontal(Input.GetAxis("Mouse X") * XSensitivity);

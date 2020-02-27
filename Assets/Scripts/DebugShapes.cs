@@ -62,10 +62,10 @@ public class DebugShapes : MonoBehaviour {
             pos + new Vector3(t.x,      -t.y,   -t.z),
         };
 
-        Debug.DrawLine(p[0], p[1], col,duration);
-        Debug.DrawLine(p[1], p[2], col,duration);
-        Debug.DrawLine(p[2], p[3], col,duration);
-        Debug.DrawLine(p[3], p[0], col,duration);
+        Debug.DrawLine(p[0], p[1], col, duration);
+        Debug.DrawLine(p[1], p[2], col, duration);
+        Debug.DrawLine(p[2], p[3], col, duration);
+        Debug.DrawLine(p[3], p[0], col, duration);
     }
 
     public static void DrawRect(Rect rect, Color col) {
@@ -138,16 +138,15 @@ public class DebugShapes : MonoBehaviour {
         Debug.DrawLine(p[l - 1], p[0], col, duration);
     }
 
-    public static void DrawCircleSection(Vector3 pos, Vector3 min, Vector3 max, float minRadius, float maxRadius, Color col, float duration = 0) {
+    public static void DrawCircleSection(Vector3 pos, Vector3 min, Vector3 max, Vector3 normal, float minRadius, float maxRadius, Color col, float duration = 0) {
 
         if (min == Vector3.zero || max == Vector3.zero) {
             Debug.LogWarning("Min and Max Vector not allowed to be zero.");
             return;
         }
-        Vector3 normal = Vector3.Cross(min, max).normalized;
 
         if (normal == Vector3.zero) {
-            Debug.LogWarning("Min and Max Vector not allowed to be parallel.");
+            Debug.LogWarning("Normal Vector not allowed to be parallel.");
             return;
         }
 
@@ -217,7 +216,7 @@ public class DebugShapes : MonoBehaviour {
         for (int k = 0; k < l; k++) {
             v[k] = Vector3.Lerp(lowLeft, upLeft, (float)k / (l - 1)).normalized;
             w[k] = Vector3.Lerp(lowRight, upRight, (float)k / (l - 1)).normalized;
-            DrawCircleSection(pos, v[k], w[k], minRadius, maxRadius, col);
+            DrawCircleSection(pos, v[k], w[k], Vector3.Cross(v[k], w[k]), minRadius, maxRadius, col);
         }
 
 

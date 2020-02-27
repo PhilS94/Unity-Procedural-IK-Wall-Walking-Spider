@@ -72,8 +72,6 @@ public class IKChain : MonoBehaviour {
         return true;
     }
 
-
-    // Update is called once per frame
     void Update() {
         if (deactivateSolving || !validChain) return;
 
@@ -97,12 +95,15 @@ public class IKChain : MonoBehaviour {
     }
 
     private void LateUpdate() {
-        if (deactivateSolving || pause || !validChain) return;
+        if (deactivateSolving || !validChain) return;
 
-        // We only want to solve if we moved away too much, since we want to prevent calling solve when the last solving wasnt able to be solve.
-        // Compare the current distance and the last registered error.
-        // If the distance changed, either the target or the endeffector moved, thus we need to solve again.
-        if (Mathf.Abs(Vector3.Distance(endEffector.position, currentTarget.position) - error) > float.Epsilon) solve();
+        // We only want to solve if we moved away too much since our last solve.
+        if (!hasMovementOccuredSinceLastSolve()) return;
+        // In theory everything below will only be called if a fixedupdate took place prior to this update since that is the only way the spider moves.
+        if (!pause) solve();
+
+        //We only check if stepping is needed (and step if necessary) after a solve took place.
+        if (IKStepperActivated()) ikStepper.stepCheck();
     }
 
     public void solve() {
@@ -118,6 +119,11 @@ public class IKChain : MonoBehaviour {
         }
     }
 
+    // Compare the current distance and the last registered error.
+    // If the distance changed, either the target or the endeffector moved (e.g. the spider moved), thus we need to solve again.
+    public bool hasMovementOccuredSinceLastSolve() {
+        return (Mathf.Abs(Vector3.Distance(endEffector.position, currentTarget.position) - error) > float.Epsilon);
+    }
     public float getTolerance() {
         return transform.lossyScale.y * 0.0005f;
     }

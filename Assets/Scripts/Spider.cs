@@ -97,7 +97,7 @@ public class Spider : MonoBehaviour {
         grdInfo = GroundCheckSphere();
 
         //** Rotation to normal **// 
-        Vector3 slerpNormal = Vector3.Slerp(transform.up, grdInfo.groundNormal, normalAdjustSpeed * Time.fixedDeltaTime);
+        Vector3 slerpNormal = Vector3.Slerp(transform.up, grdInfo.groundNormal, 0.02f * normalAdjustSpeed);
         Quaternion goalrotation = getLookRotation(transform.right, slerpNormal);
 
         // Save last Normal for access
@@ -109,7 +109,7 @@ public class Spider : MonoBehaviour {
 
         // Dont apply gravity if close enough to ground
         if (grdInfo.distanceToGround > getGravityOffDistance()) {
-            rb.AddForce(-grdInfo.groundNormal * 1000.0f * Time.fixedDeltaTime); //Important using the groundnormal and not the lerping currentnormal here!
+            rb.AddForce(-grdInfo.groundNormal * 9.81f); //Important using the groundnormal and not the lerping currentnormal here!
         }
     }
 
@@ -151,26 +151,26 @@ public class Spider : MonoBehaviour {
         return Quaternion.LookRotation(forward, up);
     }
 
-    public void turn(Vector3 goalForward, float speed) {
+    public void turn(Vector3 goalForward, float speed = 1f) {
         if (goalForward == Vector3.zero || speed == 0) return;
         goalForward = Vector3.ProjectOnPlane(goalForward, transform.up);
-        transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(goalForward, transform.up), 50.0f * turnSpeed * speed);
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(goalForward, transform.up), turnSpeed * speed);
     }
 
-    public void walk(Vector3 direction, float speed) {
-        if (direction == Vector3.zero || speed == 0) {
+    //Only call this in fixed frame!
+    public void walk(Vector3 direction) {
+        if (direction == Vector3.zero) {
             currentVelocity = Vector3.zero;
             isMoving = false;
             return;
         }
         isMoving = true;
-        direction = direction.normalized;
+        float magnitude = direction.magnitude;
         // Increase velocity as the direction and forward vector of spider get closer together
-        float distance = Mathf.Pow(Mathf.Clamp(Vector3.Dot(direction, transform.forward), 0, 1), 4) * 0.02f * walkSpeed * speed * getScale();
+        float distance = Mathf.Pow(Mathf.Clamp(Vector3.Dot(direction, transform.forward), 0, 1), 4) * 0.0004f * walkSpeed * magnitude * getScale();
         //Make sure per frame we wont move more than our downsphereRay radius, or we might lose the floor.
-        //It is advised to call this method every fixed frame since collision is calculated on a fixed frame basis.
         distance = Mathf.Clamp(distance, 0, 0.99f * downRayRadius);
-        currentVelocity = distance * direction;
+        currentVelocity = distance * (direction / magnitude);
         transform.position += currentVelocity;
     }
 

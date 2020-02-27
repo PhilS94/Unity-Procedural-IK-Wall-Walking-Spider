@@ -169,7 +169,6 @@ public class IKStepper : MonoBehaviour {
         Vector3 bottom3 = bottom + 3f * (bottomEnd - bottom) / 4f;
 
         //The scaled radius
-        //The scaled radius
         float r = spider.getScale() * radius;
 
         // Note that Prediction Out will never hit a targetpoint on a flat surface or hole since it stop at the prediction point which is on
@@ -202,14 +201,7 @@ public class IKStepper : MonoBehaviour {
         else return new SphereCast(start, end, radius, parentStart, parentEnd);
     }
 
-    private void FixedUpdate() {
-        if (!ikChain.IKStepperActivated()) return;
-
-        // Increase timers
-        timeSinceLastStep += Time.fixedDeltaTime;
-        if (!spider.getIsMoving()) timeStandingStill += Time.fixedDeltaTime;
-        else timeStandingStill = 0f;
-
+    public void stepCheck() {
         // If im currently in the stepping process i have no business doing anything besides that.
         if (isStepping || waitingForStep) return;
 
@@ -221,25 +213,22 @@ public class IKStepper : MonoBehaviour {
         //If current target uncomfortable and there is a new comfortable target, step
         if (!ikChain.getTarget().comfortable) step();
 
-
-        //If the error of the IK solver gets to big, that is if it cant solve for the current target appropriately anymore, step.
+        //If the error of the IK solver gets too big, that is if it cant solve for the current target appropriately anymore, step.
         // This is the main way this class determines if it needs to step.
         else if (ikChain.getError() > ikChain.getTolerance()) step();
 
-
         // Alternativaly step if too close to root joint
         else if (Vector3.Distance(rootJoint.getRotationPoint(), ikChain.getTarget().position) < minDistance) step();
-
-
-        // Force Step by Pressing Space
-        else if (Input.GetKeyDown(KeyCode.Space)) step();
     }
 
     private void Update() {
+        timeSinceLastStep += Time.deltaTime;
+        if (!spider.getIsMoving()) timeStandingStill += Time.deltaTime;
+        else timeStandingStill = 0f;
 
-        #if UNITY_EDITOR
+#if UNITY_EDITOR
         if (showDebug && UnityEditor.Selection.Contains(transform.gameObject)) drawDebug();
-        #endif
+#endif
     }
 
     /*
@@ -353,7 +342,7 @@ public class IKStepper : MonoBehaviour {
         if (!allowedToStep()) {
             if (printDebugLogs) Debug.Log(gameObject.name + " is waiting for step now.");
             waitingForStep = true;
-            ikChain.setTarget(new TargetInfo(ikChain.getTarget().position + 2f * spider.getCurrentVelocityPerFixedFrame() + 0.1f * scaledDownRayLength * spider.transform.up, ikChain.getTarget().normal));
+            //ikChain.setTarget(new TargetInfo(ikChain.getTarget().position + spider.getCurrentVelocityPerFixedFrame() + stepHeight * 0.001f * spider.getScale() * spider.transform.up, ikChain.getTarget().normal));
             yield return null;
             ikChain.pauseSolving();
 
@@ -375,7 +364,7 @@ public class IKStepper : MonoBehaviour {
             isStepping = true;
             TargetInfo lastTarget = ikChain.getTarget();
             TargetInfo lerpTarget;
-            float time = 0;
+            float time = Time.deltaTime;
 
             while (time < stepTime) {
                 lerpTarget.position = Vector3.Lerp(lastTarget.position, newTarget.position, time / stepTime) + stepHeight * 0.01f * spider.getScale() * stepAnimation.Evaluate(time / stepTime) * spider.transform.up;
@@ -493,7 +482,7 @@ public class IKStepper : MonoBehaviour {
             Vector3 p = spider.transform.InverseTransformPoint(rootJoint.getRotationPoint());
             p.y = defaultPositionLocal.y;
             p = spider.transform.TransformPoint(p);
-            DebugShapes.DrawCircleSection(p, v, w, minDistance, ikChain.getChainLength(), Color.red);
+            DebugShapes.DrawCircleSection(p, v, w, rootJoint.getRotationAxis(),minDistance, ikChain.getChainLength(), Color.red);
         }
     }
 
@@ -501,7 +490,7 @@ public class IKStepper : MonoBehaviour {
 
 
 #if UNITY_EDITOR
-        private void OnDrawGizmosSelected() {
+    private void OnDrawGizmosSelected() {
         if (UnityEditor.EditorApplication.isPlaying) return;
         if (!UnityEditor.Selection.Contains(transform.gameObject)) return;
         if (!showDebug) return;
