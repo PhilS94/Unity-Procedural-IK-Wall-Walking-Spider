@@ -17,6 +17,12 @@ public class IKChain : MonoBehaviour {
     public bool solveFrameByFrame;
     public bool deactivateSolving = false;
 
+    [Header("Solving")]
+    [Range(0.1f, 10f)]
+    public float tolerance;
+    [Range(0.1f, 10f)]
+    public float minChangePerIteration;
+
     [Header("Chain")]
     public AHingeJoint[] joints;
     public Transform endEffector;
@@ -55,7 +61,7 @@ public class IKChain : MonoBehaviour {
         for (int i = 0; i < joints.Length - 1; i++) {
             chainLength += Vector3.Distance(joints[i].getRotationPoint(), joints[i + 1].getRotationPoint());
         }
-        //Debug.Log("Chain length for the chain " + gameObject.name + ": " + chainLength);
+        if (printDebugLogs) Debug.Log("Chain length for the chain " + gameObject.name + ": " + chainLength);
         return chainLength;
     }
 
@@ -66,7 +72,7 @@ public class IKChain : MonoBehaviour {
         }
 
         if ((ikStepper == null) && (targetMode == TargetMode.IKStepper)) {
-            Debug.LogError("Please assign a IKTargetPredictor Component when using this mode.");
+            Debug.LogError("Please assign a IKStepper Component when using this mode.");
             return false;
         }
         return true;
@@ -106,7 +112,7 @@ public class IKChain : MonoBehaviour {
         if (IKStepperActivated()) ikStepper.stepCheck();
     }
 
-    public void solve() {
+    private void solve() {
 
         if (solveFrameByFrame) {
             StartCoroutine(IKSolver.solveChainCCDFrameByFrame(joints, endEffector, currentTarget, getTolerance(), getMinimumChangePerIterationOfSolving(), adjustLastJointToNormal, printDebugLogs));
@@ -121,15 +127,15 @@ public class IKChain : MonoBehaviour {
 
     // Compare the current distance and the last registered error.
     // If the distance changed, either the target or the endeffector moved (e.g. the spider moved), thus we need to solve again.
-    public bool hasMovementOccuredSinceLastSolve() {
+    private bool hasMovementOccuredSinceLastSolve() {
         return (Mathf.Abs(Vector3.Distance(endEffector.position, currentTarget.position) - error) > float.Epsilon);
     }
     public float getTolerance() {
-        return transform.lossyScale.y * 0.0005f;
+        return transform.lossyScale.y * 0.00001f * tolerance;
     }
 
     public float getMinimumChangePerIterationOfSolving() {
-        return transform.lossyScale.y * 0.00001f;
+        return transform.lossyScale.y * 0.000001f * minChangePerIteration;
     }
 
     public float getChainLength() {
@@ -185,6 +191,14 @@ public class IKChain : MonoBehaviour {
             Debug.DrawLine(joints[k].getRotationPoint(), joints[k + 1].getRotationPoint(), Color.green);
         }
         Debug.DrawLine(joints[joints.Length - 1].getRotationPoint(), endEffector.position, Color.green);
+
+        //Draw the tolerance as a sphere
+        Gizmos.color = Color.red;
+        Gizmos.DrawSphere(endEffector.position, getTolerance());
+
+        //Draw the minChange as a sphere slighly next to endeffector
+        Gizmos.color = Color.blue;
+        Gizmos.DrawSphere(endEffector.position + (getTolerance() + getMinimumChangePerIterationOfSolving()) * transform.up, getMinimumChangePerIterationOfSolving());
     }
 
 #endif

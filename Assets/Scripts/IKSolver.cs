@@ -22,10 +22,13 @@ public class IKSolver : MonoBehaviour {
 
     /*
      * Solves the IK Problem of the chain with given target using the CCD algorithm.
-     * @param1 joints:  Contains all the Hinge Joints of the IK chain.
-     * @param2 endEffector:  The end effector of the IK chain. It is not included in the list of hinge joints since it is not equipped with a AHingeJoint component.
-     * @param3 target:       The target information the algorithm should solve for.
-     * @param4 hasFoot:      If set to true, the last joint will adjust to the normal given by the target. 
+     * @param joints: Contains all the Hinge Joints of the IK chain.
+     * @param endEffector: The end effector of the IK chain. It is not included in the list of hinge joints since it is not equipped with a AHingeJoint component.
+     * @param target: The target information the algorithm should solve for.
+     * @param tolerance: The solving will stop once the error, that is the distance between target and endeffector is below the tolerance
+     * @param minimumChangePerIteration: If an iteration of the solving decreases the error by an amount below this value, the solver will give up.
+     * @param hasFoot: If set to true, the last joint will adjust to the normal given by the target. 
+     * @param printDebugLogs: If set to true, debug logs will be printed into Unity console
      */
     public static void solveChainCCD(ref AHingeJoint[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, bool hasFoot = false, bool printDebugLogs = false) {
 
@@ -65,7 +68,7 @@ public class IKSolver : MonoBehaviour {
         Vector3 toEnd = Vector3.ProjectOnPlane((endEffector.position - rotPoint), rotAxis);
         Vector3 toTarget = Vector3.ProjectOnPlane(target.position - rotPoint, rotAxis);
 
-        // If singularity, skip. ToEnd should never be zero in my configuration though
+        // If singularity, skip. I could also skip if "close" to zero? Magnitude < R
         if (toTarget == Vector3.zero || toEnd == Vector3.zero) return;
 
         float angle;
@@ -75,11 +78,7 @@ public class IKSolver : MonoBehaviour {
             angle = footAngleToNormal + 90.0f - Vector3.SignedAngle(Vector3.ProjectOnPlane(target.normal, rotAxis), toEnd, rotAxis);
         }
         else {
-            angle = Vector3.SignedAngle(toEnd, toTarget, rotAxis);
-            angle *= weight;
-            angle *= joint.getWeight();
-            //float kValue = 1.0f / (joints.Length * error);
-            //angle *= Mathf.Clamp(kValue, float.Epsilon, 1.0f); // k-Faktor //Have to update the error every forloop here
+            angle = weight * joint.getWeight() * Vector3.SignedAngle(toEnd, toTarget, rotAxis);
         }
         joint.applyRotation(angle);
     }
@@ -87,6 +86,7 @@ public class IKSolver : MonoBehaviour {
     /*
      * This coroutine is a copy paste of the original CCD solver above. It exists due to debug reasons.
      * It allows me to go through the iterations steps frame by frame and pause the editor.
+     * This will be deleted once i dont need the frame by frame debuging anymore.
      */
     public static IEnumerator solveChainCCDFrameByFrame(AHingeJoint[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, bool hasFoot = false, bool printDebugLogs = false) {
 

@@ -35,8 +35,8 @@ public class Spider : MonoBehaviour {
 
     [Header("Breathing")]
     public bool activateBreathing;
-    [Range(1, 10)]
-    public float timeForOneBreathCycle;
+    [Range(0.01f, 20)]
+    public float period;
     [Range(0, 1)]
     public float breatheMagnitude;
 
@@ -54,6 +54,7 @@ public class Spider : MonoBehaviour {
     private Vector3 currentVelocity;
     private bool isMoving;
     private Vector3 lastNormal;
+    private Vector3 breathePivot;
 
     private SphereCast downRay, forwardRay;
     private RaycastHit hitInfo;
@@ -73,9 +74,8 @@ public class Spider : MonoBehaviour {
     private groundInfo grdInfo;
 
     private void Awake() {
-        //Set the scale for all the variables that will refer to this, such as distances (walkspeed, gravityOffdistance, ...), rays etc.
-        //This allows the transform to be scaled without breaking anything. 
-        // I chose to set the scale as the lossyscale Y coordinate.
+
+        //Make sure the scale is uniform, since otherwise lossy scale will not be accurate.
         float x = transform.localScale.x; float y = transform.localScale.y; float z = transform.localScale.z;
         if (Mathf.Abs(x - y) > float.Epsilon || Mathf.Abs(x - z) > float.Epsilon || Mathf.Abs(y - z) > float.Epsilon) {
             Debug.LogWarning("The xyz scales of the Spider are not equal. Please make sure they are. The scale of the spider is defaulted to be the Y scale and a lot of values depend on this scale.");
@@ -90,6 +90,7 @@ public class Spider : MonoBehaviour {
         forwardRay = new SphereCast(transform.position, transform.forward, forwardRayLength * getColliderLength(), forwardRayRadius, transform, transform);
         bodyUpLocal = body.transform.InverseTransformDirection(transform.up);
         isMoving = false;
+        breathePivot = transform.InverseTransformPoint(body.transform.position);
     }
 
     void FixedUpdate() {
@@ -106,10 +107,9 @@ public class Spider : MonoBehaviour {
         //Apply the rotation to the spider
         transform.rotation = goalrotation;
 
-
         // Dont apply gravity if close enough to ground
         if (grdInfo.distanceToGround > getGravityOffDistance()) {
-            rb.AddForce(-grdInfo.groundNormal * 9.81f); //Important using the groundnormal and not the lerping currentnormal here!
+            rb.AddForce(-grdInfo.groundNormal * 9.81f); //Important using the groundnormal and not the lerping normal here!
         }
     }
 
@@ -119,7 +119,7 @@ public class Spider : MonoBehaviour {
 
         Vector3 bodyUp = body.TransformDirection(bodyUpLocal);
 
-        //Doesnt ork the way i want it too! On sphere i go underground. I jiggle around when i go down my centroid moves down to.(Depends on errortolerance of IKSolver)
+        //Doesnt work the way i want it too! On sphere i go underground. I jiggle around when i go down my centroid moves down to.(Depends on errortolerance of IKSolver)
         if (activateLegCentroidAdjustment) {
             Vector3 centroid = getLegCentroid();
             Vector3 heightOffset = Vector3.Project((centroid + getColliderRadius() * bodyUp) - body.transform.position, bodyUp);
@@ -127,7 +127,7 @@ public class Spider : MonoBehaviour {
             // What if im underground?
         }
 
-        //Doesnt work, gets a Twist. I think the reason is that
+        //Doesnt work, gets a Twist.
         if (activateLegNormalAdjustment) {
             Vector3 newNormal = GetLegsPlaneNormal();
             float angleZ = Vector3.SignedAngle(Vector3.ProjectOnPlane(bodyUp, transform.forward), Vector3.ProjectOnPlane(newNormal, transform.forward), transform.forward);
@@ -136,7 +136,13 @@ public class Spider : MonoBehaviour {
             body.transform.rotation = Quaternion.AngleAxis(angleX, transform.right) * body.transform.rotation;
         }
 
-        if (activateBreathing) breathe();
+        if (activateBreathing) {
+            float t = (Time.time * 2 * Mathf.PI / period) % (2 * Mathf.PI);
+            float amplitude = breatheMagnitude * getColliderRadius();
+            Vector3 direction = body.TransformDirection(bodyUpLocal);
+
+            body.transform.position = transform.TransformPoint(breathePivot) + amplitude * Mathf.Sin(t) * direction;
+        }
 
     }
 
@@ -204,17 +210,6 @@ public class Spider : MonoBehaviour {
     }
 
     //** IK-Chains (Legs) Methods **//
-
-    //Doesnt work right now. I cant add sinus to the position i need to SET using sinus.
-    // Adding leads to e.g. for very high breath cycle time, a lot of additions 
-    private void breathe() {
-        float t = (Time.time * 2 * Mathf.PI / timeForOneBreathCycle) % (2 * Mathf.PI);
-
-
-        Vector3 breatheOffset = Mathf.Sin(t) * body.TransformDirection(bodyUpLocal) * Time.deltaTime * breatheMagnitude * 2f * getColliderRadius();
-        body.transform.position += breatheOffset;
-    }
-
 
     // Calculate the centroid (center of gravity) given by all end effector positions of the legs
     private Vector3 getLegCentroid() {
