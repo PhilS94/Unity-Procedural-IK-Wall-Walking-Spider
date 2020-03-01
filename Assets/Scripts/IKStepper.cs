@@ -78,6 +78,7 @@ public class IKStepper : MonoBehaviour {
     RaycastHit hitInfo;
 
     private AHingeJoint rootJoint;
+    private float chainLength;
     private Vector3 defaultPositionLocal;
     private Vector3 lastResortPositionLocal;
     private Vector3 frontalStartPositionLocal;
@@ -95,13 +96,14 @@ public class IKStepper : MonoBehaviour {
     private void Awake() {
         ikChain = GetComponent<IKChain>();
         rootJoint = ikChain.getRootJoint();
-    }
-
-    void Start() {
-        // Set important parameters
         timeSinceLastStep = 2 * stepCooldown; // Make sure im allowed to step at start
-        minDistance = 0.2f * ikChain.getChainLength();
         timeStandingStill = 0f;
+
+        //Let the chainlength be calculated and set it for future access
+        chainLength = ikChain.calculateChainLength();
+
+        //Set the distance which the root joint and the endeffector are allowed to have. If below this distance, stepping is forced.
+        minDistance = 0.2f * chainLength;
 
         //Set Default Position
         defaultPositionLocal = calculateDefault();
@@ -111,12 +113,16 @@ public class IKStepper : MonoBehaviour {
         // Initialize prediction
         prediction = getDefault();
 
+        //Set debug variables so they dont draw as lines to the zero point
+        lastEndEffectorPos = prediction;
+        projPrediction = prediction;
+        overshootPrediction = prediction;
+
         // Initialize Casts as either RayCast or SphereCast 
         initializeCasts();
     }
 
     private Vector3 calculateDefault() {
-        float chainLength = ikChain.getChainLength();
         float diameter = chainLength - minDistance;
         Vector3 rootRotAxis = rootJoint.getRotationAxis();
 
@@ -243,8 +249,8 @@ public class IKStepper : MonoBehaviour {
         //If there is no collider in reach there is no need to calculate a new target, just return default here.
         //This should cut down runtime cost if the spider is not grounded (e.g. in the air).
         //However this does add an extra calculation if grounded, increases it slighly.
-        if (Physics.OverlapSphere(rootJoint.getRotationPoint(), ikChain.getChainLength(), layer, QueryTriggerInteraction.Ignore) == null) {
-            return getDefaultTarget();
+        if (Physics.OverlapSphere(rootJoint.getRotationPoint(), chainLength, layer, QueryTriggerInteraction.Ignore) == null) {
+            return getLastResortTarget();
         }
 
         Vector3 endeffectorPosition = ikChain.getEndEffector().position;
@@ -313,11 +319,7 @@ public class IKStepper : MonoBehaviour {
 
         // Return default position
         if (printDebugLogs) Debug.Log("No ray was able to find a target position. Therefore i will return a default position.");
-        return getDefaultTarget();
-    }
-
-    public TargetInfo getDefaultTarget() {
-        return new TargetInfo(getLastResort(), spider.transform.up, false);
+        return getLastResortTarget();
     }
 
     /*
@@ -407,9 +409,14 @@ public class IKStepper : MonoBehaviour {
     private Vector3 getDefault() {
         return spider.transform.TransformPoint(defaultPositionLocal);
     }
-
+    public TargetInfo getDefaultTarget() {
+        return new TargetInfo(getDefault(), spider.transform.up);
+    }
     private Vector3 getLastResort() {
         return spider.transform.TransformPoint(lastResortPositionLocal);
+    }
+    private TargetInfo getLastResortTarget() {
+        return new TargetInfo(getLastResort(), spider.transform.up, false);
     }
 
     private Vector3 getTopFocalPoint() {
@@ -426,7 +433,7 @@ public class IKStepper : MonoBehaviour {
 
     private Vector3 getFrontalEndPosition(Vector3 predictionPoint) {
         Vector3 p = getFrontalStartPosition();
-        return p + Vector3.ProjectOnPlane(predictionPoint - p, spider.transform.up).normalized * rayFrontalLength * ikChain.getChainLength();
+        return p + Vector3.ProjectOnPlane(predictionPoint - p, spider.transform.up).normalized * rayFrontalLength * chainLength;
     }
 
     private void drawDebug(bool points = true, bool steppingProcess = true, bool rayCasts = true, bool DOFArc = true) {
@@ -437,7 +444,7 @@ public class IKStepper : MonoBehaviour {
             DebugShapes.DrawPoint(getDefault(), Color.magenta, scale);
 
             // Last Resort Position
-            DebugShapes.DrawPoint(getLastResort(), Color.red, scale);
+            DebugShapes.DrawPoint(getLastResortTarget().position, Color.red, scale);
 
 
             //Draw the top and bottom ray points
@@ -482,7 +489,7 @@ public class IKStepper : MonoBehaviour {
             Vector3 p = spider.transform.InverseTransformPoint(rootJoint.getRotationPoint());
             p.y = defaultPositionLocal.y;
             p = spider.transform.TransformPoint(p);
-            DebugShapes.DrawCircleSection(p, v, w, rootJoint.getRotationAxis(),minDistance, ikChain.getChainLength(), Color.red);
+            DebugShapes.DrawCircleSection(p, v, w, rootJoint.getRotationAxis(), minDistance, chainLength, Color.red);
         }
     }
 
@@ -498,9 +505,6 @@ public class IKStepper : MonoBehaviour {
         // Run Awake to set the pointers
         Awake();
 
-        // Run Start to set all parameters (Since chainlength is used in this call we make sure it is set or else we return)
-        if (ikChain.getChainLength() == 0) return;
-        Start();
         drawDebug(true, false, true, true);
     }
 #endif

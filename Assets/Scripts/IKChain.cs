@@ -20,8 +20,10 @@ public class IKChain : MonoBehaviour {
     [Header("Solving")]
     [Range(0.1f, 10f)]
     public float tolerance;
-    [Range(0.1f, 10f)]
+    [Range(0.01f, 1f)]
     public float minChangePerIteration;
+    [Range(1f, 100f)]
+    public float singularityRadius;
 
     [Header("Chain")]
     public AHingeJoint[] joints;
@@ -36,7 +38,6 @@ public class IKChain : MonoBehaviour {
     public Transform debugTarget;
     private IKStepper ikStepper;
 
-    private float chainLength;
     private TargetInfo currentTarget;
     private float error = 0.0f;
     private bool validChain;
@@ -46,23 +47,16 @@ public class IKChain : MonoBehaviour {
 
     private void Awake() {
         ikStepper = GetComponent<IKStepper>();
-        chainLength = calculateChainLength();
         validChain = isValidChain();
-    }
-
-    private void Start() {
-        setTarget(new TargetInfo(getEndEffector().position, Vector3.up));
         debugModeRay = new RayCast(debugTarget.position + 1.0f * Vector3.up, debugTarget.position - 1.0f * Vector3.up, debugTarget, debugTarget);
     }
 
-    float calculateChainLength() {
-        chainLength = 0;
+    private void Start() {
+        if (!validChain) return;
 
-        for (int i = 0; i < joints.Length - 1; i++) {
-            chainLength += Vector3.Distance(joints[i].getRotationPoint(), joints[i + 1].getRotationPoint());
-        }
-        if (printDebugLogs) Debug.Log("Chain length for the chain " + gameObject.name + ": " + chainLength);
-        return chainLength;
+        if (targetMode == TargetMode.DebugTarget) setDebugTarget();
+        else if (targetMode == TargetMode.DebugTargetRay) setDebugTargetRay();
+        else if (targetMode == TargetMode.IKStepper) setTarget(ikStepper.getDefaultTarget());
     }
 
     bool isValidChain() {
@@ -81,23 +75,14 @@ public class IKChain : MonoBehaviour {
     void Update() {
         if (deactivateSolving || !validChain) return;
 
-        if (targetMode == TargetMode.DebugTarget) {
-            setTarget(new TargetInfo(debugTarget.position, debugTarget.up));
-        }
+        if (targetMode == TargetMode.DebugTarget) setDebugTarget();
+
     }
 
     private void FixedUpdate() {
         if (deactivateSolving || !validChain) return;
 
-        if (targetMode == TargetMode.DebugTargetRay) {
-            debugModeRay.draw(Color.yellow);
-            if (debugModeRay.castRay(out RaycastHit hitInfo, debugTargetRayLayer)) {
-                setTarget(new TargetInfo(hitInfo.point, hitInfo.normal));
-            }
-            else {
-                setTarget(new TargetInfo(debugTarget.position, debugTarget.up));
-            }
-        }
+        if (targetMode == TargetMode.DebugTargetRay) setDebugTargetRay();
     }
 
     private void LateUpdate() {
@@ -115,13 +100,35 @@ public class IKChain : MonoBehaviour {
     private void solve() {
 
         if (solveFrameByFrame) {
-            StartCoroutine(IKSolver.solveChainCCDFrameByFrame(joints, endEffector, currentTarget, getTolerance(), getMinimumChangePerIterationOfSolving(), adjustLastJointToNormal, printDebugLogs));
+            StartCoroutine(IKSolver.solveChainCCDFrameByFrame(joints, endEffector, currentTarget, getTolerance(), getMinimumChangePerIterationOfSolving(), getSingularityRadius(), adjustLastJointToNormal, printDebugLogs));
             deactivateSolving = true;
             //Important here is that the coroutine has to update the error after it is done. Not implemented yet here
         }
         else {
-            IKSolver.solveChainCCD(ref joints, endEffector, currentTarget, getTolerance(), getMinimumChangePerIterationOfSolving(), adjustLastJointToNormal, printDebugLogs);
+            IKSolver.solveChainCCD(ref joints, endEffector, currentTarget, getTolerance(), getMinimumChangePerIterationOfSolving(), getSingularityRadius(), adjustLastJointToNormal, printDebugLogs);
             error = Vector3.Distance(endEffector.position, currentTarget.position);
+        }
+    }
+
+    public float calculateChainLength() {
+        float chainLength = 0;
+        for (int i = 0; i < joints.Length - 1; i++) {
+            chainLength += Vector3.Distance(joints[i].getRotationPoint(), joints[i + 1].getRotationPoint());
+        }
+        return chainLength;
+    }
+
+    private void setDebugTarget() {
+        setTarget(new TargetInfo(debugTarget.position, debugTarget.up));
+    }
+
+    private void setDebugTargetRay() {
+        debugModeRay.draw(Color.yellow);
+        if (debugModeRay.castRay(out RaycastHit hitInfo, debugTargetRayLayer)) {
+            setTarget(new TargetInfo(hitInfo.point, hitInfo.normal));
+        }
+        else {
+            setTarget(new TargetInfo(debugTarget.position, debugTarget.up));
         }
     }
 
@@ -135,11 +142,11 @@ public class IKChain : MonoBehaviour {
     }
 
     public float getMinimumChangePerIterationOfSolving() {
-        return transform.lossyScale.y * 0.000001f * minChangePerIteration;
+        return transform.lossyScale.y * 0.00001f * minChangePerIteration;
     }
 
-    public float getChainLength() {
-        return chainLength;
+    public float getSingularityRadius() {
+        return transform.lossyScale.y * 0.00001f * singularityRadius;
     }
 
     public AHingeJoint getRootJoint() {
@@ -199,7 +206,12 @@ public class IKChain : MonoBehaviour {
         //Draw the minChange as a sphere slighly next to endeffector
         Gizmos.color = Color.blue;
         Gizmos.DrawSphere(endEffector.position + (getTolerance() + getMinimumChangePerIterationOfSolving()) * transform.up, getMinimumChangePerIterationOfSolving());
-    }
 
+        //Draw the singularity radius
+        Gizmos.color = Color.red;
+        for (int k = 0; k < joints.Length; k++) {
+            Gizmos.DrawWireSphere(joints[k].getRotationPoint(), getSingularityRadius());
+        }
+    }
 #endif
 }

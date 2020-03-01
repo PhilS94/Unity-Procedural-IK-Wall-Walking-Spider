@@ -11,15 +11,16 @@ public class SpiderNPCController : MonoBehaviour {
     [Header("Spider Reference")]
     public Spider spider;
 
-    private float perlinStepDirection = 0.07f;
-    private float perlinStepSpeed = 0.2f;
+    private float perlinDirectionStep = 0.07f;
+    private float perlinSpeedStep= 0.01f;
     private float startValue;
+    private Vector3 velocity;
 
     private Vector3 Z;
     private Vector3 X;
     private Vector3 Y;
 
-    void Start() {
+    private void Awake() {
         Random.InitState(System.DateTime.Now.Millisecond);
         startValue = Random.value;
 
@@ -29,9 +30,12 @@ public class SpiderNPCController : MonoBehaviour {
     }
 
     private void FixedUpdate() {
-        Vector3 input = getDirection();
-        float speed = getSpeed(0, 1);
-        spider.walk(input);
+
+        Vector3 input = getDirection() *getSpeed(0, 1, 0.3f);
+
+        velocity = Vector3.Slerp(velocity, input, 0.1f);
+        if (velocity.magnitude < 0.01f) velocity = Vector3.zero;
+        spider.walk(velocity);
         spider.turn(input);
 
         //Debug.DrawLine(spider.transform.position, spider.transform.position + input * 5.0f, Color.cyan);
@@ -46,15 +50,20 @@ public class SpiderNPCController : MonoBehaviour {
     private Vector3 getDirection() {
 
         //Get random values between [-1,1] using perlin noise
-        float vertical = 2.0f * (Mathf.PerlinNoise(Time.time * perlinStepDirection, startValue) - 0.5f);
-        float horizontal = 2.0f * (Mathf.PerlinNoise(Time.time * perlinStepDirection, startValue + 0.3f) - 0.5f);
+        float vertical = 2.0f * (Mathf.PerlinNoise(Time.time * perlinDirectionStep, startValue) - 0.5f);
+        float horizontal = 2.0f * (Mathf.PerlinNoise(Time.time * perlinDirectionStep, startValue + 0.3f) - 0.5f);
         return (getVectorInThisCoordinateSystem((X * horizontal + Z * vertical).normalized));
     }
 
-    private float getSpeed(float min, float max) {
-        return min + Mathf.PerlinNoise(Time.time * perlinStepSpeed, startValue + 0.6f) * (max - min);// Range [min,max]
+    // Threshold is between 0 and 1 and applies a threshold filter to the perlin noise. Min is the lower value and Max the higher value.
+    private float getSpeed(float min, float max, float threshold) {
+        float value = Mathf.PerlinNoise(Time.time * perlinSpeedStep, startValue + 0.6f);
+        if (value >= threshold) value = 1;
+        else value = 0;
+        return min + value * (max - min);// Range [min,max]
     }
 
+    //Still buggy on ceilings e.g.
     private Vector3 getVectorInThisCoordinateSystem(Vector3 v) {
         return Quaternion.FromToRotation(Y, spider.getGroundNormal()) * v;
     }

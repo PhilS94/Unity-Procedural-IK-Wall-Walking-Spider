@@ -52,7 +52,7 @@ public class Spider : MonoBehaviour {
     private float downRayRadius;
 
     private Vector3 currentVelocity;
-    private bool isMoving;
+    private bool isMoving =false;
     private Vector3 lastNormal;
     private Vector3 breathePivot;
 
@@ -80,16 +80,17 @@ public class Spider : MonoBehaviour {
         if (Mathf.Abs(x - y) > float.Epsilon || Mathf.Abs(x - z) > float.Epsilon || Mathf.Abs(y - z) > float.Epsilon) {
             Debug.LogWarning("The xyz scales of the Spider are not equal. Please make sure they are. The scale of the spider is defaulted to be the Y scale and a lot of values depend on this scale.");
         }
-        rb = GetComponent<Rigidbody>();
-    }
 
-    void Start() {
+        rb = GetComponent<Rigidbody>();
+
+        //Initialize the two Sphere Casts
         downRayRadius = downRaySize * getColliderRadius();
         float forwardRayRadius = forwardRaySize * getColliderRadius();
         downRay = new SphereCast(transform.position, -transform.up, downRayLength * getColliderLength(), downRayRadius, transform, transform);
         forwardRay = new SphereCast(transform.position, transform.forward, forwardRayLength * getColliderLength(), forwardRayRadius, transform, transform);
+
+        //Initialize the bodyupLocal as the spiders transform.up parented to the body. Initialize the breathePivot as the body position parented to the spider
         bodyUpLocal = body.transform.InverseTransformDirection(transform.up);
-        isMoving = false;
         breathePivot = transform.InverseTransformPoint(body.transform.position);
     }
 
@@ -304,7 +305,6 @@ public class Spider : MonoBehaviour {
         if (!UnityEditor.Selection.Contains(transform.gameObject)) return;
 
         Awake();
-        Start();
         drawDebug();
     }
 #endif

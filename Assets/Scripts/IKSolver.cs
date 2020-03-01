@@ -30,7 +30,7 @@ public class IKSolver : MonoBehaviour {
      * @param hasFoot: If set to true, the last joint will adjust to the normal given by the target. 
      * @param printDebugLogs: If set to true, debug logs will be printed into Unity console
      */
-    public static void solveChainCCD(ref AHingeJoint[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, bool hasFoot = false, bool printDebugLogs = false) {
+    public static void solveChainCCD(ref AHingeJoint[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, float singularityRadius=0 ,bool hasFoot = false, bool printDebugLogs = false) {
 
         int iteration = 0;
         float error = Vector3.Distance(target.position, endEffector.position);
@@ -43,7 +43,7 @@ public class IKSolver : MonoBehaviour {
             for (int i = 0; i < joints.Length; i++) {
                 //This line ensures that the we start with the last joint, but then chronologically, e.g. k= 4 0 1 2 3
                 int k = mod((i - 1), joints.Length);
-                solveJointCCD(ref joints[k], ref endEffector, ref target, hasFoot && k == joints.Length - 1);
+                solveJointCCD(ref joints[k], ref endEffector, ref target, singularityRadius, hasFoot && k == joints.Length - 1);
             }
             iteration++;
 
@@ -62,14 +62,16 @@ public class IKSolver : MonoBehaviour {
         }
     }
 
-    private static void solveJointCCD(ref AHingeJoint joint, ref Transform endEffector, ref TargetInfo target, bool adjustToTargetNormal) {
+    private static void solveJointCCD(ref AHingeJoint joint, ref Transform endEffector, ref TargetInfo target, float singularityRadius, bool adjustToTargetNormal) {
         Vector3 rotPoint = joint.getRotationPoint();
         Vector3 rotAxis = joint.getRotationAxis();
         Vector3 toEnd = Vector3.ProjectOnPlane((endEffector.position - rotPoint), rotAxis);
         Vector3 toTarget = Vector3.ProjectOnPlane(target.position - rotPoint, rotAxis);
 
-        // If singularity, skip. I could also skip if "close" to zero? Magnitude < R
+        // If singularity, skip.
         if (toTarget == Vector3.zero || toEnd == Vector3.zero) return;
+        if (toTarget.magnitude < singularityRadius) return; // Here even if adjustToTargetNormal is on i might not adjust if target is in this radius.
+        //if (toEnd.magnitude < singularityRadius) return; Notsure if i want this?
 
         float angle;
 
@@ -88,7 +90,7 @@ public class IKSolver : MonoBehaviour {
      * It allows me to go through the iterations steps frame by frame and pause the editor.
      * This will be deleted once i dont need the frame by frame debuging anymore.
      */
-    public static IEnumerator solveChainCCDFrameByFrame(AHingeJoint[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, bool hasFoot = false, bool printDebugLogs = false) {
+    public static IEnumerator solveChainCCDFrameByFrame(AHingeJoint[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, float singularityRadius=0, bool hasFoot = false, bool printDebugLogs = false) {
 
         int iteration = 0;
         float error = Vector3.Distance(target.position, endEffector.position);
@@ -122,7 +124,7 @@ public class IKSolver : MonoBehaviour {
                 Debug.Break();
                 yield return null;
 
-                solveJointCCD(ref joints[k], ref endEffector, ref target, hasFoot && k == joints.Length - 1);
+                solveJointCCD(ref joints[k], ref endEffector, ref target, singularityRadius, hasFoot && k == joints.Length - 1);
 
                 // start: Not clean but for now just initialize variables again and draw stuff here
                 toEnd = Vector3.ProjectOnPlane((endEffector.position - rotPoint), rotAxis);

@@ -30,7 +30,8 @@ public class SpiderController : MonoBehaviour {
     private RaycastHit hitInfo;
     private RaycastHit[] camObstructions;
 
-    private Vector3 velocity=Vector3.zero;
+
+    private Vector3 velocity = Vector3.zero;
 
     private struct ShaderInfo {
         public Shader shader;
@@ -44,7 +45,7 @@ public class SpiderController : MonoBehaviour {
 
     private ShaderInfo[] camObstructionsShaders;
 
-    void Start() {
+    private void Awake() {
         maxCameraDistance = Vector3.Distance(spider.transform.position, cam.transform.position);
         playerToCam = new RayCast(spider.transform.position, cam.transform.position, transform, null);
         camToPlayer = new RayCast(cam.transform.position, spider.transform.position, cam.transform, transform);
@@ -56,7 +57,7 @@ public class SpiderController : MonoBehaviour {
 
         //Adds an acceleration/deceleration to smooth out the movement.
         velocity = Vector3.Slerp(velocity, input, 0.1f);
-
+        if (velocity.magnitude < 0.01f) velocity = Vector3.zero;
         spider.walk(velocity);
 
         Quaternion tempCamRotation = cam.transform.rotation;
@@ -109,7 +110,6 @@ public class SpiderController : MonoBehaviour {
         cam.transform.RotateAround(spider.transform.position, cam.transform.right, angle);
     }
 
-
     /*
      * The Spider adjusts its normal to its surroundings every frame. Since the cameras transform is a child of the spiders transform,
      * the camera will completely follow every rotation of the spider.
@@ -142,10 +142,9 @@ public class SpiderController : MonoBehaviour {
             for (int k = 0; k < camObstructions.Length; k++) {
                 MeshRenderer mesh = camObstructions[k].transform.GetComponent<MeshRenderer>();
                 if (mesh != null) {
-
                     mesh.material.shader = camObstructionsShaders[k].shader;
                     mesh.material.color = camObstructionsShaders[k].color;
-                    //mesh.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+
                 }
             }
         }
@@ -161,7 +160,6 @@ public class SpiderController : MonoBehaviour {
                 Color tempColor = mesh.material.color;
                 tempColor.a = 0.8F;
                 mesh.material.color = tempColor;
-                //mesh.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
             }
         }
     }
@@ -178,7 +176,7 @@ public class SpiderController : MonoBehaviour {
         if (!UnityEditor.Selection.Contains(transform.gameObject)) return;
         if (spider == null || !spider.showDebug) return;
 
-        Start();
+        Awake();
         drawDebug();
     }
 #endif
