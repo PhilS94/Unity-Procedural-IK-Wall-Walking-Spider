@@ -2,6 +2,7 @@
 using System.Collections;
 using Raycasting;
 
+[DefaultExecutionOrder(-1)] //Make sure the players input spider movement is applied before the spider itself will do a ground check and possibly add gravity
 public class SpiderController : MonoBehaviour {
 
     public Spider spider;

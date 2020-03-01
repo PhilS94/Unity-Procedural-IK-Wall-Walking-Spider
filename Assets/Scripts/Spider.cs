@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using Raycasting;
 
+[DefaultExecutionOrder(0)]
 public class Spider : MonoBehaviour {
 
     private Rigidbody rb;
