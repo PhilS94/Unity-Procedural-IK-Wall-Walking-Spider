@@ -43,23 +43,23 @@ public class AHingeJoint : MonoBehaviour {
     [Range(0.0f, 1.0f)]
     public float weight = 1.0f;
 
-    private Vector3 rotationAxis;
-    private Vector3 perpendicular;
-    private Vector3 rotPoint;
+    private Vector3 rotationAxisLocal;
+    private Vector3 perpendicularLocal;
+    private Vector3 rotPointLocal;
 
-    private Vector3 defaultOrientation;
-    private Vector3 orientation;
-    private Vector3 minOrientation;
-    private Vector3 maxOrientation;
+    private Vector3 defaultOrientationLocal;
+    private Vector3 orientationLocal;
+    private Vector3 minOrientationLocal;
+    private Vector3 maxOrientationLocal;
 
     //Keeps track of the current state of rotation and is important part of the angle clamping
     private float currentAngle = 0;
 
     private void Awake() {
-        updateValues();
+        setupValues();
     }
 
-    private void updateValues() {
+    private void setupValues() {
         Vector3 r = Vector3.zero;
         Vector3 p = Vector3.zero; // Just for unassigned error, will never be zero vector
 
@@ -92,29 +92,24 @@ public class AHingeJoint : MonoBehaviour {
             p = -p;
         }
 
-        rotationAxis = transform.TransformVector(Quaternion.Euler(rotationAxisOrientation) * transform.InverseTransformVector(r)).normalized;
-        perpendicular = transform.TransformVector(Quaternion.Euler(rotationAxisOrientation) * transform.InverseTransformVector(p)).normalized;
-        rotPoint = getRotationPoint();
+        rotationAxisLocal = Quaternion.Euler(rotationAxisOrientation) * transform.InverseTransformDirection(r);
+        perpendicularLocal = Quaternion.Euler(rotationAxisOrientation) * transform.InverseTransformDirection(p);
 
         if ((rotMode == rotationAxisMode.LocalX) || (rotMode == rotationAxisMode.LocalY) || (rotMode == rotationAxisMode.LocalZ)) {
-            orientation = Quaternion.AngleAxis(startOrientation, rotationAxis) * perpendicular;
-            defaultOrientation = Quaternion.AngleAxis(-currentAngle, rotationAxis) * orientation;
-            minOrientation = Quaternion.AngleAxis(minAngle - currentAngle, rotationAxis) * orientation;
-            maxOrientation = Quaternion.AngleAxis(maxAngle - currentAngle, rotationAxis) * orientation;
+            orientationLocal = Quaternion.AngleAxis(startOrientation, rotationAxisLocal) * perpendicularLocal;
+            defaultOrientationLocal = Quaternion.AngleAxis(-currentAngle, rotationAxisLocal) * orientationLocal;
+            minOrientationLocal = Quaternion.AngleAxis(minAngle - currentAngle, rotationAxisLocal) * orientationLocal;
+            maxOrientationLocal = Quaternion.AngleAxis(maxAngle - currentAngle, rotationAxisLocal) * orientationLocal;
         }
         else {
-            defaultOrientation = Quaternion.AngleAxis(startOrientation, rotationAxis) * perpendicular;
-            orientation = Quaternion.AngleAxis(currentAngle, rotationAxis) * defaultOrientation;
-            minOrientation = Quaternion.AngleAxis(minAngle, rotationAxis) * defaultOrientation;
-            maxOrientation = Quaternion.AngleAxis(maxAngle, rotationAxis) * defaultOrientation;
+            defaultOrientationLocal = Quaternion.AngleAxis(startOrientation, rotationAxisLocal) * perpendicularLocal;
+            orientationLocal = Quaternion.AngleAxis(currentAngle, rotationAxisLocal) * defaultOrientationLocal;
+            minOrientationLocal = Quaternion.AngleAxis(minAngle, rotationAxisLocal) * defaultOrientationLocal;
+            maxOrientationLocal = Quaternion.AngleAxis(maxAngle, rotationAxisLocal) * defaultOrientationLocal;
         }
-
     }
 
     void Update() {
-        // Refresh values every frame. This is needed since other classes use e.g. the rotation axis.
-        updateValues();
-
         if (minAngle > maxAngle) {
             Debug.LogError("The minimum hinge angle on " + gameObject.name + " is larger than the maximum hinge angle.");
             maxAngle = minAngle;
@@ -125,29 +120,21 @@ public class AHingeJoint : MonoBehaviour {
     /*
      * This is the main function called from other classes. It rotates the hinge joint by the given angle with respect to the limits given in this class.
      */
-    public void applyRotation(float angle)
-    {
-        if (deactivateJoint) {
-            return;
-        }
-
-        updateValues(); // important to update here since this function is called from the ccdiksolver. However i do think i can do this in update
+    public void applyRotation(float angle) {
+        if (deactivateJoint) return;
 
         angle = angle % 360;
 
-        if (angle == -180) {
-            angle = 180;
-        }
+        if (angle == -180) angle = 180;
 
-        if (angle > 180) {
-            angle -= 360;
-        }
+        if (angle > 180) angle -= 360;
 
-        if (angle < -180) {
-            angle += 360;
-        }
+        if (angle < -180) angle += 360;
 
         //Now angle is of the form (-180,180]
+
+        Vector3 rotationAxis = getRotationAxis();
+        Vector3 rotPoint = getRotationPoint();
 
         if (useRotationLimits) {
             //The angle gets clamped if its application to the current angle exceeds the limits.
@@ -171,8 +158,9 @@ public class AHingeJoint : MonoBehaviour {
      * Returns -1 if v is to the left of Min, +1 if v is to the right of Max and 0 if v is between min and max
      * */
     public int isVectorWithinScope(Vector3 v) {
-        float angle1 = Vector3.SignedAngle(minOrientation, v, rotationAxis); // should be clockwise, thus positive
-        float angle2 = Vector3.SignedAngle(v, maxOrientation, rotationAxis); // should also be clockwise, thus positive
+        Vector3 rotationAxis = getRotationAxis();
+        float angle1 = Vector3.SignedAngle(getMinOrientation(), v, rotationAxis); // should be clockwise, thus positive
+        float angle2 = Vector3.SignedAngle(v, getMaxOrientation(), rotationAxis); // should also be clockwise, thus positive
 
         if (angle1 >= 0 && angle2 >= 0) return 0;
         else if (angle1 < 0 && angle2 < 0) {
@@ -187,17 +175,34 @@ public class AHingeJoint : MonoBehaviour {
 
 
     public Vector3 getRotationAxis() {
-        return rotationAxis;
+        return transform.TransformDirection(rotationAxisLocal);
     }
 
-    // Normal i would return rotPoint, but i call this function from the awakre function of CCDiKSolver
-    // Here i use the lossy scale component y for scaling. Therefore these can get inaccurate
+    public Vector3 getPerpendicular() {
+        return transform.TransformDirection(perpendicularLocal);
+    }
+
     public Vector3 getRotationPoint() {
-        return transform.TransformPoint(0.01f* rotationPointOffset);
+        return transform.TransformPoint(0.01f * rotationPointOffset);
     }
 
+    private Vector3 getOrientation() {
+        return transform.TransformDirection(orientationLocal);
+    }
+
+    private Vector3 getDefaultOrientation() {
+        return transform.TransformDirection(defaultOrientationLocal);
+    }
+
+    private Vector3 getMinOrientation() {
+        return transform.TransformDirection(minOrientationLocal);
+    }
+
+    private Vector3 getMaxOrientation() {
+        return transform.TransformDirection(maxOrientationLocal);
+    }
     public Vector3 getMidOrientation() {
-        return Quaternion.AngleAxis(0.5f * (maxAngle - minAngle), rotationAxis) * minOrientation;
+        return transform.TransformDirection(Quaternion.AngleAxis(0.5f * (maxAngle - minAngle), rotationAxisLocal) * minOrientationLocal);
     }
 
     public float getAngleRange() {
@@ -208,8 +213,16 @@ public class AHingeJoint : MonoBehaviour {
     void OnDrawGizmosSelected() {
         if (!UnityEditor.Selection.Contains(transform.gameObject)) return;
 
-        updateValues(); //to refresh all the below values to be drawn
+        Awake();
+
         float scale = transform.lossyScale.y * 0.005f * debugIconScale;
+
+
+        Vector3 rotationAxis = getRotationAxis();
+        Vector3 rotPoint = getRotationPoint();
+        Vector3 minOrientation = getMinOrientation();
+        Vector3 orientation = getOrientation();
+        Vector3 defaultOrientation = getDefaultOrientation();
 
         //RotAxis
         Gizmos.color = Color.blue;
