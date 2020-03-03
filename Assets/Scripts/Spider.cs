@@ -32,7 +32,8 @@ public class Spider : MonoBehaviour {
     public float legNormalAdjustmentSpeed;
     [Range(0, 1)]
     public float legNormalWeight;
-    private Vector3 bodyUpLocal;
+    private Vector3 bodyY;
+    private Vector3 bodyZ;
 
     [Header("Breathing")]
     public bool activateBreathing;
@@ -53,7 +54,7 @@ public class Spider : MonoBehaviour {
     private float downRayRadius;
 
     private Vector3 currentVelocity;
-    private bool isMoving =false;
+    private bool isMoving = false;
     private Vector3 lastNormal;
     private Vector3 breathePivot;
 
@@ -91,7 +92,8 @@ public class Spider : MonoBehaviour {
         forwardRay = new SphereCast(transform.position, transform.forward, forwardRayLength * getColliderLength(), forwardRayRadius, transform, transform);
 
         //Initialize the bodyupLocal as the spiders transform.up parented to the body. Initialize the breathePivot as the body position parented to the spider
-        bodyUpLocal = body.transform.InverseTransformDirection(transform.up);
+        bodyY = body.transform.InverseTransformDirection(transform.up);
+        bodyZ = body.transform.InverseTransformDirection(transform.forward);
         breathePivot = transform.InverseTransformPoint(body.transform.position);
     }
 
@@ -119,12 +121,13 @@ public class Spider : MonoBehaviour {
         //** Debug **//
         if (showDebug) drawDebug();
 
-        Vector3 bodyUp = body.TransformDirection(bodyUpLocal);
+        Vector3 Y = body.TransformDirection(bodyY);
+        Vector3 Z = body.TransformDirection(bodyZ);
 
         //Doesnt work the way i want it too! On sphere i go underground. I jiggle around when i go down my centroid moves down to.(Depends on errortolerance of IKSolver)
         if (activateLegCentroidAdjustment) {
             Vector3 centroid = getLegCentroid();
-            Vector3 heightOffset = Vector3.Project((centroid + getColliderRadius() * bodyUp) - body.transform.position, bodyUp);
+            Vector3 heightOffset = Vector3.Project((centroid + getColliderRadius() * Y) - body.transform.position, Y);
             body.transform.position += heightOffset * Mathf.Clamp(Time.deltaTime * (0.1f * normalAdjustSpeed * getScale()), 0f, 1f);
             // What if im underground?
         }
@@ -132,16 +135,18 @@ public class Spider : MonoBehaviour {
         //Doesnt work, gets a Twist.
         if (activateLegNormalAdjustment) {
             Vector3 newNormal = GetLegsPlaneNormal();
-            float angleZ = Vector3.SignedAngle(Vector3.ProjectOnPlane(bodyUp, transform.forward), Vector3.ProjectOnPlane(newNormal, transform.forward), transform.forward);
-            body.transform.rotation = Quaternion.AngleAxis(angleZ, transform.forward) * body.transform.rotation;
-            float angleX = Vector3.SignedAngle(Vector3.ProjectOnPlane(bodyUp, transform.right), Vector3.ProjectOnPlane(newNormal, transform.right), transform.right);
+
+            float angleX = Vector3.SignedAngle(Vector3.ProjectOnPlane(Y, transform.right), Vector3.ProjectOnPlane(newNormal, transform.right), transform.right);
             body.transform.rotation = Quaternion.AngleAxis(angleX, transform.right) * body.transform.rotation;
+
+            float angleZ = Vector3.SignedAngle(Y, Vector3.ProjectOnPlane(newNormal, Z), Z);
+            body.transform.rotation = Quaternion.AngleAxis(angleZ, Z) * body.transform.rotation;
         }
 
         if (activateBreathing) {
             float t = (Time.time * 2 * Mathf.PI / period) % (2 * Mathf.PI);
             float amplitude = breatheMagnitude * getColliderRadius();
-            Vector3 direction = body.TransformDirection(bodyUpLocal);
+            Vector3 direction = body.TransformDirection(bodyY);
 
             body.transform.position = transform.TransformPoint(breathePivot) + amplitude * Mathf.Sin(t) * direction;
         }
@@ -295,7 +300,7 @@ public class Spider : MonoBehaviour {
 
         //Draw the current transform.up and the bodys current Y orientation
         Debug.DrawLine(transform.position, transform.position + 2f * getColliderRadius() * transform.up, new Color(1, 0.5f, 0, 1));
-        Debug.DrawLine(transform.position, transform.position + 2f * getColliderRadius() * body.TransformDirection(bodyUpLocal), Color.blue);
+        Debug.DrawLine(transform.position, transform.position + 2f * getColliderRadius() * body.TransformDirection(bodyY), Color.blue);
     }
 
 #if UNITY_EDITOR
