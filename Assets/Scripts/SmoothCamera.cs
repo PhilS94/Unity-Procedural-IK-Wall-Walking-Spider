@@ -53,6 +53,7 @@ public class SmoothCamera : MonoBehaviour {
     private ShaderInfo[] camObstructionsShaders;
 
     void Awake() {
+
         cam = GetComponent<Camera>();
         setupCamTarget();
 
