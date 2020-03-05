@@ -54,7 +54,9 @@ public class Spider : MonoBehaviour {
     private float downRayRadius;
 
     private Vector3 currentVelocity;
-    private bool isMoving = false;
+    private bool isWalking = false;
+    private bool isTurning = false;
+    private bool isFalling = false;
     private Vector3 lastNormal;
     private Vector3 breathePivot;
 
@@ -113,8 +115,10 @@ public class Spider : MonoBehaviour {
 
         // Dont apply gravity if close enough to ground
         if (grdInfo.distanceToGround > getGravityOffDistance()) {
-            rb.AddForce(-grdInfo.groundNormal * 9.81f * getScale()); //Important using the groundnormal and not the lerping normal here!
+            isFalling = true;
+            rb.AddForce(-grdInfo.groundNormal * 0.0981f * getScale()); //Important using the groundnormal and not the lerping normal here!
         }
+        else isFalling = false;
     }
 
     void Update() {
@@ -165,7 +169,11 @@ public class Spider : MonoBehaviour {
     }
 
     public void turn(Vector3 goalForward, float speed = 1f) {
-        if (goalForward == Vector3.zero || speed == 0) return;
+        if (goalForward == Vector3.zero || speed == 0) {
+            isTurning = false;
+            return;
+        }
+        isTurning = true;
         goalForward = Vector3.ProjectOnPlane(goalForward, transform.up);
         transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(goalForward, transform.up), turnSpeed * speed);
     }
@@ -174,10 +182,10 @@ public class Spider : MonoBehaviour {
     public void walk(Vector3 direction) {
         if (direction == Vector3.zero) {
             currentVelocity = Vector3.zero;
-            isMoving = false;
+            isWalking = false;
             return;
         }
-        isMoving = true;
+        isWalking = true;
         float magnitude = direction.magnitude;
         // Increase velocity as the direction and forward vector of spider get closer together
         float distance = Mathf.Pow(Mathf.Clamp(Vector3.Dot(direction, transform.forward), 0, 1), 4) * 0.0004f * walkSpeed * magnitude * getScale();
@@ -188,7 +196,7 @@ public class Spider : MonoBehaviour {
     }
 
     public bool getIsMoving() {
-        return isMoving;
+        return isWalking || isTurning || isFalling;
     }
 
     public Vector3 getCurrentVelocityPerSecond() {
