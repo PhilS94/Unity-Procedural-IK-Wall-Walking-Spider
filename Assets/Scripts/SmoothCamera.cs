@@ -8,9 +8,9 @@ public class SmoothCamera : MonoBehaviour {
 
     public bool showDebug;
     public Transform parent;
+
     private Transform camTarget;
     private Camera cam;
-    private Vector3 velocity;
 
     [Header("Smoothness")]
     public float lerpSpeed;
@@ -28,13 +28,16 @@ public class SmoothCamera : MonoBehaviour {
     public float camLowerAngleMargin = 60.0f;
 
     [Header("Camera Clipping")]
+    [Range(0, 1f)]
+    public float rayRadiusForObstructions;
     public LayerMask cameraInvisibleClipLayer;
     public LayerMask cameraClipLayer;
 
     [Range(0, 0.5f)]
     public float cameraClipMargin = 0.1f;
 
-    private RayCast camToPlayer, playerToCam;
+    private SphereCast camToPlayer;
+    private RayCast playerToCam;
     float maxCameraDistance;
     private RaycastHit hitInfo;
     private RaycastHit[] camObstructions;
@@ -76,7 +79,7 @@ public class SmoothCamera : MonoBehaviour {
     private void initializeRayCasting() {
         maxCameraDistance = Vector3.Distance(parent.position, transform.position);
         playerToCam = new RayCast(parent.position, camTarget.position, parent, null);
-        camToPlayer = new RayCast(camTarget.position, parent.position, camTarget, parent);
+        camToPlayer = new SphereCast(camTarget.position, parent.position, rayRadiusForObstructions * transform.lossyScale.y * 0.01f, camTarget, parent);
     }
 
     private void Update() {
@@ -212,6 +215,8 @@ public class SmoothCamera : MonoBehaviour {
         DebugShapes.DrawRay(camTarget.position, camTarget.forward, Color.blue);
         DebugShapes.DrawRay(camTarget.position, camTarget.right, Color.red);
         DebugShapes.DrawRay(camTarget.position, camTarget.up, Color.green);
+
+
     }
 
 #if UNITY_EDITOR

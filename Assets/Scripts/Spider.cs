@@ -68,6 +68,8 @@ public class Spider : MonoBehaviour {
     private bool isWalking = false;
     private bool isTurning = false;
     private bool isFalling = false;
+    private bool groundCheckOn = true;
+
     private Vector3 lastNormal;
     private Vector3 bodyDefaultCentroid;
     private Vector3 bodyCentroid;
@@ -237,6 +239,8 @@ public class Spider : MonoBehaviour {
 
     //** Ground Check Methods **//
     private groundInfo GroundCheckSphere() {
+        if (!groundCheckOn) return new groundInfo(false, Vector3.up, float.PositiveInfinity);
+
         if (forwardRay.castRay(out hitInfo, walkableLayer)) {
             return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - getColliderRadius());
         }
@@ -321,6 +325,10 @@ public class Spider : MonoBehaviour {
     }
     public Vector3 getGroundNormal() {
         return grdInfo.groundNormal;
+    }
+
+    public void setGroundcheck(bool b) {
+        groundCheckOn = b;
     }
 
     //** Debug Methods **//
