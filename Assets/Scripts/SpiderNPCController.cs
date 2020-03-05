@@ -12,9 +12,8 @@ public class SpiderNPCController : MonoBehaviour {
     public Spider spider;
 
     private float perlinDirectionStep = 0.07f;
-    private float perlinSpeedStep= 0.01f;
+    private float perlinSpeedStep = 0.01f;
     private float startValue;
-    private Vector3 velocity;
 
     private Vector3 Z;
     private Vector3 X;
@@ -31,11 +30,8 @@ public class SpiderNPCController : MonoBehaviour {
 
     private void FixedUpdate() {
 
-        Vector3 input = getDirection() *getSpeed(0, 1, 0.3f);
-
-        velocity = Vector3.Slerp(velocity, input, 0.1f);
-        if (velocity.magnitude < 0.01f) velocity = Vector3.zero;
-        spider.walk(velocity);
+        Vector3 input = getDirection() * getSpeed(0, 1, 0.3f);
+        spider.walk(input);
         spider.turn(input);
 
         //Debug.DrawLine(spider.transform.position, spider.transform.position + input * 5.0f, Color.cyan);

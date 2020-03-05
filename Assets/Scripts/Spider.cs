@@ -17,6 +17,8 @@ public class Spider : MonoBehaviour {
     public float walkSpeed;
     [Range(1, 5)]
     public float turnSpeed;
+    [Range(0.001f, 1)]
+    public float walkDrag;
     [Range(1, 10)]
     public float normalAdjustSpeed;
     public LayerMask walkableLayer;
@@ -26,19 +28,28 @@ public class Spider : MonoBehaviour {
     [Header("IK Legs")]
     public Transform body;
     public IKChain[] legs;
-    public bool activateLegCentroidAdjustment;
-    public bool activateLegNormalAdjustment;
+
+    [Header("Leg Centroid")]
+    public bool legCentroidAdjustment;
     [Range(0, 10)]
-    public float legNormalAdjustmentSpeed;
+    public float legCentroidSpeed;
+    [Range(0, 1)]
+    public float legCentroidWeight;
+
+    [Header("Leg Normal")]
+    public bool legNormalAdjustment;
+    [Range(0, 10)]
+    public float legNormalSpeed;
     [Range(0, 1)]
     public float legNormalWeight;
+
     private Vector3 bodyY;
     private Vector3 bodyZ;
 
     [Header("Breathing")]
-    public bool activateBreathing;
+    public bool breathing;
     [Range(0.01f, 20)]
-    public float period;
+    public float breathePeriod;
     [Range(0, 1)]
     public float breatheMagnitude;
 
@@ -58,7 +69,8 @@ public class Spider : MonoBehaviour {
     private bool isTurning = false;
     private bool isFalling = false;
     private Vector3 lastNormal;
-    private Vector3 breathePivot;
+    private Vector3 bodyDefaultCentroid;
+    private Vector3 bodyCentroid;
 
     private SphereCast downRay, forwardRay;
     private RaycastHit hitInfo;
@@ -96,7 +108,8 @@ public class Spider : MonoBehaviour {
         //Initialize the bodyupLocal as the spiders transform.up parented to the body. Initialize the breathePivot as the body position parented to the spider
         bodyY = body.transform.InverseTransformDirection(transform.up);
         bodyZ = body.transform.InverseTransformDirection(transform.forward);
-        breathePivot = transform.InverseTransformPoint(body.transform.position);
+        bodyDefaultCentroid = transform.InverseTransformPoint(body.transform.position);
+        bodyCentroid = body.transform.position;
     }
 
     void FixedUpdate() {
@@ -126,33 +139,39 @@ public class Spider : MonoBehaviour {
         if (showDebug) drawDebug();
 
         Vector3 Y = body.TransformDirection(bodyY);
-        Vector3 Z = body.TransformDirection(bodyZ);
+        bodyCentroid = getDefaultCentroid();
 
         //Doesnt work the way i want it too! On sphere i go underground. I jiggle around when i go down my centroid moves down to.(Depends on errortolerance of IKSolver)
-        if (activateLegCentroidAdjustment) {
-            Vector3 centroid = getLegCentroid();
-            Vector3 heightOffset = Vector3.Project((centroid + getColliderRadius() * Y) - body.transform.position, Y);
-            body.transform.position += heightOffset * Mathf.Clamp(Time.deltaTime * (0.1f * normalAdjustSpeed * getScale()), 0f, 1f);
+        if (legCentroidAdjustment) {
+            bodyCentroid = Vector3.Lerp(bodyCentroid, getLegCentroid(), Time.deltaTime * legCentroidSpeed);
+            body.transform.position = bodyCentroid;
+            //Vector3 heightOffset = Vector3.Project((centroid + getColliderRadius() * Y) - body.transform.position, Y);
+            //body.transform.position += heightOffset * Mathf.Clamp(Time.deltaTime * (0.1f * normalAdjustSpeed * getScale()), 0f, 1f);
             // What if im underground?
         }
 
-        //Doesnt work, gets a Twist.
-        if (activateLegNormalAdjustment) {
+        if (legNormalAdjustment) {
             Vector3 newNormal = GetLegsPlaneNormal();
 
-            float angleX = Vector3.SignedAngle(Vector3.ProjectOnPlane(Y, transform.right), Vector3.ProjectOnPlane(newNormal, transform.right), transform.right);
-            body.transform.rotation = Quaternion.AngleAxis(angleX, transform.right) * body.transform.rotation;
+            //Use Global X for  pitch
+            Vector3 X = transform.right;
+            float angleX = Vector3.SignedAngle(Vector3.ProjectOnPlane(Y, X), Vector3.ProjectOnPlane(newNormal, X), X);
+            angleX = Mathf.LerpAngle(0, angleX, Time.deltaTime * legNormalSpeed);
+            body.transform.rotation = Quaternion.AngleAxis(angleX, X) * body.transform.rotation;
 
+            //Use Local Z for roll. With the above global X for pitch, this avoids any kind of yaw happening.
+            Vector3 Z = body.TransformDirection(bodyZ);
             float angleZ = Vector3.SignedAngle(Y, Vector3.ProjectOnPlane(newNormal, Z), Z);
+            angleZ = Mathf.LerpAngle(0, angleZ, Time.deltaTime * legNormalSpeed);
             body.transform.rotation = Quaternion.AngleAxis(angleZ, Z) * body.transform.rotation;
         }
 
-        if (activateBreathing) {
-            float t = (Time.time * 2 * Mathf.PI / period) % (2 * Mathf.PI);
+        if (breathing) {
+            float t = (Time.time * 2 * Mathf.PI / breathePeriod) % (2 * Mathf.PI);
             float amplitude = breatheMagnitude * getColliderRadius();
             Vector3 direction = body.TransformDirection(bodyY);
 
-            body.transform.position = transform.TransformPoint(breathePivot) + amplitude * Mathf.Sin(t) * direction;
+            body.transform.position = bodyCentroid + amplitude * Mathf.Sin(t) * direction;
         }
 
     }
@@ -180,18 +199,23 @@ public class Spider : MonoBehaviour {
 
     //Only call this in fixed frame!
     public void walk(Vector3 direction) {
-        if (direction == Vector3.zero) {
-            currentVelocity = Vector3.zero;
-            isWalking = false;
-            return;
+        // TODO: Make sure direction is on the XZ plane of spider! For this maybe refactor the logic from input from spidercontroller to this function.
+        if (direction == Vector3.zero) isWalking = false;
+        else isWalking = true;
+
+        // Scale the magnitude and Clamp to not move more than down ray radius (Makes sure the ground is not lost due to moving too fast)
+        if (direction != Vector3.zero) {
+            float magnitude = direction.magnitude;
+            float directionDamp = Mathf.Pow(Mathf.Clamp(Vector3.Dot(direction / magnitude, transform.forward), 0, 1), 2);
+            float distance = 0.0004f * walkSpeed * magnitude * directionDamp * getScale();
+            distance = Mathf.Clamp(distance, 0, 0.99f * downRayRadius);
+            direction = distance * (direction / magnitude);
         }
-        isWalking = true;
-        float magnitude = direction.magnitude;
-        // Increase velocity as the direction and forward vector of spider get closer together
-        float distance = Mathf.Pow(Mathf.Clamp(Vector3.Dot(direction, transform.forward), 0, 1), 4) * 0.0004f * walkSpeed * magnitude * getScale();
-        //Make sure per frame we wont move more than our downsphereRay radius, or we might lose the floor.
-        distance = Mathf.Clamp(distance, 0, 0.99f * downRayRadius);
-        currentVelocity = distance * (direction / magnitude);
+
+        //Slerp from old to new velocity using the acceleration
+        currentVelocity = Vector3.Slerp(currentVelocity, direction, 1f - walkDrag);
+
+        //Apply the resulting velocity
         transform.position += currentVelocity;
     }
 
@@ -233,14 +257,18 @@ public class Spider : MonoBehaviour {
             return body.transform.position;
         }
 
-        Vector3 position = Vector3.zero;
-        float weigth = 1 / (float)legs.Length;
+        Vector3 centroid = Vector3.zero;
+        float k = 0;
 
-        // Go through all the legs, rotate the normal by it's offset
+        //Calculate centroid from only grounded legs. Careful since this can lead to one sided centroid
         for (int i = 0; i < legs.Length; i++) {
-            position += legs[i].getEndEffector().position * weigth;
+            //if (!legs[i].getTarget().grounded) continue;
+
+            centroid += legs[i].getEndEffector().position;
+            k++;
         }
-        return position;
+        centroid = centroid / k;
+        return Vector3.Lerp(getDefaultCentroid(), centroid, legCentroidWeight);
     }
 
     // Calculate the normal of the plane defined by leg positions, so we know how to rotate the body
@@ -250,16 +278,11 @@ public class Spider : MonoBehaviour {
             return transform.up;
         }
 
-        // float legRotWeigth = 1.0f;
-        //if (legRotWeigth <= 0f) return transform.up; 
-        //float legWeight = 1f / Mathf.Lerp(legs.Length,1f, legRotWeigth); // ???
-
         Vector3 normal = Vector3.zero;
         float legWeight = 1f / legs.Length;
 
         for (int i = 0; i < legs.Length; i++) {
             normal += legWeight * legs[i].getTarget().normal;
-            //normal += legWeight * -legs[i].getEndEffector().transform.up; // The minus comes from the endeffectors local coordinate system being reversed
         }
         return Vector3.Slerp(transform.up, normal, legNormalWeight);
     }
@@ -287,6 +310,10 @@ public class Spider : MonoBehaviour {
 
     public Vector3 getColliderBottomPoint() {
         return transform.TransformPoint(col.center - col.radius * new Vector3(0, 1, 0));
+    }
+
+    public Vector3 getDefaultCentroid() {
+        return transform.TransformPoint(bodyDefaultCentroid);
     }
 
     public float getGravityOffDistance() {

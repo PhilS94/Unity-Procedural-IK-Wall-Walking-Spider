@@ -5,12 +5,12 @@ using UnityEngine;
 public struct TargetInfo {
     public Vector3 position;
     public Vector3 normal;
-    public bool comfortable;
+    public bool grounded;
 
-    public TargetInfo(Vector3 m_position, Vector3 m_normal, bool m_comfortable = true) {
+    public TargetInfo(Vector3 m_position, Vector3 m_normal, bool m_grounded = true) {
         position = m_position;
         normal = m_normal;
-        comfortable = m_comfortable;
+        grounded = m_grounded;
     }
 }
 

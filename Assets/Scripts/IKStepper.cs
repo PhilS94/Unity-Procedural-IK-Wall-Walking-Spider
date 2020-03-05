@@ -216,8 +216,8 @@ public class IKStepper : MonoBehaviour {
             return;
         }
 
-        //If current target uncomfortable and there is a new comfortable target, step
-        if (!ikChain.getTarget().comfortable) step();
+        //If current target not grounded step
+        if (!ikChain.getTarget().grounded) step();
 
         //If the error of the IK solver gets too big, that is if it cant solve for the current target appropriately anymore, step.
         // This is the main way this class determines if it needs to step.
@@ -360,9 +360,9 @@ public class IKStepper : MonoBehaviour {
         if (printDebugLogs) Debug.Log(gameObject.name + " starts stepping now.");
         TargetInfo newTarget = calcNewTarget();
 
-        // We only step between comfortable positions. Otherwise we would be in the case of leg in air where we dont want to indefinitely step.
-        // Try to think of a different way to implement this without using the comfortable parameter?
-        if (ikChain.getTarget().comfortable || newTarget.comfortable) {
+        // We only step between of one of the positions is grounded. Otherwise we would be in the case of leg in air where we dont want to indefinitely step.
+        // Try to think of a different way to implement this without using the grounded parameter?
+        if (ikChain.getTarget().grounded || newTarget.grounded) {
             isStepping = true;
             TargetInfo lastTarget = ikChain.getTarget();
             TargetInfo lerpTarget;
@@ -371,7 +371,7 @@ public class IKStepper : MonoBehaviour {
             while (time < stepTime) {
                 lerpTarget.position = Vector3.Lerp(lastTarget.position, newTarget.position, time / stepTime) + stepHeight * 0.01f * spider.getScale() * stepAnimation.Evaluate(time / stepTime) * spider.transform.up;
                 lerpTarget.normal = Vector3.Lerp(lastTarget.normal, newTarget.normal, time / stepTime);
-                lerpTarget.comfortable = true;
+                lerpTarget.grounded = false;
 
                 time += Time.deltaTime;
                 ikChain.setTarget(lerpTarget);
@@ -386,7 +386,7 @@ public class IKStepper : MonoBehaviour {
     }
 
     private bool allowedToStep() {
-        if (!ikChain.getTarget().comfortable) {
+        if (!ikChain.getTarget().grounded) {
             return true;
         }
         if (timeSinceLastStep < stepCooldown) {
