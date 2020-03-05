@@ -113,7 +113,7 @@ public class Spider : MonoBehaviour {
 
         // Dont apply gravity if close enough to ground
         if (grdInfo.distanceToGround > getGravityOffDistance()) {
-            rb.AddForce(-grdInfo.groundNormal * 9.81f); //Important using the groundnormal and not the lerping normal here!
+            rb.AddForce(-grdInfo.groundNormal * 9.81f * getScale()); //Important using the groundnormal and not the lerping normal here!
         }
     }
 
