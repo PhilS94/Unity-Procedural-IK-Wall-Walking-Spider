@@ -18,6 +18,7 @@ public class IKStepper : MonoBehaviour {
 
     [Header("Stepping")]
 
+    public LayerMask stepLayer;
     public IKStepper asyncChain;
     public IKStepper syncChain;
 
@@ -55,16 +56,33 @@ public class IKStepper : MonoBehaviour {
     [Range(0f, 1.0f)]
     public float lastResortHeight;
 
-    [Header("Ray Adjustments")]
+
+    [Header("Frontal Ray")]
     [Range(0f, 1f)]
-    public float rayFrontalHeight;// War vorher 0.08
+    public float rayFrontalHeight;
     [Range(0f, 1f)]
     public float rayFrontalLength;
+    [Range(0f, 1f)]
+    public float rayFrontalOriginOffset;
+
+    [Header("Outwards Ray")]
     public Vector3 rayTopFocalPoint;
+    [Range(0f, 1f)]
+    public float rayOutwardsOriginOffset;
+    [Range(0f, 1f)]
+    public float rayOutwardsEndOffset;
+
+    [Header("Downwards Ray")]
+    [Range(0f, 6f)]
+    public float downRayHeight;
+    [Range(0f, 6f)]
+    public float downRayDepth;
+
+    [Header("Inwards Ray")]
     public Vector3 rayBottomFocalPoint;
     [Range(0f, 1f)]
-    public float downRayLength; //was 2
-    private float scaledDownRayLength;
+    public float rayInwardsEndOffset;
+
 
     private IKChain ikChain;
 
@@ -119,7 +137,8 @@ public class IKStepper : MonoBehaviour {
         overshootPrediction = prediction;
 
         // Initialize Casts as either RayCast or SphereCast 
-        initializeCasts();
+        casts = new Dictionary<string, Cast>();
+        updateCasts();
     }
 
     private Vector3 calculateDefault() {
@@ -154,47 +173,83 @@ public class IKStepper : MonoBehaviour {
      * The order in which they appear in the dictionary is the order in which they will be casted.
      * This order is of very high importance, so choose smartly.
      */
-    private void initializeCasts() {
+    private void updateCasts() {
 
-        scaledDownRayLength = 6f * downRayLength * spider.getColliderRadius();
-
-        Transform parent = spider.transform;
-        Vector3 normal = parent.up;
         Vector3 defaultPos = getDefault();
-        prediction = defaultPos;
+        Vector3 normal = spider.transform.up;
 
+        //Frontal Parameters
+        Vector3 frontal = getFrontalStartPosition();
+        Vector3 frontalPredictionEnd = frontal + Vector3.ProjectOnPlane(prediction - frontal, spider.transform.up).normalized * rayFrontalLength * chainLength;
+        Vector3 frontalDefaultEnd = frontal + Vector3.ProjectOnPlane(defaultPos - frontal, spider.transform.up).normalized * rayFrontalLength * chainLength;
+        Vector3 frontalPredictionOrigin = Vector3.Lerp(frontal, frontalPredictionEnd, rayFrontalOriginOffset);
+        Vector3 frontalDefaultOrigin = Vector3.Lerp(frontal, frontalDefaultEnd, rayFrontalOriginOffset);
+
+        //Outwards Parameters
         Vector3 top = getTopFocalPoint();
-        Vector3 frontalStartPosition = getFrontalStartPosition();
-        Vector3 frontalEndPosition = getFrontalEndPosition(prediction);
+        Vector3 topPredictionEnd = top + 2 * (prediction - top);
+        Vector3 topDefaultEnd = top + 2 * (defaultPos - top);
 
+        Vector3 outwardsPredictionOrigin = Vector3.Lerp(top, prediction, rayOutwardsOriginOffset);
+        Vector3 outwardsPredictionEnd = Vector3.Lerp(prediction, topPredictionEnd, rayOutwardsEndOffset);
+        Vector3 outwardsDefaultOrigin = Vector3.Lerp(top, defaultPos, rayOutwardsOriginOffset);
+        Vector3 outwardsDefaultEnd = Vector3.Lerp(prediction, topDefaultEnd, rayOutwardsEndOffset);
+
+
+        //Downwards Parameters
+        float height = downRayHeight * spider.getColliderRadius();
+        float depth = downRayDepth * spider.getColliderRadius();
+        Vector3 downwardsPredictionOrigin = prediction + normal * height;
+        Vector3 downwardsPredictionEnd = prediction - normal * depth;
+        Vector3 downwardsDefaultOrigin = defaultPos + normal * height;
+        Vector3 downwardsDefaultEnd = defaultPos - normal * depth;
+
+        //Inwards Parameters
         Vector3 bottom = getBottomFocalPoint();
-        Vector3 bottomEnd = parent.position - 1.1f * spider.getColliderRadius() * normal;
+        float inwardsPredictionLength = rayInwardsEndOffset * Vector3.Distance(bottom, prediction);
+        float inwardsDefaultLength = rayInwardsEndOffset * Vector3.Distance(bottom, defaultPos);
 
-        Vector3 bottom1 = bottom + (bottomEnd - bottom) / 4f;
-        Vector3 bottom2 = bottom + 2f * (bottomEnd - bottom) / 4f;
-        Vector3 bottom3 = bottom + 3f * (bottomEnd - bottom) / 4f;
+        Vector3 bottomBorder = spider.transform.position - 1.1f * spider.getColliderRadius() * normal;
+        Vector3 bottomEnd1 = bottom + (bottomBorder - bottom) / 4f;
+        Vector3 bottomEnd2 = bottom + 2f * (bottomBorder - bottom) / 4f;
+        Vector3 bottomEnd3 = bottom + 3f * (bottomBorder - bottom) / 4f;
+
+        Vector3 inwardsPredictionEnd0 = Vector3.Lerp(prediction, bottomBorder, inwardsPredictionLength / Vector3.Distance(prediction, bottomBorder));
+        Vector3 inwardsPredictionEnd1 = Vector3.Lerp(prediction, bottomEnd1, inwardsPredictionLength / Vector3.Distance(prediction, bottomEnd1));
+        Vector3 inwardsPredictionEnd2 = Vector3.Lerp(prediction, bottomEnd2, inwardsPredictionLength / Vector3.Distance(prediction, bottomEnd2));
+        Vector3 inwardsPredictionEnd3 = Vector3.Lerp(prediction, bottomEnd3, inwardsPredictionLength / Vector3.Distance(prediction, bottomEnd3));
+        Vector3 inwardsPredictionEnd4 = Vector3.Lerp(prediction, bottom, inwardsPredictionLength / Vector3.Distance(prediction, bottom));
+
+        Vector3 inwardsDefaultEnd0 = Vector3.Lerp(defaultPos, bottomBorder, inwardsDefaultLength / Vector3.Distance(prediction, bottomBorder));
+        Vector3 inwardsDefaultEnd1 = Vector3.Lerp(defaultPos, bottomEnd1, inwardsDefaultLength / Vector3.Distance(prediction, bottomEnd1));
+        Vector3 inwardsDefaultEnd2 = Vector3.Lerp(defaultPos, bottomEnd2, inwardsDefaultLength / Vector3.Distance(prediction, bottomEnd2));
+        Vector3 inwardsDefaultEnd3 = Vector3.Lerp(defaultPos, bottomEnd3, inwardsDefaultLength / Vector3.Distance(prediction, bottomEnd3));
+        Vector3 inwardsDefaultEnd4 = Vector3.Lerp(defaultPos, bottom, inwardsDefaultLength / Vector3.Distance(prediction, bottom));
 
         //The scaled radius
         float r = spider.getScale() * radius;
 
         // Note that Prediction Out will never hit a targetpoint on a flat surface or hole since it stop at the prediction point which is on
         // default height, that is the height where the collider stops.
+        casts.Clear();
         casts = new Dictionary<string, Cast> {
-            { "Frontal Prediction", getCast(frontalStartPosition, frontalEndPosition, r, parent, null) },
-            { "Prediction Out", getCast(top, prediction, r, parent, null) },
-            { "Prediction Down", getCast(prediction + normal * scaledDownRayLength, prediction - normal * scaledDownRayLength, r, null, null) },
-            { "Prediction In", getCast(prediction, bottom, r, null, parent) },
-            { "Prediction In 1", getCast(prediction, bottom1, r, null, parent) },
-            { "Prediction In 2", getCast(prediction, bottom2, r, null, parent) },
-            { "Prediction In 3", getCast(prediction, bottom3, r, null, parent) },
-            { "Prediction In End", getCast(prediction, bottomEnd, r, null, parent) },
-            { "Default Down", getCast(defaultPos + normal * scaledDownRayLength, defaultPos - normal * scaledDownRayLength, r, parent, parent) },
-            { "Default Out", getCast(top, defaultPos, r, parent, parent) },
-            { "Default In", getCast(defaultPos, bottom, r, parent, parent) },
-            { "Default In 1", getCast(defaultPos, bottom1, r, parent, parent) },
-            { "Default In 2", getCast(defaultPos, bottom2, r, parent, parent) },
-            { "Default In 3", getCast(defaultPos, bottom3, r, parent, parent) },
-            { "Default In End", getCast(defaultPos, bottomEnd, r, parent, parent) }
+            { "Prediction Frontal", getCast(frontalPredictionOrigin, frontalPredictionEnd, r) },
+            { "Prediction Out", getCast(outwardsPredictionOrigin,outwardsPredictionEnd, r) },
+            { "Prediction Down", getCast(downwardsPredictionOrigin,downwardsPredictionEnd, r) },
+            { "Prediction In 4", getCast(prediction,inwardsPredictionEnd4,r) },
+            { "Prediction In 3", getCast(prediction, inwardsPredictionEnd3, r) },
+            { "Prediction In 2", getCast(prediction, inwardsPredictionEnd2, r) },
+            { "Prediction In 1", getCast(prediction, inwardsPredictionEnd1, r) },
+            { "Prediction In 0", getCast(prediction, inwardsPredictionEnd0, r) },
+
+            { "Default Frontal", getCast(frontalDefaultOrigin, frontalDefaultEnd, r) },
+            { "Default Out", getCast(outwardsDefaultOrigin,outwardsDefaultEnd, r) },
+            { "Default Down", getCast(downwardsDefaultOrigin,downwardsDefaultEnd, r) },
+            { "Default In 4", getCast(defaultPos,inwardsDefaultEnd4, r) },
+            { "Default In 3", getCast(defaultPos, inwardsDefaultEnd3, r) },
+            { "Default In 2", getCast(defaultPos, inwardsDefaultEnd2, r) },
+            { "Default In 1", getCast(defaultPos, inwardsDefaultEnd1, r) },
+            { "Default In 0", getCast(defaultPos, inwardsDefaultEnd0, r) }
         };
     }
 
@@ -202,7 +257,7 @@ public class IKStepper : MonoBehaviour {
      * Depending on the cast mode selected this method returns either a RayCast or a SphereCast with the given start, end and parents.
      * The parameter radius is redundant if cast mode Raycast is selected but needed for the SphereCast.
      */
-    private Cast getCast(Vector3 start, Vector3 end, float radius, Transform parentStart, Transform parentEnd) {
+    private Cast getCast(Vector3 start, Vector3 end, float radius, Transform parentStart = null, Transform parentEnd = null) {
         if (castMode == CastMode.RayCast) return new RayCast(start, end, parentStart, parentEnd);
         else return new SphereCast(start, end, radius, parentStart, parentEnd);
     }
@@ -244,7 +299,7 @@ public class IKStepper : MonoBehaviour {
      */
     private TargetInfo calcNewTarget() {
 
-        int layer = spider.walkableLayer;
+        LayerMask layer = stepLayer;
 
         //If there is no collider in reach there is no need to calculate a new target, just return default here.
         //This should cut down runtime cost if the spider is not grounded (e.g. in the air).
@@ -288,16 +343,8 @@ public class IKStepper : MonoBehaviour {
         //Now shoot rays using the prediction to find an actual point on a surface.
 
         //Update Casts for new prediction point. Do this more smartly?
-        foreach (var cast in casts) {
-            if (cast.Key == "Frontal Prediction") { cast.Value.setEnd(getFrontalEndPosition(prediction)); }
-            else if (cast.Key == "Prediction Out") { cast.Value.setEnd(prediction); }
-            else if (cast.Key == "Prediction Down") { cast.Value.setOrigin(prediction + normal * scaledDownRayLength); cast.Value.setEnd(prediction - normal * scaledDownRayLength); }
-            else if (cast.Key == "Prediction In") { cast.Value.setOrigin(prediction); }
-            else if (cast.Key == "Prediction In 1") { cast.Value.setOrigin(prediction); }
-            else if (cast.Key == "Prediction In 2") { cast.Value.setOrigin(prediction); }
-            else if (cast.Key == "Prediction In 3") { cast.Value.setOrigin(prediction); }
-            else if (cast.Key == "Prediction In End") { cast.Value.setOrigin(prediction); }
-        }
+        updateCasts();
+
 
         //Iterate through all casts to until i find a target position.
         foreach (var cast in casts) {
@@ -431,11 +478,6 @@ public class IKStepper : MonoBehaviour {
         return spider.transform.TransformPoint(frontalStartPositionLocal);
     }
 
-    private Vector3 getFrontalEndPosition(Vector3 predictionPoint) {
-        Vector3 p = getFrontalStartPosition();
-        return p + Vector3.ProjectOnPlane(predictionPoint - p, spider.transform.up).normalized * rayFrontalLength * chainLength;
-    }
-
     private void drawDebug(bool points = true, bool steppingProcess = true, bool rayCasts = true, bool DOFArc = true) {
 
         float scale = spider.getScale() * 0.0001f * debugIconScale;
@@ -444,7 +486,7 @@ public class IKStepper : MonoBehaviour {
             DebugShapes.DrawPoint(getDefault(), Color.magenta, scale);
 
             // Last Resort Position
-            DebugShapes.DrawPoint(getLastResortTarget().position, Color.red, scale);
+            DebugShapes.DrawPoint(getLastResortTarget().position, Color.cyan, scale);
 
 
             //Draw the top and bottom ray points
@@ -468,17 +510,17 @@ public class IKStepper : MonoBehaviour {
         }
 
         if (rayCasts) {
-            Color magenta = Color.Lerp(Color.magenta, Color.white, 0.5f);
-            Color yellow = Color.Lerp(Color.yellow, Color.white, 0.5f);
-            Color cyan = Color.Lerp(Color.cyan, Color.white, 0.5f);
-            Color col;
+            Color col =Color.black;
             foreach (var cast in casts) {
-                if (cast.Key.Contains("Default")) col = Color.magenta;
-                else if (cast.Key.Contains("Frontal")) col = Color.cyan;
-                else if (cast.Key.Contains("Prediction")) col = Color.yellow;
-                else col = Color.black;
+                if (cast.Key.Contains("Frontal")) col = Color.green;
+                else if (cast.Key.Contains("Out")) col = Color.blue;
+                else if (cast.Key.Contains("Down")) col = Color.red;
+                else if (cast.Key.Contains("In")) col = Color.cyan;
 
-                if (cast.Key != lastHitRay) col = Color.Lerp(col, Color.white, 0.75f);
+                if (cast.Key.Contains("Prediction")) col = Color.Lerp(col,Color.yellow,0.2f);
+                else if (cast.Key.Contains("Default")) col = Color.Lerp(col, Color.magenta, 0.2f);
+
+                if (cast.Key == lastHitRay) col = Color.Lerp(col, Color.white, 0.75f);
                 cast.Value.draw(col);
             }
         }
