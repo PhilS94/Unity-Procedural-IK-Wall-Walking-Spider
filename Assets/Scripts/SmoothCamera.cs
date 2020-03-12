@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 using Raycasting;
 
 [RequireComponent(typeof(Camera))]
@@ -41,19 +42,7 @@ public class SmoothCamera : MonoBehaviour {
     float maxCameraDistance;
     private RaycastHit hitInfo;
     private RaycastHit[] camObstructions;
-    private Shader transparentShader;
-
-    private struct ShaderInfo {
-        public Shader shader;
-        public Color color;
-
-        public ShaderInfo(Shader m_Shader, Color m_Color) {
-            shader = m_Shader;
-            color = m_Color;
-        }
-    }
-
-    private ShaderInfo[] camObstructionsShaders;
+    private ShadowCastingMode[] camObstructionsCastingMode;
 
     void Awake() {
 
@@ -64,7 +53,6 @@ public class SmoothCamera : MonoBehaviour {
         transform.parent = null;
 
         initializeRayCasting();
-        transparentShader = Shader.Find("Transparent/Diffuse");
     }
 
     private void setupCamTarget() {
@@ -143,33 +131,26 @@ public class SmoothCamera : MonoBehaviour {
     }
 
     void clipCameraInvisible() {
+
         //First make all previous obstructions visible again.
         if (camObstructions != null) {
             for (int k = 0; k < camObstructions.Length; k++) {
                 MeshRenderer mesh = camObstructions[k].transform.GetComponent<MeshRenderer>();
                 if (mesh == null) continue;
-
-                mesh.material.shader = camObstructionsShaders[k].shader;
-                mesh.material.color = camObstructionsShaders[k].color;
-
+                mesh.shadowCastingMode = camObstructionsCastingMode[k];
             }
         }
 
         // Now transparent all new obstructions
         camObstructions = camToPlayer.castRayAll(cameraInvisibleClipLayer);
-        camObstructionsShaders = new ShaderInfo[camObstructions.Length];
+        camObstructionsCastingMode = new ShadowCastingMode[camObstructions.Length];
         for (int k = 0; k < camObstructions.Length; k++) {
             MeshRenderer mesh = camObstructions[k].transform.GetComponent<MeshRenderer>();
             if (mesh == null) continue;
-
-            camObstructionsShaders[k] = new ShaderInfo(mesh.material.shader, mesh.material.color);
-            mesh.material.shader = transparentShader;
-            Color tempColor = mesh.material.color;
-            tempColor.a = 0.8F / camObstructions.Length;
-            mesh.material.color = tempColor;
+            camObstructionsCastingMode[k] = mesh.shadowCastingMode;
+            mesh.shadowCastingMode = ShadowCastingMode.ShadowsOnly;
         }
     }
-
 
     public Camera getCamera() {
         return cam;
