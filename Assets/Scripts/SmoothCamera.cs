@@ -79,7 +79,7 @@ public class SmoothCamera : MonoBehaviour {
     private void initializeRayCasting() {
         maxCameraDistance = Vector3.Distance(parent.position, transform.position);
         playerToCam = new RayCast(parent.position, camTarget.position, parent, null);
-        camToPlayer = new SphereCast(camTarget.position, parent.position, rayRadiusForObstructions * transform.lossyScale.y * 0.01f, camTarget, parent);
+        camToPlayer = new SphereCast(transform.position, parent.position, rayRadiusForObstructions * transform.lossyScale.y * 0.01f, transform, parent);
     }
 
     private void Update() {
