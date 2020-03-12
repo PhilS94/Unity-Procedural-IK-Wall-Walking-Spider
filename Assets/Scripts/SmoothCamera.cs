@@ -14,7 +14,8 @@ public class SmoothCamera : MonoBehaviour {
     private Camera cam;
 
     [Header("Smoothness")]
-    public float lerpSpeed;
+    public float translationSpeed;
+    public float rotationSpeed;
 
     [Header("Sensitivity")]
     [Range(1, 5)]
@@ -82,11 +83,11 @@ public class SmoothCamera : MonoBehaviour {
         Vector3 a = parent.InverseTransformPoint(transform.position);
         Vector3 b = parent.InverseTransformPoint(camTarget.position);
 
-        Vector3 c = Vector3.Slerp(a, b, Time.deltaTime * lerpSpeed);
+        Vector3 c = Vector3.Slerp(a, b, Time.deltaTime * translationSpeed);
         transform.position = parent.TransformPoint(c);
 
         //transform.position = Vector3.SmoothDamp(transform.position, camTarget.position, ref velocity, lerpTime);
-        transform.rotation = Quaternion.Slerp(transform.rotation, camTarget.rotation, Time.deltaTime * lerpSpeed);
+        transform.rotation = Quaternion.Slerp(transform.rotation, camTarget.rotation, Time.deltaTime * rotationSpeed);
 
         if (showDebug) drawDebug();
 
