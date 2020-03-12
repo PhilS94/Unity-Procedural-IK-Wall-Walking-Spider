@@ -173,7 +173,7 @@ public class Spider : MonoBehaviour {
             float amplitude = breatheMagnitude * getColliderRadius();
             Vector3 direction = body.TransformDirection(bodyY);
 
-            body.transform.position = bodyCentroid + amplitude * Mathf.Sin(t) * direction;
+            body.transform.position = bodyCentroid + amplitude * (Mathf.Sin(t) + 1f) * direction;
         }
 
     }
@@ -277,18 +277,28 @@ public class Spider : MonoBehaviour {
 
     // Calculate the normal of the plane defined by leg positions, so we know how to rotate the body
     private Vector3 GetLegsPlaneNormal() {
+
         if (legs == null) {
             Debug.LogError("Cant calculate normal, legs not assigned.");
             return transform.up;
         }
 
-        Vector3 normal = Vector3.zero;
-        float legWeight = 1f / legs.Length;
+        if (legNormalWeight <= 0f) return transform.up;
+
+        Vector3 newNormal = transform.up;
+        Vector3 toEnd;
+        Vector3 currentTangent;
 
         for (int i = 0; i < legs.Length; i++) {
-            normal += legWeight * legs[i].getTarget().normal;
+            //normal += legWeight * legs[i].getTarget().normal;
+            toEnd = legs[i].getEndEffector().position - transform.position;
+            currentTangent = Vector3.ProjectOnPlane(toEnd, transform.up);
+
+            if (currentTangent == Vector3.zero) continue; // Actually here we would have a 90degree rotation but there is no choice of a tangent.
+
+            newNormal = Quaternion.Lerp(Quaternion.identity, Quaternion.FromToRotation(currentTangent, toEnd), legNormalWeight) * newNormal;
         }
-        return Vector3.Slerp(transform.up, normal, legNormalWeight);
+        return newNormal;
     }
 
     //** Get Methods **//
