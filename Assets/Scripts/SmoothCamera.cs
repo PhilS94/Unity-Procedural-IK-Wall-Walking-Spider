@@ -76,6 +76,7 @@ public class SmoothCamera : MonoBehaviour {
     }
 
     private void Update() {
+        if (!cam.enabled) return;
         RotateCameraHorizontal(Input.GetAxis("Mouse X") * XSensitivity, false);
         RotateCameraVertical(-Input.GetAxis("Mouse Y") * YSensitivity, false);
         clipCamera();
@@ -102,7 +103,6 @@ public class SmoothCamera : MonoBehaviour {
         //Rotation Slerping
         //transform.position = Vector3.SmoothDamp(transform.position, camTarget.position, ref velocity, lerpTime);
         transform.rotation = Quaternion.Slerp(transform.rotation, camTarget.rotation, Time.deltaTime * rotationSpeed);
-
 
         if (showDebug) drawDebug();
     }

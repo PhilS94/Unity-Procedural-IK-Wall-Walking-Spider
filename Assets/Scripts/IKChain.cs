@@ -182,6 +182,10 @@ public class IKChain : MonoBehaviour {
         pause = false;
     }
 
+    public IKStepper getIKStepper() {
+        return ikStepper;
+    }
+
 #if UNITY_EDITOR
     void OnDrawGizmosSelected() {
 
