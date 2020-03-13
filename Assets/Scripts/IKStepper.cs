@@ -169,7 +169,7 @@ public class IKStepper : MonoBehaviour {
     }
 
     /*
-     * This method defines the RayCasts/SphereCasts in a dictionary with a corresponding key
+     * This method defines the RayCasts/SphereCasts and stores them in a dictionary with a corresponding key
      * The order in which they appear in the dictionary is the order in which they will be casted.
      * This order is of very high importance, so choose smartly.
      */
@@ -206,25 +206,19 @@ public class IKStepper : MonoBehaviour {
 
         //Inwards Parameters
         Vector3 bottom = getBottomFocalPoint();
+        Vector3 bottomBorder = spider.transform.position - 1.5f * spider.getColliderRadius() * normal;
+        Vector3 bottomMid = spider.transform.position - 4f * spider.getColliderRadius() * normal;
+
         float inwardsPredictionLength = rayInwardsEndOffset * Vector3.Distance(bottom, prediction);
         float inwardsDefaultLength = rayInwardsEndOffset * Vector3.Distance(bottom, defaultPos);
 
-        Vector3 bottomBorder = spider.transform.position - 1.1f * spider.getColliderRadius() * normal;
-        Vector3 bottomEnd1 = bottom + (bottomBorder - bottom) / 4f;
-        Vector3 bottomEnd2 = bottom + 2f * (bottomBorder - bottom) / 4f;
-        Vector3 bottomEnd3 = bottom + 3f * (bottomBorder - bottom) / 4f;
+        Vector3 inwardsPredictionEndClose = bottomBorder;
+        Vector3 inwardsPredictionEndMid = bottomMid;
+        Vector3 inwardsPredictionEndFar = Vector3.Lerp(prediction, bottom, inwardsPredictionLength / Vector3.Distance(prediction, bottom));
 
-        Vector3 inwardsPredictionEnd0 = Vector3.Lerp(prediction, bottomBorder, inwardsPredictionLength / Vector3.Distance(prediction, bottomBorder));
-        Vector3 inwardsPredictionEnd1 = Vector3.Lerp(prediction, bottomEnd1, inwardsPredictionLength / Vector3.Distance(prediction, bottomEnd1));
-        Vector3 inwardsPredictionEnd2 = Vector3.Lerp(prediction, bottomEnd2, inwardsPredictionLength / Vector3.Distance(prediction, bottomEnd2));
-        Vector3 inwardsPredictionEnd3 = Vector3.Lerp(prediction, bottomEnd3, inwardsPredictionLength / Vector3.Distance(prediction, bottomEnd3));
-        Vector3 inwardsPredictionEnd4 = Vector3.Lerp(prediction, bottom, inwardsPredictionLength / Vector3.Distance(prediction, bottom));
-
-        Vector3 inwardsDefaultEnd0 = Vector3.Lerp(defaultPos, bottomBorder, inwardsDefaultLength / Vector3.Distance(prediction, bottomBorder));
-        Vector3 inwardsDefaultEnd1 = Vector3.Lerp(defaultPos, bottomEnd1, inwardsDefaultLength / Vector3.Distance(prediction, bottomEnd1));
-        Vector3 inwardsDefaultEnd2 = Vector3.Lerp(defaultPos, bottomEnd2, inwardsDefaultLength / Vector3.Distance(prediction, bottomEnd2));
-        Vector3 inwardsDefaultEnd3 = Vector3.Lerp(defaultPos, bottomEnd3, inwardsDefaultLength / Vector3.Distance(prediction, bottomEnd3));
-        Vector3 inwardsDefaultEnd4 = Vector3.Lerp(defaultPos, bottom, inwardsDefaultLength / Vector3.Distance(prediction, bottom));
+        Vector3 inwardsDefaultEndClose = bottomBorder;
+        Vector3 inwardsDefaultEndMid = bottomMid;
+        Vector3 inwardsDefaultEndFar = Vector3.Lerp(defaultPos, bottom, inwardsDefaultLength / Vector3.Distance(prediction, bottom));
 
         //The scaled radius
         float r = spider.getScale() * radius;
@@ -236,20 +230,16 @@ public class IKStepper : MonoBehaviour {
             { "Prediction Frontal", getCast(frontalPredictionOrigin, frontalPredictionEnd, r) },
             { "Prediction Out", getCast(outwardsPredictionOrigin,outwardsPredictionEnd, r) },
             { "Prediction Down", getCast(downwardsPredictionOrigin,downwardsPredictionEnd, r) },
-            { "Prediction In 4", getCast(prediction,inwardsPredictionEnd4,r) },
-            { "Prediction In 3", getCast(prediction, inwardsPredictionEnd3, r) },
-            { "Prediction In 2", getCast(prediction, inwardsPredictionEnd2, r) },
-            { "Prediction In 1", getCast(prediction, inwardsPredictionEnd1, r) },
-            { "Prediction In 0", getCast(prediction, inwardsPredictionEnd0, r) },
+            { "Prediction In Far", getCast(prediction,inwardsPredictionEndFar,r) },
+            { "Prediction In Mid", getCast(prediction, inwardsPredictionEndMid, r) },
+            { "Prediction In Close", getCast(prediction, inwardsPredictionEndClose, r) },
 
             { "Default Frontal", getCast(frontalDefaultOrigin, frontalDefaultEnd, r) },
             { "Default Out", getCast(outwardsDefaultOrigin,outwardsDefaultEnd, r) },
             { "Default Down", getCast(downwardsDefaultOrigin,downwardsDefaultEnd, r) },
-            { "Default In 4", getCast(defaultPos,inwardsDefaultEnd4, r) },
-            { "Default In 3", getCast(defaultPos, inwardsDefaultEnd3, r) },
-            { "Default In 2", getCast(defaultPos, inwardsDefaultEnd2, r) },
-            { "Default In 1", getCast(defaultPos, inwardsDefaultEnd1, r) },
-            { "Default In 0", getCast(defaultPos, inwardsDefaultEnd0, r) }
+            { "Default In Far", getCast(defaultPos,inwardsDefaultEndFar, r) },
+            { "Default In Mid", getCast(defaultPos, inwardsDefaultEndMid, r) },
+            { "Default In Close", getCast(defaultPos, inwardsDefaultEndClose, r) },
         };
     }
 
@@ -512,15 +502,10 @@ public class IKStepper : MonoBehaviour {
         if (rayCasts) {
             Color col =Color.black;
             foreach (var cast in casts) {
-                if (cast.Key.Contains("Frontal")) col = Color.green;
-                else if (cast.Key.Contains("Out")) col = Color.blue;
-                else if (cast.Key.Contains("Down")) col = Color.red;
-                else if (cast.Key.Contains("In")) col = Color.cyan;
+                if (cast.Key.Contains("Default")) col = Color.magenta;
+                else if (cast.Key.Contains("Prediction")) col = Color.yellow;
 
-                if (cast.Key.Contains("Prediction")) col = Color.Lerp(col,Color.yellow,0.2f);
-                else if (cast.Key.Contains("Default")) col = Color.Lerp(col, Color.magenta, 0.2f);
-
-                if (cast.Key == lastHitRay) col = Color.Lerp(col, Color.white, 0.75f);
+                if (cast.Key != lastHitRay) col = Color.Lerp(col, Color.white, 0.5f);
                 cast.Value.draw(col);
             }
         }

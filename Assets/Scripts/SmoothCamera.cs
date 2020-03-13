@@ -16,6 +16,7 @@ public class SmoothCamera : MonoBehaviour {
     [Header("Smoothness")]
     public float translationSpeed;
     public float rotationSpeed;
+    public bool followParentNormal;
 
     [Header("Sensitivity")]
     [Range(1, 5)]
@@ -45,6 +46,8 @@ public class SmoothCamera : MonoBehaviour {
     private RaycastHit[] camObstructions;
     private ShadowCastingMode[] camObstructionsCastingMode;
 
+    private Vector3 lastParentNormal;
+
     void Awake() {
 
         cam = GetComponent<Camera>();
@@ -54,6 +57,7 @@ public class SmoothCamera : MonoBehaviour {
         transform.parent = null;
 
         initializeRayCasting();
+        lastParentNormal = parent.up;
     }
 
     private void setupCamTarget() {
@@ -62,7 +66,7 @@ public class SmoothCamera : MonoBehaviour {
         camTarget = g.transform;
         camTarget.position = transform.position;
         camTarget.rotation = transform.rotation;
-        camTarget.transform.parent = parent;
+        camTarget.parent = parent;
     }
 
     private void initializeRayCasting() {
@@ -80,17 +84,27 @@ public class SmoothCamera : MonoBehaviour {
 
     private void LateUpdate() {
 
+        if (followParentNormal) {
+            float angle = Vector3.SignedAngle(lastParentNormal, parent.up, camTarget.right);
+            RotateCameraVertical(0.5f * -angle);
+            lastParentNormal = parent.up;
+        }
+
+        /* Now do the lerping of the actual camera to the target for the smooth movement */
+
+        // Translation Slerping
         Vector3 a = parent.InverseTransformPoint(transform.position);
         Vector3 b = parent.InverseTransformPoint(camTarget.position);
-
         Vector3 c = Vector3.Slerp(a, b, Time.deltaTime * translationSpeed);
         transform.position = parent.TransformPoint(c);
 
+
+        //Rotation Slerping
         //transform.position = Vector3.SmoothDamp(transform.position, camTarget.position, ref velocity, lerpTime);
         transform.rotation = Quaternion.Slerp(transform.rotation, camTarget.rotation, Time.deltaTime * rotationSpeed);
 
-        if (showDebug) drawDebug();
 
+        if (showDebug) drawDebug();
     }
 
     public void RotateCameraHorizontal(float angle, bool onlyTarget = true) {
@@ -108,6 +122,8 @@ public class SmoothCamera : MonoBehaviour {
         //Now angle is of the form (-180,180]
 
         if (angle == 0) return;
+
+        // Adjust angle according to upper and lower bound
         float currentAngle = Vector3.SignedAngle(parent.transform.up, parent.transform.position - camTarget.position, camTarget.right); //Should always be positive
         if (currentAngle + angle < camLowerAngleMargin) {
             angle = camLowerAngleMargin - currentAngle;
@@ -115,6 +131,8 @@ public class SmoothCamera : MonoBehaviour {
         if (currentAngle + angle > 180.0f - camUpperAngleMargin) {
             angle = 180.0f - camUpperAngleMargin - currentAngle;
         }
+
+        // Apply Rotation
         camTarget.RotateAround(parent.position, camTarget.right, angle);
         if (!onlyTarget) transform.RotateAround(parent.position, camTarget.right, angle);
     }
@@ -203,6 +221,7 @@ public class SmoothCamera : MonoBehaviour {
 
 #if UNITY_EDITOR
     void OnDrawGizmosSelected() {
+        if (!showDebug) return;
         if (UnityEditor.EditorApplication.isPlaying) return;
         if (!UnityEditor.Selection.Contains(transform.gameObject)) return;
         if (parent == null) return;

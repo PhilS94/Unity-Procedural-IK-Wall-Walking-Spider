@@ -25,12 +25,6 @@ public class SpiderController : MonoBehaviour {
     }
 
     void Update() {
-        // Since the spider might have adjusted its normal, rotate camera target halfway back here (More smooth experience instead of camera freezing in place with every normal adjustment)
-        Vector3 n = spider.getLastNormal();
-        if (n != Vector3.zero) {
-            float angle = Vector3.SignedAngle(spider.getLastNormal(), spider.transform.up, smoothCam.getCameraTarget().right);
-            smoothCam.RotateCameraVertical(0.5f * -angle);
-        }
         //Hold down Space to deactivate ground checking. The spider will fall while space is hold.
         spider.setGroundcheck(!Input.GetKey(KeyCode.Space));
     }
