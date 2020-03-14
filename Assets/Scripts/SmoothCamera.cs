@@ -77,13 +77,6 @@ public class SmoothCamera : MonoBehaviour {
 
     private void Update() {
         if (!cam.enabled) return;
-        RotateCameraHorizontal(Input.GetAxis("Mouse X") * XSensitivity, false);
-        RotateCameraVertical(-Input.GetAxis("Mouse Y") * YSensitivity, false);
-        clipCamera();
-        clipCameraInvisible();
-    }
-
-    private void LateUpdate() {
 
         if (followParentNormal) {
             float angle = Vector3.SignedAngle(lastParentNormal, parent.up, camTarget.right);
@@ -91,6 +84,13 @@ public class SmoothCamera : MonoBehaviour {
             lastParentNormal = parent.up;
         }
 
+        RotateCameraHorizontal(Input.GetAxis("Mouse X") * XSensitivity, false);
+        RotateCameraVertical(-Input.GetAxis("Mouse Y") * YSensitivity, false);
+        clipCamera();
+        clipCameraInvisible();
+    }
+
+    private void LateUpdate() {
         /* Now do the lerping of the actual camera to the target for the smooth movement */
 
         // Translation Slerping
