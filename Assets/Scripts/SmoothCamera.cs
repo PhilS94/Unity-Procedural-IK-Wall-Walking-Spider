@@ -16,7 +16,8 @@ public class SmoothCamera : MonoBehaviour {
     [Header("Smoothness")]
     public float translationSpeed;
     public float rotationSpeed;
-    public bool followParentNormal;
+    [Range(0,1)]
+    public float parentNormalCounterAdjust;
 
     [Header("Sensitivity")]
     [Range(1, 5)]
@@ -78,9 +79,9 @@ public class SmoothCamera : MonoBehaviour {
     private void Update() {
         if (!cam.enabled) return;
 
-        if (followParentNormal) {
+        if (parentNormalCounterAdjust != 0) {
             float angle = Vector3.SignedAngle(lastParentNormal, parent.up, camTarget.right);
-            RotateCameraVertical(0.5f * -angle);
+            RotateCameraVertical(parentNormalCounterAdjust * -angle);
             lastParentNormal = parent.up;
         }
 
