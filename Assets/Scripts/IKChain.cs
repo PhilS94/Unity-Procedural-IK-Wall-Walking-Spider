@@ -45,10 +45,14 @@ public class IKChain : MonoBehaviour {
 
     private RayCast debugModeRay;
 
+    private Vector3 endEffectorVelocity;
+    private Vector3 lastEndeffectorPos;
+
     private void Awake() {
         ikStepper = GetComponent<IKStepper>();
         validChain = isValidChain();
         debugModeRay = new RayCast(debugTarget.position + 1.0f * Vector3.up, debugTarget.position - 1.0f * Vector3.up, debugTarget, debugTarget);
+        lastEndeffectorPos = endEffector.position;
     }
 
     private void Start() {
@@ -76,10 +80,10 @@ public class IKChain : MonoBehaviour {
         if (deactivateSolving || !validChain) return;
 
         if (targetMode == TargetMode.DebugTarget) setDebugTarget();
-
     }
 
     private void FixedUpdate() {
+
         if (deactivateSolving || !validChain) return;
 
         if (targetMode == TargetMode.DebugTargetRay) setDebugTargetRay();
@@ -88,6 +92,8 @@ public class IKChain : MonoBehaviour {
     private void LateUpdate() {
         if (deactivateSolving || !validChain) return;
 
+        endEffectorVelocity = (endEffector.position - lastEndeffectorPos) / Time.deltaTime;
+
         // We only want to solve if we moved away too much since our last solve.
         if (!hasMovementOccuredSinceLastSolve()) return;
         // In theory everything below will only be called if a fixedupdate took place prior to this update since that is the only way the spider moves.
@@ -95,6 +101,8 @@ public class IKChain : MonoBehaviour {
 
         //We only check if stepping is needed (and step if necessary) after a solve took place.
         if (IKStepperActivated()) ikStepper.stepCheck();
+
+        lastEndeffectorPos = endEffector.position;
     }
 
     private void solve() {
@@ -184,6 +192,10 @@ public class IKChain : MonoBehaviour {
 
     public IKStepper getIKStepper() {
         return ikStepper;
+    }
+
+    public Vector3 getEndeffectorVelocityPerSecond() {
+        return endEffectorVelocity;
     }
 
 #if UNITY_EDITOR

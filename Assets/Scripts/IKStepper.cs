@@ -19,14 +19,15 @@ public class IKStepper : MonoBehaviour {
     [Header("Stepping")]
 
     public LayerMask stepLayer;
-    public IKStepper asyncChain;
-    public IKStepper syncChain;
+    public IKStepper[] asyncChain;
+    public IKStepper[] syncChain;
 
     [Range(1.0f, 2.0f)]
     public float velocityPrediction = 1.5f;
 
-    [Range(0, 10.0f)]
-    public float stepTime;
+    [Range(0, 1.0f)]
+    public float maxStepTime;
+    private float stepTime;
 
     [Range(0.0f, 10.0f)]
     public float stepHeight;
@@ -366,7 +367,10 @@ public class IKStepper : MonoBehaviour {
     private void step() {
         IEnumerator coroutineStepping = Step();
         StartCoroutine(coroutineStepping);
-        if (syncChain != null) syncChain.step();
+
+        foreach (var chain in syncChain) {
+            if (chain != null) chain.step();
+        }
     }
 
     /*
@@ -395,6 +399,9 @@ public class IKStepper : MonoBehaviour {
         // Then start the stepping
         if (pauseOnStep) Debug.Break();
         if (printDebugLogs) Debug.Log(gameObject.name + " starts stepping now.");
+
+        // Calc current stepTime
+        stepTime = Mathf.Clamp(0.005f * spider.getScale() / ikChain.getEndeffectorVelocityPerSecond().magnitude, 0, maxStepTime);
         TargetInfo newTarget = calcNewTarget();
 
         // We only step between of one of the positions is grounded. Otherwise we would be in the case of leg in air where we dont want to indefinitely step.
@@ -429,12 +436,11 @@ public class IKStepper : MonoBehaviour {
         if (timeSinceLastStep < stepCooldown) {
             return false;
         }
-        if (asyncChain != null && asyncChain.getIsStepping()) {
-            return false;
-        }
-        //Carefull here could end in infinite loop
-        if (syncChain != null && syncChain.asyncChain != null && syncChain.asyncChain.getIsStepping()) {
-            return false;
+
+        foreach (var chain in asyncChain) {
+            if (chain != null && chain.getIsStepping()) {
+                return false;
+            }
         }
         return true;
     }
@@ -500,7 +506,7 @@ public class IKStepper : MonoBehaviour {
         }
 
         if (rayCasts) {
-            Color col =Color.black;
+            Color col = Color.black;
             foreach (var cast in casts) {
                 if (cast.Key.Contains("Default")) col = Color.magenta;
                 else if (cast.Key.Contains("Prediction")) col = Color.yellow;

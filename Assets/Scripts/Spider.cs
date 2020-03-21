@@ -196,6 +196,7 @@ public class Spider : MonoBehaviour {
         }
         isTurning = true;
         goalForward = Vector3.ProjectOnPlane(goalForward, transform.up);
+
         transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(goalForward, transform.up), turnSpeed * speed);
     }
 
