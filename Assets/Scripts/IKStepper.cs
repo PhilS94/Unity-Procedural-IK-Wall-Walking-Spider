@@ -16,33 +16,31 @@ public class IKStepper : MonoBehaviour {
     [Range(1, 10.0f)]
     public float debugIconScale;
 
-    [Header("Stepping")]
-
+    [Header("Step Layer")]
     public LayerMask stepLayer;
+
+    [Header("Leg Synchronicity")]
     public IKStepper[] asyncChain;
     public IKStepper[] syncChain;
 
-    [Range(1.0f, 2.0f)]
-    public float velocityPrediction = 1.5f;
-
+    [Header("Step Timing")]
+    public bool dynamicStepTime = true;
+    public float stepTimePerVelocity;
     [Range(0, 1.0f)]
     public float maxStepTime;
     private float stepTime;
 
-    [Range(0.0f, 10.0f)]
-    public float stepHeight;
-
     [Range(0.0f, 5.0f)]
-    public float stepCooldown = 0.5f;
+    public float stepCooldown = 0.0f;
     private float timeSinceLastStep;
 
     [Range(0.0f, 2.0f)]
     public float stopSteppingAfterSecondsStill;
 
+    [Header("Step Transition")]
+    [Range(0.0f, 10.0f)]
+    public float stepHeight;
     public AnimationCurve stepAnimation;
-
-    public CastMode castMode;
-    public float radius;
 
     [Header("Default Position")]
     [Range(-1.0f, 1.0f)]
@@ -52,11 +50,17 @@ public class IKStepper : MonoBehaviour {
     [Range(-1.0f, 1.0f)]
     public float defaultOffsetStride;
 
+    [Header("Default Overshoot Multiplier")]
+    [Range(1.0f, 2.0f)]
+    public float defaultOvershootMultiplier = 1.5f;
 
     [Header("Last Resort IK Target Position")]
     [Range(0f, 1.0f)]
     public float lastResortHeight;
 
+    [Header("Ray Casting")]
+    public CastMode castMode;
+    public float radius;
 
     [Header("Frontal Ray")]
     [Range(0f, 1f)]
@@ -283,27 +287,10 @@ public class IKStepper : MonoBehaviour {
 #endif
     }
 
-    /*
-     * Calculates a new target using the endeffector Position and a default position defined in this class.
-     * The new target position is a movement towards the default position but overshoots the default position using the velocity prediction
-     * Moreover the movement per second of the player multiplied with the steptime is added to the prediction to account for movement while stepping.
-     */
-    private TargetInfo calcNewTarget() {
-
-        LayerMask layer = stepLayer;
-
-        //If there is no collider in reach there is no need to calculate a new target, just return default here.
-        //This should cut down runtime cost if the spider is not grounded (e.g. in the air).
-        //However this does add an extra calculation if grounded, increases it slighly.
-        if (Physics.OverlapSphere(rootJoint.getRotationPoint(), chainLength, layer, QueryTriggerInteraction.Ignore) == null) {
-            return getLastResortTarget();
-        }
-
+    private Vector3 calculateDesiredPosition() {
         Vector3 endeffectorPosition = ikChain.getEndEffector().position;
         Vector3 defaultPosition = getDefault();
         Vector3 normal = spider.transform.up;
-
-        //Now predict step target
 
         // Option 1: Include spider movement in the prediction process: prediction += SpiderMoveVector * stepTime
         //      Problem:    Spider might stop moving while stepping, if this happens i will over predict
@@ -317,25 +304,42 @@ public class IKStepper : MonoBehaviour {
         //                  Or shoot more rays in the stepping process to somewhat adjust to the terrain changes?
 
 
-        // For now I choose Option 1:
+        // For now I choose Option 1
+
+        // Level end effector position with the default position in regards to the normal
         Vector3 start = Vector3.ProjectOnPlane(endeffectorPosition, normal);
         start = spider.transform.InverseTransformPoint(start);
         start.y = defaultPositionLocal.y;
         start = spider.transform.TransformPoint(start);
 
-        Vector3 overshoot = start + (defaultPosition - start) * velocityPrediction;
-        prediction = overshoot + spider.getCurrentVelocityPerSecond() * stepTime;
-
-        //Debug variables
-        lastEndEffectorPos = endeffectorPosition;
+        //Debug value
         projPrediction = start;
-        overshootPrediction = overshoot;
+        lastEndEffectorPos = endeffectorPosition;
 
-        //Now shoot rays using the prediction to find an actual point on a surface.
+        // Overshoot by velocity prediction
+        return start + (defaultPosition - start) * defaultOvershootMultiplier;
+    }
+
+    /*
+     * Calculates a new target using the endeffector Position and a default position defined in this class.
+     * The new target position is a movement towards the default position but overshoots the default position using the velocity prediction
+     * Moreover the movement per second of the player multiplied with the steptime is added to the prediction to account for movement while stepping.
+     */
+    private TargetInfo findTargetOnSurface() {
+
+        LayerMask layer = stepLayer;
+
+        //If there is no collider in reach there is no need to try to find a surface point, just return default here.
+        //This should cut down runtime cost if the spider is not grounded (e.g. in the air).
+        //However this does add an extra calculation if grounded, increasing it slighly.
+        if (Physics.OverlapSphere(rootJoint.getRotationPoint(), chainLength, layer, QueryTriggerInteraction.Ignore) == null) {
+            return getLastResortTarget();
+        }
 
         //Update Casts for new prediction point. Do this more smartly?
         updateCasts();
 
+        //Now shoot rays using the casts to find an actual point on a surface.
 
         //Iterate through all casts to until i find a target position.
         foreach (var cast in casts) {
@@ -374,14 +378,14 @@ public class IKStepper : MonoBehaviour {
     }
 
     /*
-    * Coroutine for stepping since i want to actually see the stepping process.
-    * If im not allowed to step yet (this happens if the async leg is currently stepping or my step cooldown hasnt finished yet,
+    * Coroutine for stepping.
+    * If im not allowed to step yet (this happens if one of the async legs is currently stepping or my step cooldown hasnt finished yet,
     * then ill wait until i can.
     */
     private IEnumerator Step() {
         if (pauseOnStep) Debug.Break();
 
-        // First wait until im allowed to step
+        /*Wait for until allowed to step */
         if (!allowedToStep()) {
             if (printDebugLogs) Debug.Log(gameObject.name + " is waiting for step now.");
             waitingForStep = true;
@@ -396,15 +400,31 @@ public class IKStepper : MonoBehaviour {
             waitingForStep = false;
         }
 
-        // Then start the stepping
+        /*Start to step */
         if (pauseOnStep) Debug.Break();
         if (printDebugLogs) Debug.Log(gameObject.name + " starts stepping now.");
 
-        // Calc current stepTime
-        stepTime = Mathf.Clamp(0.005f * spider.getScale() / ikChain.getEndeffectorVelocityPerSecond().magnitude, 0, maxStepTime);
-        TargetInfo newTarget = calcNewTarget();
+        //Calculate desired position
+        Vector3 desiredPosition = calculateDesiredPosition();
 
-        // We only step between of one of the positions is grounded. Otherwise we would be in the case of leg in air where we dont want to indefinitely step.
+        //Get the current velocity of the end effector
+        Vector3 endEffectorVelocity = ikChain.getEndeffectorVelocityPerSecond();
+
+        // Calculate and set step time
+        if (dynamicStepTime) {
+            float k = stepTimePerVelocity * spider.getScale(); //At v=1, this is the steptime
+            float magnitude = endEffectorVelocity.magnitude;
+            stepTime = (magnitude==0)? maxStepTime: Mathf.Clamp(k / magnitude, 0, maxStepTime);
+        }
+        else stepTime = maxStepTime;
+
+        // Correct the desired position with the current velocity since the spider will probably move away while stepping and set it to prediction
+        prediction = desiredPosition + endEffectorVelocity * stepTime;
+
+        // Finally find an actual target which lies on a surface point using the calculated prediction with raycasting
+        TargetInfo newTarget = findTargetOnSurface();
+
+        // We only step if either the old target or new one is grounded. Otherwise we would be in the case of leg in air where we dont want to step.
         // Try to think of a different way to implement this without using the grounded parameter?
         if (ikChain.getTarget().grounded || newTarget.grounded) {
             isStepping = true;
@@ -427,6 +447,9 @@ public class IKStepper : MonoBehaviour {
 
         ikChain.setTarget(newTarget);
         if (printDebugLogs) Debug.Log(gameObject.name + " completed stepping.");
+
+        //Debug variable
+        overshootPrediction = desiredPosition;
     }
 
     private bool allowedToStep() {
