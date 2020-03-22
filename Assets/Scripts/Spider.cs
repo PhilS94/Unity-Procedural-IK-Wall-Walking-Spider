@@ -29,12 +29,17 @@ public class Spider : MonoBehaviour {
     public Transform body;
     public IKChain[] legs;
 
+    [Header("Body Offset Height")]
+    public float bodyOffsetHeight;
+
     [Header("Leg Centroid")]
     public bool legCentroidAdjustment;
     [Range(0, 10)]
     public float legCentroidSpeed;
     [Range(0, 1)]
-    public float legCentroidWeight;
+    public float legCentroidNormalWeight;
+    [Range(0, 1)]
+    public float legCentroidTangentWeight;
 
     [Header("Leg Normal")]
     public bool legNormalAdjustment;
@@ -110,8 +115,8 @@ public class Spider : MonoBehaviour {
         //Initialize the bodyupLocal as the spiders transform.up parented to the body. Initialize the breathePivot as the body position parented to the spider
         bodyY = body.transform.InverseTransformDirection(transform.up);
         bodyZ = body.transform.InverseTransformDirection(transform.forward);
-        bodyDefaultCentroid = transform.InverseTransformPoint(body.transform.position);
-        bodyCentroid = body.transform.position;
+        bodyCentroid = body.transform.position + getScale() * bodyOffsetHeight * transform.up;
+        bodyDefaultCentroid = transform.InverseTransformPoint(bodyCentroid);
     }
 
     void FixedUpdate() {
@@ -147,9 +152,6 @@ public class Spider : MonoBehaviour {
         if (legCentroidAdjustment) {
             bodyCentroid = Vector3.Lerp(bodyCentroid, getLegCentroid(), Time.deltaTime * legCentroidSpeed);
             body.transform.position = bodyCentroid;
-            //Vector3 heightOffset = Vector3.Project((centroid + getColliderRadius() * Y) - body.transform.position, Y);
-            //body.transform.position += heightOffset * Mathf.Clamp(Time.deltaTime * (0.1f * normalAdjustSpeed * getScale()), 0f, 1f);
-            // What if im underground?
         }
 
         if (legNormalAdjustment) {
@@ -262,18 +264,23 @@ public class Spider : MonoBehaviour {
             return body.transform.position;
         }
 
-        Vector3 centroid = Vector3.zero;
+        Vector3 defaultCentroid = getDefaultCentroid();
+        Vector3 defaultOffset = Vector3.zero;
         float k = 0;
 
         //Calculate centroid from only grounded legs. Careful since this can lead to one sided centroid
         for (int i = 0; i < legs.Length; i++) {
             //if (!legs[i].getTarget().grounded) continue;
 
-            centroid += legs[i].getEndEffector().position;
+            defaultOffset += legs[i].getEndEffector().position -defaultCentroid;
             k++;
         }
-        centroid = centroid / k;
-        return Vector3.Lerp(getDefaultCentroid(), centroid, legCentroidWeight);
+        defaultOffset = defaultOffset / k;
+
+        Vector3 normalOffset = Vector3.Project(defaultOffset, transform.up);
+        Vector3 tangentialOffset = Vector3.ProjectOnPlane(defaultOffset, transform.up);
+
+        return defaultCentroid + Vector3.Lerp(Vector3.zero, normalOffset, legCentroidNormalWeight) + Vector3.Lerp(Vector3.zero, tangentialOffset, legCentroidTangentWeight);
     }
 
     // Calculate the normal of the plane defined by leg positions, so we know how to rotate the body
