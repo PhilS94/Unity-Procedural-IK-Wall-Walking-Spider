@@ -14,7 +14,7 @@ But how do i calculate the target position? When do i have to update it? There i
 Implementing an IK system together with a smart system of calculating and predicting target positions gave me the procedural animation i wanted.
 
 ## Showcase
-[![Watch Showcase](Spider Showcase Vimeo Preview.png)](https://vimeo.com/400710898)
+[![Watch Showcase](SpiderShowcaseVimeoPreview.png)](https://vimeo.com/400710898)
 
 ## Features
 There are a lot of IK systems out there. However, this projects goal isn't an implementation of a lot of fancy IK algorithms.
