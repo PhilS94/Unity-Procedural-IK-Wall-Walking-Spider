@@ -32,6 +32,7 @@ public class SmoothCamera : MonoBehaviour {
     public float camLowerAngleMargin = 60.0f;
 
     [Header("Camera Clipping")]
+    public bool hideObstructions;
     [Range(0, 1f)]
     public float rayRadiusForObstructions;
     public LayerMask cameraInvisibleClipLayer;
@@ -88,7 +89,7 @@ public class SmoothCamera : MonoBehaviour {
         RotateCameraHorizontal(Input.GetAxis("Mouse X") * XSensitivity, false);
         RotateCameraVertical(-Input.GetAxis("Mouse Y") * YSensitivity, false);
         clipCamera();
-        clipCameraInvisible();
+        if (hideObstructions) clipCameraInvisible();
     }
 
     private void LateUpdate() {
