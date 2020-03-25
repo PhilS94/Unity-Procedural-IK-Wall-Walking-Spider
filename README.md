@@ -30,4 +30,4 @@ The main focus of this project is to feed the IK algorithm the right smart targe
 ## Credits
 Special thanks to [Daniel Harrison](http://www.harrisondaniel.com/) for creating the spider model used in this project.
 
-MIT © Philipp Schofield()
+MIT © Philipp Schofield
