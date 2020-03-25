@@ -21,6 +21,8 @@ There are a lot of IK systems out there. However, this projects goal isn't an im
 The project uses a simple, yet tailored, CCD (Cyclic Coordinate Descent) algorithm.
 The main focus of this project is to feed the IK algorithm the right smart targets, configured and fine tuned for the spider such that it moves realistically without the use of any kind of animation.
 
+This project is still in early development and not finished.
+
 ## How to use?
 1. Create a new Unity project
 2. Drag and drop the files into your Unity project.
