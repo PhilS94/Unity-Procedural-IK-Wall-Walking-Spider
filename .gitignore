@@ -10,10 +10,24 @@
 /[Bb]uilds/
 /[Ll]ogs/
 /[Pp]ackages
-/[Pp]rojectSettings
-
-# Include certain project settings
-![Pp]rojectSettings/TagManager.asset
+/[Pp]rojectSettings/AudioManager.asset
+/[Pp]rojectSettings/ClusterInputManager.asset
+/[Pp]rojectSettings/DynamicsManager.asset
+/[Pp]rojectSettings/EditorBuildSettings.asset
+/[Pp]rojectSettings/EditorSettings.asset
+/[Pp]rojectSettings/GraphicsSettings.asset
+/[Pp]rojectSettings/InputManager.asset
+/[Pp]rojectSettings/NavMeshAreas.asset
+/[Pp]rojectSettings/NetworkManager.asset
+/[Pp]rojectSettings/Physics2DSettings.asset
+/[Pp]rojectSettings/PresetManager.asset
+/[Pp]rojectSettings/ProjectSettings.asset
+/[Pp]rojectSettings/QualitySettings.asset
+/[Pp]rojectSettings/TimeManager.asset
+/[Pp]rojectSettings/UnityConnectSettings.asset
+/[Pp]rojectSettings/VFXManager.asset
+/[Pp]rojectSettings/XRSettings.asset
+/[Pp]rojectSettings/ProjectVersion.txt
 
 # MemoryCaptures can get excessive in size.
 # They also could contain extremely sensitive data
