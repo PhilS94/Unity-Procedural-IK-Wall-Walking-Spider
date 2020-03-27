@@ -11,6 +11,8 @@
 /[Ll]ogs/
 /[Pp]ackages
 /[Pp]rojectSettings
+!/[Pp]rojectSettings/TagManager.asset
+
 # MemoryCaptures can get excessive in size.
 # They also could contain extremely sensitive data
 /[Mm]emoryCaptures/
@@ -59,9 +61,6 @@ sysinfo.txt
 # Builds
 *.apk
 *.unitypackage
-
-#Include certain project settings
-!/[Pp]rojectSettings/TagManager.asset
 
 # Crashlytics generated file
 crashlytics-build.properties
