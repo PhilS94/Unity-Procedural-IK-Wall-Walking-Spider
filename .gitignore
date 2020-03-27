@@ -10,8 +10,9 @@
 /[Bb]uilds/
 /[Ll]ogs/
 /[Pp]ackages
-/[Pp]rojectSettings
+
 !/[Pp]rojectSettings/TagManager.asset
+/[Pp]rojectSettings
 
 # MemoryCaptures can get excessive in size.
 # They also could contain extremely sensitive data
