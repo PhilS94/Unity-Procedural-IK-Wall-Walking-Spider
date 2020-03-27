@@ -212,6 +212,7 @@ public class SmoothCamera : MonoBehaviour {
         camToPlayer.draw(Color.white);
         DebugShapes.DrawRay(camToPlayer.getOrigin(), cameraClipMargin * camToPlayer.getDirection(), Color.black);
 
+        //Something buggy here
         float currentAngle = Vector3.SignedAngle(parent.transform.up, parent.transform.position - camTarget.position, camTarget.right);
         Vector3 v = Quaternion.AngleAxis(-currentAngle, camTarget.right) * camToPlayer.getDirection();
         Vector3 up = parent.TransformDirection(Quaternion.AngleAxis(camUpperAngleMargin, camTarget.right) * v);

@@ -51,7 +51,7 @@ public class IKChain : MonoBehaviour {
     private void Awake() {
         ikStepper = GetComponent<IKStepper>();
         validChain = isValidChain();
-        debugModeRay = new RayCast(debugTarget.position + 1.0f * Vector3.up, debugTarget.position - 1.0f * Vector3.up, debugTarget, debugTarget);
+        if (targetMode == TargetMode.DebugTarget) debugModeRay = new RayCast(debugTarget.position + 1.0f * Vector3.up, debugTarget.position - 1.0f * Vector3.up, debugTarget, debugTarget);
         lastEndeffectorPos = endEffector.position;
     }
 
