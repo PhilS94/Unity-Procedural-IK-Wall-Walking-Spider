@@ -2,17 +2,17 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class BuildDebugger : MonoBehaviour {
+public class SpiderModeSwitch : MonoBehaviour {
 
     public SpiderController spiderController;
     public SpiderNPCController spiderNPC;
-    public Camera spiderCam;
-    public Camera globalCam;
+    public Camera controllerCam;
+    public Camera npcCam;
 
     void Start() {
         //Start with spider camera enabled
-        if (spiderCam.enabled && globalCam.enabled) globalCam.enabled = false;
-        if (!spiderCam.enabled && !globalCam.enabled) spiderCam.enabled = true;
+        if (controllerCam.enabled && npcCam.enabled) npcCam.enabled = false;
+        if (!controllerCam.enabled && !npcCam.enabled) controllerCam.enabled = true;
 
         // Start with spider controller enabled
         if (spiderController.enabled && spiderNPC.enabled) spiderNPC.enabled = false;
@@ -21,8 +21,8 @@ public class BuildDebugger : MonoBehaviour {
     void Update() {
 
         if (Input.GetKeyDown(KeyCode.LeftShift)) {
-            spiderCam.enabled = !spiderCam.enabled;
-            globalCam.enabled = !globalCam.enabled;
+            controllerCam.enabled = !controllerCam.enabled;
+            npcCam.enabled = !npcCam.enabled;
             spiderNPC.enabled = !spiderNPC.enabled;
             spiderController.enabled = !spiderController.enabled;
         }

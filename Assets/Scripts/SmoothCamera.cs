@@ -14,9 +14,11 @@ public class SmoothCamera : MonoBehaviour {
     private Camera cam;
 
     [Header("Smoothness")]
+    public bool followPosition;
+    public bool followRotation;
     public float translationSpeed;
     public float rotationSpeed;
-    [Range(0,1)]
+    [Range(0, 1)]
     public float parentNormalCounterAdjust;
 
     [Header("Sensitivity")]
@@ -33,6 +35,7 @@ public class SmoothCamera : MonoBehaviour {
 
     [Header("Camera Clipping")]
     public bool hideObstructions;
+    public bool clipToLevelBorder;
     [Range(0, 1f)]
     public float rayRadiusForObstructions;
     public LayerMask cameraInvisibleClipLayer;
@@ -88,7 +91,7 @@ public class SmoothCamera : MonoBehaviour {
 
         RotateCameraHorizontal(Input.GetAxis("Mouse X") * XSensitivity, false);
         RotateCameraVertical(-Input.GetAxis("Mouse Y") * YSensitivity, false);
-        clipCamera();
+        if (clipToLevelBorder) clipCamera();
         if (hideObstructions) clipCameraInvisible();
     }
 
@@ -96,16 +99,19 @@ public class SmoothCamera : MonoBehaviour {
         /* Now do the lerping of the actual camera to the target for the smooth movement */
 
         // Translation Slerping
-        Vector3 a = parent.InverseTransformPoint(transform.position);
-        Vector3 b = parent.InverseTransformPoint(camTarget.position);
-        Vector3 c = Vector3.Slerp(a, b, Time.deltaTime * translationSpeed);
-        transform.position = parent.TransformPoint(c);
+        if (followPosition) {
+            Vector3 a = parent.InverseTransformPoint(transform.position);
+            Vector3 b = parent.InverseTransformPoint(camTarget.position);
+            Vector3 c = Vector3.Slerp(a, b, Time.deltaTime * translationSpeed);
+            transform.position = parent.TransformPoint(c);
+        }
 
 
         //Rotation Slerping
-        //transform.position = Vector3.SmoothDamp(transform.position, camTarget.position, ref velocity, lerpTime);
-        transform.rotation = Quaternion.Slerp(transform.rotation, camTarget.rotation, Time.deltaTime * rotationSpeed);
-
+        if (followRotation) {
+            //transform.position = Vector3.SmoothDamp(transform.position, camTarget.position, ref velocity, lerpTime);
+            transform.rotation = Quaternion.Slerp(transform.rotation, camTarget.rotation, Time.deltaTime * rotationSpeed);
+        }
         if (showDebug) drawDebug();
     }
 
