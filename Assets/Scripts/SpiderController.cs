@@ -10,7 +10,7 @@ public class SpiderController : MonoBehaviour {
     [Header("Camera")]
     public SmoothCamera smoothCam;
 
-    private void FixedUpdate() {
+    void FixedUpdate() {
         //** Movement **//
         Vector3 input = getInput();
 
