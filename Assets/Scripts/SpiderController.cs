@@ -30,8 +30,10 @@ public class SpiderController : MonoBehaviour {
     }
 
     private Vector3 getInput() {
-        Vector3 input = Vector3.ProjectOnPlane(smoothCam.transform.forward, spider.transform.up).normalized * Input.GetAxis("Vertical") + (Vector3.ProjectOnPlane(smoothCam.transform.right, spider.transform.up).normalized * Input.GetAxis("Horizontal"));
-        Quaternion fromTo = spider.getLookRotation(spider.transform.right, spider.getGroundNormal()) * Quaternion.Inverse(spider.transform.rotation);
+        Vector3 up = spider.transform.up;
+        Vector3 right = spider.transform.right;
+        Vector3 input = Vector3.ProjectOnPlane(smoothCam.getCameraTarget().forward,up).normalized * Input.GetAxis("Vertical") + (Vector3.ProjectOnPlane(smoothCam.getCameraTarget().right, up).normalized * Input.GetAxis("Horizontal"));
+        Quaternion fromTo = Quaternion.AngleAxis(Vector3.SignedAngle(up, spider.getGroundNormal(), right), right);
         input = fromTo * input;
         float magnitude = input.magnitude;
         return (magnitude <= 1) ? input : input /= magnitude;

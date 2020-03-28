@@ -125,13 +125,13 @@ public class Spider : MonoBehaviour {
 
         //** Rotation to normal **// 
         Vector3 slerpNormal = Vector3.Slerp(transform.up, grdInfo.groundNormal, 0.02f * normalAdjustSpeed);
-        Quaternion goalrotation = getLookRotation(transform.right, slerpNormal);
+        Quaternion fromTo = Quaternion.AngleAxis(Vector3.SignedAngle(transform.up, slerpNormal, transform.right), transform.right);
 
         // Save last Normal for access
         lastNormal = transform.up;
 
         //Apply the rotation to the spider
-        transform.rotation = goalrotation;
+        transform.rotation = fromTo * transform.rotation;
 
         // Dont apply gravity if close enough to ground
         if (grdInfo.distanceToGround > getGravityOffDistance()) {
@@ -178,17 +178,6 @@ public class Spider : MonoBehaviour {
             body.transform.position = bodyCentroid + amplitude * (Mathf.Sin(t) + 1f) * direction;
         }
 
-    }
-
-    /*
-     * Returns the rotation with specified right and up direction (right will be projected onto the plane given by up)
-     */
-    public Quaternion getLookRotation(Vector3 right, Vector3 up) {
-        if (up == Vector3.zero || right == Vector3.zero) return Quaternion.identity;
-        Vector3 projRight = Vector3.ProjectOnPlane(right, up);
-        if (projRight == Vector3.zero) return Quaternion.identity;
-        Vector3 forward = Vector3.Cross(projRight, up);
-        return Quaternion.LookRotation(forward, up);
     }
 
     public void turn(Vector3 goalForward, float speed = 1f) {
