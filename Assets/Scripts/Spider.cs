@@ -125,13 +125,13 @@ public class Spider : MonoBehaviour {
 
         //** Rotation to normal **// 
         Vector3 slerpNormal = Vector3.Slerp(transform.up, grdInfo.groundNormal, 0.02f * normalAdjustSpeed);
-        Quaternion fromTo = Quaternion.AngleAxis(Vector3.SignedAngle(transform.up, slerpNormal, transform.right), transform.right);
+        Quaternion goalrotation = getLookRotation(Vector3.ProjectOnPlane(transform.right, slerpNormal), slerpNormal);
 
         // Save last Normal for access
         lastNormal = transform.up;
 
         //Apply the rotation to the spider
-        transform.rotation = fromTo * transform.rotation;
+        transform.rotation = goalrotation;
 
         // Dont apply gravity if close enough to ground
         if (grdInfo.distanceToGround > getGravityOffDistance()) {
@@ -139,6 +139,19 @@ public class Spider : MonoBehaviour {
             rb.AddForce(-grdInfo.groundNormal * 0.0981f * getScale()); //Important using the groundnormal and not the lerping normal here!
         }
         else isFalling = false;
+    }
+
+    /*
+    * Returns the rotation with specified right and up direction   
+    * May have to make more error catches here. Whatif not orthogonal?
+    */
+    public Quaternion getLookRotation(Vector3 right, Vector3 up) {
+        if (up == Vector3.zero || right == Vector3.zero) return Quaternion.identity;
+        // If vectors are parallel return identity
+        float angle = Vector3.Angle(right, up);
+        if (angle == 0 || angle == 180) return Quaternion.identity;
+        Vector3 forward = Vector3.Cross(right, up);
+        return Quaternion.LookRotation(forward, up);
     }
 
     void Update() {
@@ -181,6 +194,8 @@ public class Spider : MonoBehaviour {
     }
 
     public void turn(Vector3 goalForward, float speed = 1f) {
+        //Make sure goalForward is orthogonal to transform up
+        goalForward = Vector3.ProjectOnPlane(goalForward, transform.up);
         if (goalForward == Vector3.zero || speed == 0) {
             isTurning = false;
             return;
@@ -261,7 +276,7 @@ public class Spider : MonoBehaviour {
         for (int i = 0; i < legs.Length; i++) {
             //if (!legs[i].getTarget().grounded) continue;
 
-            defaultOffset += legs[i].getEndEffector().position -defaultCentroid;
+            defaultOffset += legs[i].getEndEffector().position - defaultCentroid;
             k++;
         }
         defaultOffset = defaultOffset / k;
