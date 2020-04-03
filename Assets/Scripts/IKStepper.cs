@@ -21,15 +21,8 @@ public class IKStepper : MonoBehaviour {
 
     [Header("Leg Synchronicity")]
     public IKStepper[] asyncChain;
-    public IKStepper[] syncChain;
 
     [Header("Step Timing")]
-    public bool dynamicStepTime = true;
-    public float stepTimePerVelocity;
-    [Range(0, 1.0f)]
-    public float maxStepTime;
-    private float stepTime;
-
     [Range(0.0f, 5.0f)]
     public float stepCooldown = 0.0f;
     private float timeSinceLastStep;
@@ -92,7 +85,6 @@ public class IKStepper : MonoBehaviour {
     private IKChain ikChain;
 
     private bool isStepping = false;
-    private bool waitingForStep = false;
     private float timeStandingStill;
 
     private float minDistance;
@@ -257,24 +249,26 @@ public class IKStepper : MonoBehaviour {
         else return new SphereCast(start, end, radius, parentStart, parentEnd);
     }
 
-    public void stepCheck() {
+    public bool stepCheck() {
         // If im currently in the stepping process i have no business doing anything besides that.
-        if (isStepping || waitingForStep) return;
+        if (isStepping) return false;
 
         // If ive been standing still for a certain time, i dont allow any more stepping. This fixes the indefinite stepping going on.
         if (timeStandingStill > stopSteppingAfterSecondsStill) {
-            return;
+            return false;
         }
 
         //If current target not grounded step
-        if (!ikChain.getTarget().grounded) step();
+        if (!ikChain.getTarget().grounded) return true;
 
         //If the error of the IK solver gets too big, that is if it cant solve for the current target appropriately anymore, step.
         // This is the main way this class determines if it needs to step.
-        else if (ikChain.getError() > ikChain.getTolerance()) step();
+        else if (ikChain.getError() > ikChain.getTolerance()) return true;
 
         // Alternativaly step if too close to root joint
-        else if (Vector3.Distance(rootJoint.getRotationPoint(), ikChain.getTarget().position) < minDistance) step();
+        else if (Vector3.Distance(rootJoint.getRotationPoint(), ikChain.getTarget().position) < minDistance) return true;
+
+        return false;
     }
 
     private void Update() {
@@ -368,13 +362,9 @@ public class IKStepper : MonoBehaviour {
     * If im walking so fast that  one legs keeps wanna step after step complete, one leg might not step at all since its never able to
     * Could implement a some sort of a queue where i enqueue chains that want to step next?
     */
-    private void step() {
-        IEnumerator coroutineStepping = Step();
+    public void step(float stepTime) {
+        IEnumerator coroutineStepping = Step(stepTime);
         StartCoroutine(coroutineStepping);
-
-        foreach (var chain in syncChain) {
-            if (chain != null) chain.step();
-        }
     }
 
     /*
@@ -382,26 +372,9 @@ public class IKStepper : MonoBehaviour {
     * If im not allowed to step yet (this happens if one of the async legs is currently stepping or my step cooldown hasnt finished yet,
     * then ill wait until i can.
     */
-    private IEnumerator Step() {
+    private IEnumerator Step(float stepTime) {
         if (pauseOnStep) Debug.Break();
 
-        /*Wait for until allowed to step */
-        if (!allowedToStep()) {
-            if (printDebugLogs) Debug.Log(gameObject.name + " is waiting for step now.");
-            waitingForStep = true;
-            //ikChain.setTarget(new TargetInfo(ikChain.getTarget().position + spider.getCurrentVelocityPerFixedFrame() + stepHeight * 0.001f * spider.getScale() * spider.transform.up, ikChain.getTarget().normal));
-            yield return null;
-            ikChain.pauseSolving();
-
-            while (!allowedToStep()) {
-                yield return null;
-            }
-            ikChain.unpauseSolving();
-            waitingForStep = false;
-        }
-
-        /*Start to step */
-        if (pauseOnStep) Debug.Break();
         if (printDebugLogs) Debug.Log(gameObject.name + " starts stepping now.");
 
         //Calculate desired position
@@ -410,13 +383,7 @@ public class IKStepper : MonoBehaviour {
         //Get the current velocity of the end effector
         Vector3 endEffectorVelocity = ikChain.getEndeffectorVelocityPerSecond();
 
-        // Calculate and set step time
-        if (dynamicStepTime) {
-            float k = stepTimePerVelocity * spider.getScale(); //At v=1, this is the steptime
-            float magnitude = endEffectorVelocity.magnitude;
-            stepTime = (magnitude==0)? maxStepTime: Mathf.Clamp(k / magnitude, 0, maxStepTime);
-        }
-        else stepTime = maxStepTime;
+
 
         // Correct the desired position with the current velocity since the spider will probably move away while stepping and set it to prediction
         prediction = desiredPosition + endEffectorVelocity * stepTime;
@@ -452,7 +419,7 @@ public class IKStepper : MonoBehaviour {
         overshootPrediction = desiredPosition;
     }
 
-    private bool allowedToStep() {
+    public bool allowedToStep() {
         if (!ikChain.getTarget().grounded) {
             return true;
         }
@@ -461,7 +428,7 @@ public class IKStepper : MonoBehaviour {
         }
 
         foreach (var chain in asyncChain) {
-            if (chain != null && chain.getIsStepping()) {
+            if (chain.getIsStepping()) {
                 return false;
             }
         }
@@ -497,6 +464,10 @@ public class IKStepper : MonoBehaviour {
         return spider.transform.TransformPoint(frontalStartPositionLocal);
     }
 
+    public IKChain getIKChain() {
+        return ikChain;
+    }
+
     private void drawDebug(bool points = true, bool steppingProcess = true, bool rayCasts = true, bool DOFArc = true) {
 
         float scale = spider.getScale() * 0.0001f * debugIconScale;
@@ -513,7 +484,7 @@ public class IKStepper : MonoBehaviour {
             DebugShapes.DrawPoint(getBottomFocalPoint(), Color.green, scale);
 
             //Target Point
-            if (isStepping) DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, scale, 2 * stepTime);
+            if (isStepping) DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, scale, 0.2f);
             else DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, scale);
         }
 

@@ -100,9 +100,6 @@ public class IKChain : MonoBehaviour {
         // False, the spider changes bodytorso every frame through breathing, thus solving takes places every frame..
         if (!pause) solve();
 
-        //We only check if stepping is needed (and step if necessary) after a solve took place.
-        if (IKStepperActivated()) ikStepper.stepCheck();
-
         lastEndeffectorPos = endEffector.position;
     }
 
