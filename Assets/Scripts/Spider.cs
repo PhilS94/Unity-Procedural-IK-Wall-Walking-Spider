@@ -20,7 +20,9 @@ public class Spider : MonoBehaviour {
     [Range(0.001f, 1)]
     public float walkDrag;
     [Range(1, 10)]
-    public float normalAdjustSpeed;
+    public float groundNormalAdjustSpeed;
+    [Range(1, 10)]
+    public float forwardNormalAdjustSpeed;
     public LayerMask walkableLayer;
     [Range(0, 1)]
     public float gravityOffDistance;
@@ -82,15 +84,18 @@ public class Spider : MonoBehaviour {
     private SphereCast downRay, forwardRay;
     private RaycastHit hitInfo;
 
+    private enum RayType {None, ForwardRay, DownRay};
     private struct groundInfo {
         public bool isGrounded;
         public Vector3 groundNormal;
         public float distanceToGround;
+        public RayType rayType;
 
-        public groundInfo(bool isGrd, Vector3 normal, float dist) {
+        public groundInfo(bool isGrd, Vector3 normal, float dist, RayType m_rayType) {
             isGrounded = isGrd;
             groundNormal = normal;
             distanceToGround = dist;
+            rayType = m_rayType;
         }
     }
 
@@ -124,6 +129,8 @@ public class Spider : MonoBehaviour {
         grdInfo = GroundCheckSphere();
 
         //** Rotation to normal **// 
+        float normalAdjustSpeed = (grdInfo.rayType == RayType.ForwardRay)? forwardNormalAdjustSpeed :groundNormalAdjustSpeed;
+
         Vector3 slerpNormal = Vector3.Slerp(transform.up, grdInfo.groundNormal, 0.02f * normalAdjustSpeed);
         Quaternion goalrotation = getLookRotation(Vector3.ProjectOnPlane(transform.right, slerpNormal), slerpNormal);
 
@@ -246,17 +253,16 @@ public class Spider : MonoBehaviour {
 
     //** Ground Check Methods **//
     private groundInfo GroundCheckSphere() {
-        if (!groundCheckOn) return new groundInfo(false, Vector3.up, float.PositiveInfinity);
+        if (groundCheckOn) {
+            if (forwardRay.castRay(out hitInfo, walkableLayer)) {
+                return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - getColliderRadius(), RayType.ForwardRay);
+            }
 
-        if (forwardRay.castRay(out hitInfo, walkableLayer)) {
-            return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - getColliderRadius());
+            if (downRay.castRay(out hitInfo, walkableLayer)) {
+                return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - getColliderRadius(), RayType.DownRay);
+            }
         }
-
-        if (downRay.castRay(out hitInfo, walkableLayer)) {
-            return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - getColliderRadius());
-        }
-
-        return new groundInfo(false, Vector3.up, float.PositiveInfinity);
+        return new groundInfo(false, Vector3.up, float.PositiveInfinity,RayType.None);
     }
 
     //** IK-Chains (Legs) Methods **//

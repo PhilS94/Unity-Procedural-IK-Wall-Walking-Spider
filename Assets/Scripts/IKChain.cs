@@ -97,6 +97,7 @@ public class IKChain : MonoBehaviour {
         // We only want to solve if we moved away too much since our last solve.
         if (!hasMovementOccuredSinceLastSolve()) return;
         // In theory everything below will only be called if a fixedupdate took place prior to this update since that is the only way the spider moves.
+        // False, the spider changes bodytorso every frame through breathing, thus solving takes places every frame..
         if (!pause) solve();
 
         //We only check if stepping is needed (and step if necessary) after a solve took place.
