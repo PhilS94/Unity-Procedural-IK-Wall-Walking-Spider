@@ -346,7 +346,7 @@ public class IKStepper : MonoBehaviour {
                 //For the frontal ray we only allow not too steep slopes, that is +-65°
                 if (cast.Key == "Frontal" && Vector3.Angle(cast.Value.getDirection(), hitInfo.normal) < 180f - 65f) continue;
 
-                if (printDebugLogs) Debug.Log("Got a target point from the cast '" + cast.Key + "'lastHitRay = cast.Key.");
+                if (printDebugLogs) Debug.Log("Got a target point from the cast '" + cast.Key);
                 lastHitRay = cast.Key;
                 return new TargetInfo(hitInfo.point, hitInfo.normal);
 
@@ -439,9 +439,14 @@ public class IKStepper : MonoBehaviour {
         return isStepping;
     }
 
+    public bool isActive() {
+        return ikChain.IKStepperActive();
+    }
+
     private Vector3 getDefault() {
         return spider.transform.TransformPoint(defaultPositionLocal);
     }
+
     public TargetInfo getDefaultTarget() {
         return new TargetInfo(getDefault(), spider.transform.up);
     }

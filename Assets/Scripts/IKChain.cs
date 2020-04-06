@@ -58,9 +58,9 @@ public class IKChain : MonoBehaviour {
     private void Start() {
         if (!validChain) return;
 
-        if (targetMode == TargetMode.DebugTarget) setDebugTarget();
-        else if (targetMode == TargetMode.DebugTargetRay) setDebugTargetRay();
-        else if (targetMode == TargetMode.IKStepper) setTarget(ikStepper.getDefaultTarget());
+        if (targetMode == TargetMode.DebugTarget) currentTarget = getDebugTarget();
+        else if (targetMode == TargetMode.DebugTargetRay) currentTarget = getDebugTargetRay();
+        else if (targetMode == TargetMode.IKStepper) currentTarget = ikStepper.getDefaultTarget();
     }
 
     bool isValidChain() {
@@ -79,14 +79,14 @@ public class IKChain : MonoBehaviour {
     void Update() {
         if (deactivateSolving || !validChain) return;
 
-        if (targetMode == TargetMode.DebugTarget) setDebugTarget();
+        if (targetMode == TargetMode.DebugTarget) currentTarget = getDebugTarget();
     }
 
     private void FixedUpdate() {
 
         if (deactivateSolving || !validChain) return;
 
-        if (targetMode == TargetMode.DebugTargetRay) setDebugTargetRay();
+        if (targetMode == TargetMode.DebugTargetRay) currentTarget = getDebugTargetRay();
     }
 
     private void LateUpdate() {
@@ -97,7 +97,7 @@ public class IKChain : MonoBehaviour {
         // We only want to solve if we moved away too much since our last solve.
         if (!hasMovementOccuredSinceLastSolve()) return;
         // In theory everything below will only be called if a fixedupdate took place prior to this update since that is the only way the spider moves.
-        // False, the spider changes bodytorso every frame through breathing, thus solving takes places every frame..
+        // However, the spider changes bodytorso every frame through breathing, thus solving takes places every frame.
         if (!pause) solve();
 
         lastEndeffectorPos = endEffector.position;
@@ -124,18 +124,22 @@ public class IKChain : MonoBehaviour {
         return chainLength;
     }
 
-    private void setDebugTarget() {
-        setTarget(new TargetInfo(debugTarget.position, debugTarget.up));
+    private TargetInfo getDebugTarget() {
+        return new TargetInfo(debugTarget.position, debugTarget.up);
     }
 
-    private void setDebugTargetRay() {
+    private TargetInfo getDebugTargetRay() {
         debugModeRay.draw(Color.yellow);
         if (debugModeRay.castRay(out RaycastHit hitInfo, debugTargetRayLayer)) {
-            setTarget(new TargetInfo(hitInfo.point, hitInfo.normal));
+            return new TargetInfo(hitInfo.point, hitInfo.normal);
         }
         else {
-            setTarget(new TargetInfo(debugTarget.position, debugTarget.up));
+            return new TargetInfo(debugTarget.position, debugTarget.up);
         }
+    }
+
+    public bool IKStepperActive() {
+        return targetMode == TargetMode.IKStepper;
     }
 
     // Compare the current distance and the last registered error.
@@ -168,12 +172,13 @@ public class IKChain : MonoBehaviour {
     }
 
     // Use this setter to set the target for the CCD algorithm. The CCD runs with every frame update and uses this target.
+    // Dont allow external target manipulation if the debug modes are used.
     public void setTarget(TargetInfo target) {
+        if (targetMode != TargetMode.IKStepper) {
+            Debug.LogWarning("Not allowed to change target of IKChain " + gameObject.name + " since a debug mode is selected.");
+            return;
+        }
         currentTarget = target;
-    }
-
-    public bool IKStepperActivated() {
-        return (targetMode == TargetMode.IKStepper && !deactivateSolving && validChain);
     }
 
     public float getError() {
@@ -186,10 +191,6 @@ public class IKChain : MonoBehaviour {
 
     public void unpauseSolving() {
         pause = false;
-    }
-
-    public IKStepper getIKStepper() {
-        return ikStepper;
     }
 
     public Vector3 getEndeffectorVelocityPerSecond() {

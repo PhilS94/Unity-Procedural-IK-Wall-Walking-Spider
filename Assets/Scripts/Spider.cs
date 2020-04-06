@@ -36,7 +36,7 @@ public class Spider : MonoBehaviour {
 
     [Header("Leg Centroid")]
     public bool legCentroidAdjustment;
-    [Range(0, 10)]
+    [Range(0, 100)]
     public float legCentroidSpeed;
     [Range(0, 1)]
     public float legCentroidNormalWeight;
@@ -84,7 +84,7 @@ public class Spider : MonoBehaviour {
     private SphereCast downRay, forwardRay;
     private RaycastHit hitInfo;
 
-    private enum RayType {None, ForwardRay, DownRay};
+    private enum RayType { None, ForwardRay, DownRay };
     private struct groundInfo {
         public bool isGrounded;
         public Vector3 groundNormal;
@@ -129,7 +129,7 @@ public class Spider : MonoBehaviour {
         grdInfo = GroundCheckSphere();
 
         //** Rotation to normal **// 
-        float normalAdjustSpeed = (grdInfo.rayType == RayType.ForwardRay)? forwardNormalAdjustSpeed :groundNormalAdjustSpeed;
+        float normalAdjustSpeed = (grdInfo.rayType == RayType.ForwardRay) ? forwardNormalAdjustSpeed : groundNormalAdjustSpeed;
 
         Vector3 slerpNormal = Vector3.Slerp(transform.up, grdInfo.groundNormal, 0.02f * normalAdjustSpeed);
         Quaternion goalrotation = getLookRotation(Vector3.ProjectOnPlane(transform.right, slerpNormal), slerpNormal);
@@ -166,13 +166,12 @@ public class Spider : MonoBehaviour {
         if (showDebug) drawDebug();
 
         Vector3 Y = body.TransformDirection(bodyY);
-        bodyCentroid = getDefaultCentroid();
 
         //Doesnt work the way i want it too! On sphere i go underground. I jiggle around when i go down my centroid moves down to.(Depends on errortolerance of IKSolver)
-        if (legCentroidAdjustment) {
-            bodyCentroid = Vector3.Lerp(bodyCentroid, getLegCentroid(), Time.deltaTime * legCentroidSpeed);
-            body.transform.position = bodyCentroid;
-        }
+        if (legCentroidAdjustment) bodyCentroid = Vector3.Lerp(bodyCentroid, getLegCentroid(), Time.deltaTime * legCentroidSpeed);
+        else bodyCentroid = getDefaultCentroid();
+
+        body.transform.position = bodyCentroid;
 
         if (legNormalAdjustment) {
             Vector3 newNormal = GetLegsPlaneNormal();
@@ -262,35 +261,36 @@ public class Spider : MonoBehaviour {
                 return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - getColliderRadius(), RayType.DownRay);
             }
         }
-        return new groundInfo(false, Vector3.up, float.PositiveInfinity,RayType.None);
+        return new groundInfo(false, Vector3.up, float.PositiveInfinity, RayType.None);
     }
 
     //** IK-Chains (Legs) Methods **//
 
     // Calculate the centroid (center of gravity) given by all end effector positions of the legs
     private Vector3 getLegCentroid() {
-        if (legs == null) {
+        if (legs == null || legs.Length == 0) {
             Debug.LogError("Cant calculate leg centroid, legs not assigned.");
             return body.transform.position;
         }
-
         Vector3 defaultCentroid = getDefaultCentroid();
-        Vector3 defaultOffset = Vector3.zero;
+        // Calculate the centroid of legs position
+        Vector3 newCentroid = Vector3.zero;
         float k = 0;
-
-        //Calculate centroid from only grounded legs. Careful since this can lead to one sided centroid
         for (int i = 0; i < legs.Length; i++) {
-            //if (!legs[i].getTarget().grounded) continue;
-
-            defaultOffset += legs[i].getEndEffector().position - defaultCentroid;
+            newCentroid += legs[i].getEndEffector().position;
             k++;
         }
-        defaultOffset = defaultOffset / k;
+        newCentroid = newCentroid / k;
 
-        Vector3 normalOffset = Vector3.Project(defaultOffset, transform.up);
-        Vector3 tangentialOffset = Vector3.ProjectOnPlane(defaultOffset, transform.up);
+        // Offset the calculated centroid
+        Vector3 offset = Vector3.Project(defaultCentroid - getColliderBottomPoint(), transform.up);
+        newCentroid += offset;
 
-        return defaultCentroid + Vector3.Lerp(Vector3.zero, normalOffset, legCentroidNormalWeight) + Vector3.Lerp(Vector3.zero, tangentialOffset, legCentroidTangentWeight);
+        // Calculate the normal and tangential translation needed
+        Vector3 normalPart = Vector3.Project(newCentroid - defaultCentroid, transform.up);
+        Vector3 tangentPart = Vector3.ProjectOnPlane(newCentroid - defaultCentroid, transform.up);
+
+        return defaultCentroid + Vector3.Lerp(Vector3.zero, normalPart, legCentroidNormalWeight) + Vector3.Lerp(Vector3.zero, tangentPart, legCentroidTangentWeight);
     }
 
     // Calculate the normal of the plane defined by leg positions, so we know how to rotate the body
@@ -372,6 +372,11 @@ public class Spider : MonoBehaviour {
         //Draw the current transform.up and the bodys current Y orientation
         Debug.DrawLine(transform.position, transform.position + 2f * getColliderRadius() * transform.up, new Color(1, 0.5f, 0, 1));
         Debug.DrawLine(transform.position, transform.position + 2f * getColliderRadius() * body.TransformDirection(bodyY), Color.blue);
+
+        //Draw the Centroids 
+        DebugShapes.DrawPoint(getDefaultCentroid(), Color.magenta, 0.1f);
+        DebugShapes.DrawPoint(getLegCentroid(), Color.red, 0.1f);
+        DebugShapes.DrawPoint(getColliderBottomPoint(), Color.cyan, 0.1f);
     }
 
 #if UNITY_EDITOR
