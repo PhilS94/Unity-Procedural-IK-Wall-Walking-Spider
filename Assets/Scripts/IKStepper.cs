@@ -4,14 +4,14 @@ using UnityEngine;
 using Raycasting;
 
 /*
- * This class requires an IKChain to function and supploes it with the ability to perform steps.
+ * This class requires an IKChain to function and supplies it with the ability to perform steps.
  * It contains all the logic in order for the IKChain to perform realistic steps to actual geometrical surface points.
  * Moreover, it supports asyncronicity to other legs.
  * 
  * This class itself does not perform any kind of stepping but rather allows another class to externally call the following functions:
  * stepCheck()      : Checks whether this chain desires to step or not
  * allowedToStep()  : Checks whether this chain is able/allowed to step (e.g. asynchronicity and step cooldown affect this)
- * step()           : Calculates a new surface points and performs a step towards it.
+ * step()           : Calculates a new surface points and performs a step towards it by updating the IKChains target.
  * 
  * The IKStepManager manages these calls.
  */
