@@ -3,13 +3,25 @@ using System.Collections.Generic;
 using UnityEngine;
 using Raycasting;
 
+/*
+ * This class requires an IKChain to function and supploes it with the ability to perform steps.
+ * It contains all the logic in order for the IKChain to perform realistic steps to actual geometrical surface points.
+ * Moreover, it supports asyncronicity to other legs.
+ * 
+ * This class itself does not perform any kind of stepping but rather allows another class to externally call the following functions:
+ * stepCheck()      : Checks whether this chain desires to step or not
+ * allowedToStep()  : Checks whether this chain is able/allowed to step (e.g. asynchronicity and step cooldown affect this)
+ * step()           : Calculates a new surface points and performs a step towards it.
+ * 
+ * The IKStepManager manages these calls.
+ */
+
 [RequireComponent(typeof(IKChain))]
 public class IKStepper : MonoBehaviour {
 
     public Spider spider;
 
     [Header("Debug")]
-
     public bool showDebug;
     public bool printDebugLogs;
     public bool pauseOnStep = false;
@@ -26,7 +38,6 @@ public class IKStepper : MonoBehaviour {
     [Range(0.0f, 5.0f)]
     public float stepCooldown = 0.0f;
     private float timeSinceLastStep;
-
     [Range(0.0f, 2.0f)]
     public float stopSteppingAfterSecondsStill;
 
@@ -138,6 +149,10 @@ public class IKStepper : MonoBehaviour {
         updateCasts();
     }
 
+    /*
+     * This function calculates the default position using the parameters: Stride, Length and Height
+     * This default position is an important anchor point used for new step point calculation.
+     */
     private Vector3 calculateDefault() {
         float diameter = chainLength - minDistance;
         Vector3 rootRotAxis = rootJoint.getRotationAxis();
@@ -249,6 +264,23 @@ public class IKStepper : MonoBehaviour {
         else return new SphereCast(start, end, radius, parentStart, parentEnd);
     }
 
+    private void Update() {
+        timeSinceLastStep += Time.deltaTime;
+        if (!spider.getIsMoving()) timeStandingStill += Time.deltaTime;
+        else timeStandingStill = 0f;
+
+#if UNITY_EDITOR
+        if (showDebug && UnityEditor.Selection.Contains(transform.gameObject)) drawDebug();
+#endif
+    }
+
+    /*
+     * This funciton will perform a step check for the leg.
+     * It will return true if a step is needed right now and return false if no step is needed.
+     * The main way this is determined is by the error of the IK solve,
+     * that is if the current error is greater than the threshold specified, a step is needed.
+     * This is under the assumption that the leg isnt currently stepping and is not forbidden to step.
+     */
     public bool stepCheck() {
         // If im currently in the stepping process i have no business doing anything besides that.
         if (isStepping) return false;
@@ -271,16 +303,90 @@ public class IKStepper : MonoBehaviour {
         return false;
     }
 
-    private void Update() {
-        timeSinceLastStep += Time.deltaTime;
-        if (!spider.getIsMoving()) timeStandingStill += Time.deltaTime;
-        else timeStandingStill = 0f;
+    /*
+     * This functions determines wheter this leg is allowed to step or not.
+     * If this legs target is currently airborne, stepping will always be allowed.
+     * Under the assumption that this legs step cooldown period is done, it will only be allowed to step,
+     * if the references to the async legs are not currently stepping.
+     * 
+     * TODO: Add a check of isStepping? I think i never call this if im stepping but still.
+     */
+    public bool allowedToStep() {
+        if (isStepping) return false;
 
-#if UNITY_EDITOR
-        if (showDebug && UnityEditor.Selection.Contains(transform.gameObject)) drawDebug();
-#endif
+        if (!ikChain.getTarget().grounded) return true;
+
+        if (timeSinceLastStep < stepCooldown) return false;
+
+        foreach (var chain in asyncChain) {
+            if (chain.getIsStepping()) {
+                return false;
+            }
+        }
+        return true;
     }
 
+    /*
+     * This function calls the coroutine of stepping.
+     * It will not be called in this class itself but it will be called externally.
+     */
+    public void step(float stepTime) {
+        StopAllCoroutines(); // Make sure it is ok to just stop the coroutine without finishing it
+        StartCoroutine(Step(stepTime));
+    }
+
+    /*
+    * Coroutine for stepping.
+    * Below functions will be called to calculate a new target.
+    * Then the current target will be lerping from the old to the new one in an arch, given by the stepAnimation, in the time frame given.
+    */
+    private IEnumerator Step(float stepTime) {
+        if (pauseOnStep) Debug.Break();
+
+        if (printDebugLogs) Debug.Log(gameObject.name + " starts stepping now.");
+
+        //Calculate desired position
+        Vector3 desiredPosition = calculateDesiredPosition();
+        overshootPrediction = desiredPosition; // Save this value for debug
+
+        //Get the current velocity of the end effector and correct the desired position with it since the spider will move away while stepping  
+        //Set the this new value as the prediction
+        Vector3 endEffectorVelocity = ikChain.getEndeffectorVelocityPerSecond();
+        prediction = desiredPosition + endEffectorVelocity * stepTime;
+
+        // Finally find an actual target which lies on a surface point using the calculated prediction with raycasting
+        TargetInfo newTarget = findTargetOnSurface();
+
+        // We only step if either the old target or new one is grounded. Otherwise we would be in the case of a leg in air where we dont want to step in an arch.
+        // Try to think of a different way to implement this without using the grounded parameter?
+        if (ikChain.getTarget().grounded || newTarget.grounded) {
+            isStepping = true;
+            TargetInfo lastTarget = ikChain.getTarget();
+            TargetInfo lerpTarget;
+            float time = Time.deltaTime;
+
+            while (time < stepTime) {
+                lerpTarget.position = Vector3.Lerp(lastTarget.position, newTarget.position, time / stepTime) + stepHeight * 0.01f * spider.getScale() * stepAnimation.Evaluate(time / stepTime) * spider.transform.up;
+                lerpTarget.normal = Vector3.Lerp(lastTarget.normal, newTarget.normal, time / stepTime);
+                lerpTarget.grounded = false;
+
+                time += Time.deltaTime;
+                ikChain.setTarget(lerpTarget);
+                yield return null;
+            }
+            isStepping = false;
+            timeSinceLastStep = 0.0f;
+        }
+
+        ikChain.setTarget(newTarget);
+        if (printDebugLogs) Debug.Log(gameObject.name + " completed stepping.");
+    }
+
+    /* This function calculates the position the leg desires to step to if a step would be performed.
+     * A line is drawn from the current end effector position to the default position,
+     * but the line will be overextended a bit , where the amount is given by the overshootMultiplier.
+     * All of this happens on the plane given by the spiders up direction at default position height.
+     */
     private Vector3 calculateDesiredPosition() {
         Vector3 endeffectorPosition = ikChain.getEndEffector().position;
         Vector3 defaultPosition = getDefault();
@@ -315,9 +421,9 @@ public class IKStepper : MonoBehaviour {
     }
 
     /*
-     * Calculates a new target using the endeffector Position and a default position defined in this class.
-     * The new target position is a movement towards the default position but overshoots the default position using the velocity prediction
-     * Moreover the movement per second of the player multiplied with the steptime is added to the prediction to account for movement while stepping.
+     * This function tries to find a new target on any valid surface.
+     * The parameter 'prediction' is used to construct ray casts that will scan the surrounding topology.
+     * This function will return the target it has found. If no surface point was found, a last resort target is returned.
      */
     private TargetInfo findTargetOnSurface() {
 
@@ -358,95 +464,23 @@ public class IKStepper : MonoBehaviour {
         return getLastResortTarget();
     }
 
-    /*
-    * If im walking so fast that  one legs keeps wanna step after step complete, one leg might not step at all since its never able to
-    * Could implement a some sort of a queue where i enqueue chains that want to step next?
-    */
-    public void step(float stepTime) {
-        IEnumerator coroutineStepping = Step(stepTime);
-        StartCoroutine(coroutineStepping);
+    // Getters for important references
+    public IKChain getIKChain() {
+        return ikChain;
     }
 
-    /*
-    * Coroutine for stepping.
-    * If im not allowed to step yet (this happens if one of the async legs is currently stepping or my step cooldown hasnt finished yet,
-    * then ill wait until i can.
-    */
-    private IEnumerator Step(float stepTime) {
-        if (pauseOnStep) Debug.Break();
-
-        if (printDebugLogs) Debug.Log(gameObject.name + " starts stepping now.");
-
-        //Calculate desired position
-        Vector3 desiredPosition = calculateDesiredPosition();
-
-        //Get the current velocity of the end effector
-        Vector3 endEffectorVelocity = ikChain.getEndeffectorVelocityPerSecond();
-
-
-
-        // Correct the desired position with the current velocity since the spider will probably move away while stepping and set it to prediction
-        prediction = desiredPosition + endEffectorVelocity * stepTime;
-
-        // Finally find an actual target which lies on a surface point using the calculated prediction with raycasting
-        TargetInfo newTarget = findTargetOnSurface();
-
-        // We only step if either the old target or new one is grounded. Otherwise we would be in the case of leg in air where we dont want to step.
-        // Try to think of a different way to implement this without using the grounded parameter?
-        if (ikChain.getTarget().grounded || newTarget.grounded) {
-            isStepping = true;
-            TargetInfo lastTarget = ikChain.getTarget();
-            TargetInfo lerpTarget;
-            float time = Time.deltaTime;
-
-            while (time < stepTime) {
-                lerpTarget.position = Vector3.Lerp(lastTarget.position, newTarget.position, time / stepTime) + stepHeight * 0.01f * spider.getScale() * stepAnimation.Evaluate(time / stepTime) * spider.transform.up;
-                lerpTarget.normal = Vector3.Lerp(lastTarget.normal, newTarget.normal, time / stepTime);
-                lerpTarget.grounded = false;
-
-                time += Time.deltaTime;
-                ikChain.setTarget(lerpTarget);
-                yield return null;
-            }
-            isStepping = false;
-            timeSinceLastStep = 0.0f;
-        }
-
-        ikChain.setTarget(newTarget);
-        if (printDebugLogs) Debug.Log(gameObject.name + " completed stepping.");
-
-        //Debug variable
-        overshootPrediction = desiredPosition;
-    }
-
-    public bool allowedToStep() {
-        if (!ikChain.getTarget().grounded) {
-            return true;
-        }
-        if (timeSinceLastStep < stepCooldown) {
-            return false;
-        }
-
-        foreach (var chain in asyncChain) {
-            if (chain.getIsStepping()) {
-                return false;
-            }
-        }
-        return true;
-    }
-
+    // Getters for important states
     private bool getIsStepping() {
         return isStepping;
     }
-
     public bool isActive() {
         return ikChain.IKStepperActive();
     }
 
+    // Getters for important points
     private Vector3 getDefault() {
         return spider.transform.TransformPoint(defaultPositionLocal);
     }
-
     public TargetInfo getDefaultTarget() {
         return new TargetInfo(getDefault(), spider.transform.up);
     }
@@ -456,23 +490,19 @@ public class IKStepper : MonoBehaviour {
     private TargetInfo getLastResortTarget() {
         return new TargetInfo(getLastResort(), spider.transform.up, false);
     }
-
     private Vector3 getTopFocalPoint() {
         return spider.transform.TransformPoint(rayTopFocalPoint);
     }
-
     private Vector3 getBottomFocalPoint() {
         return spider.transform.TransformPoint(rayBottomFocalPoint);
     }
-
     private Vector3 getFrontalStartPosition() {
         return spider.transform.TransformPoint(frontalStartPositionLocal);
     }
 
-    public IKChain getIKChain() {
-        return ikChain;
-    }
-
+    /*
+     * This function will perform debug drawing using Gizmos.
+     */
     private void drawDebug(bool points = true, bool steppingProcess = true, bool rayCasts = true, bool DOFArc = true) {
 
         float scale = spider.getScale() * 0.0001f * debugIconScale;
@@ -526,9 +556,10 @@ public class IKStepper : MonoBehaviour {
     }
 
 
-
-
 #if UNITY_EDITOR
+    /*
+     * This function is called from Unity Editor even when not in play mode, allowing debug drawing to be performed.
+     */
     private void OnDrawGizmosSelected() {
         if (UnityEditor.EditorApplication.isPlaying) return;
         if (!UnityEditor.Selection.Contains(transform.gameObject)) return;

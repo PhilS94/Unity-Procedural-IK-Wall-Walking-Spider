@@ -2,8 +2,14 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+/*
+ * This class holds references to each IKStepper of the legs and manages the stepping of them.
+ * So instead of each leg managing its stepping on its own, this class acts as the brain and decides when each leg should step.
+ * It uses the step checking function in the IKStepper to determine if a step is wanted for a leg, and then handles it by calling
+ * the step function in the IKStepper when the time is right to step.
+ */
 
-[DefaultExecutionOrder(+1)] // Make sure this step checking is called after CCD solve call in each IKChain
+[DefaultExecutionOrder(+1)] // Make sure all the stepping logic is called after the IK was solved in each IKChain
 public class IKStepManager : MonoBehaviour {
     public bool printDebugLogs;
 
@@ -24,13 +30,17 @@ public class IKStepManager : MonoBehaviour {
      *                              by the groups.
      *                              
      * Queue Wait:  This mode stores the legs that want to step in a queue and performs the stepping in the order of the queue.
-     *              This mode will always prioritie the next leg in the queue and will wait until it is able to step.
+     *              This mode will always prioritize the next leg in the queue and will wait until it is able to step.
      *              This however can and will inhibit the other legs from stepping if the waiting period is too long.
-     *              Each leg will be inhibited to step as long as the async legs, specified in the IKStepper are stepping.
+     *              Unlike the above mode, this mode uses the asyncronicity defined in each leg to determine whether a leg is 
+     *              allowed to step or not. Each leg will be inhibited to step as long as these async legs are stepping.
      *              
      * Queue No Wait:   This mode is analog to the above with the exception of not waiting for each next leg in the queue.
      *                  The legs will still be iterated through in queue order but if a leg is not able to step,
      *                  we still continue iterating and perform steps for the following legs if they are able to.
+     *                  So to be more specific, this is not a queue in the usual sense. It is a list of legs that need stepping,
+     *                  which will be iterated through in order and if the k-th leg is allowed to step, it will step
+     *                  and the k-th element of this list will be removed.
      */
 
     [Header("Step Mode")]
@@ -54,9 +64,9 @@ public class IKStepManager : MonoBehaviour {
     [Range(0, 1.0f)]
     public float maxStepTime;
 
+    public enum GaitStepForcing { NoForcing, ForceIfOneLegSteps, ForceAlways }
     [Header("Debug")]
-    public bool forceStepGaitGroupIfOneLegSteps = false;
-    public bool forceStepGaitGroupAlways = false;
+    public GaitStepForcing gaitStepForcing;
 
     private void Awake() {
 
@@ -97,13 +107,15 @@ public class IKStepManager : MonoBehaviour {
     }
 
     private void LateUpdate() {
-        if (stepMode == StepMode.AlternatingTetrapodGait) gaitStepMode();
-        else queueStepMode();
+        if (stepMode == StepMode.AlternatingTetrapodGait) AlternatingTetrapodGait();
+        else QueueStepMode();
     }
 
-    private void queueStepMode() {
+    private void QueueStepMode() {
 
-        /* Perform step checks for all legs not already waiting to step. */
+        /* Perform the step checks for all legs not already waiting to step.
+         * If a step is needed, enqueue them.
+         */
         foreach (var ikStepper in ikSteppers) {
 
             // Check if Leg isnt already waiting for step.
@@ -119,12 +131,16 @@ public class IKStepManager : MonoBehaviour {
 
         if (printDebugLogs) printQueue();
 
-        /* Perform stepping in queue order for all legs eligible to step. If one is eligible, break.*/
+        /* Iterate through the step queue in order and check if legs are eligible to step.
+         * If legs are able to step, let them step.
+         * If not, we have two cases:   If the current mode selected is the QueueWait mode, then stop the iteration.
+         *                              If the current mode selected is the QueueNoWait mode, simply continue with the iteration.
+         */
         int k = 0;
         foreach (var ikStepper in stepQueue.ToArray()) {
             if (ikStepper.allowedToStep()) {
                 ikStepper.getIKChain().unpauseSolving();
-                ikStepper.step(calculateStepTimeFromLeg(ikStepper)); //Important here that isStepping will be refreshed inside ikstepper
+                ikStepper.step(calculateStepTime(ikStepper));
                 // Remove the stepping leg from the list:
                 waitingForStep[ikStepper.GetInstanceID()] = false;
                 stepQueue.RemoveAt(k);
@@ -133,27 +149,37 @@ public class IKStepManager : MonoBehaviour {
             else {
                 if (printDebugLogs) Debug.Log(ikStepper.name + " is not allowed to step.");
 
-                // Stop here if i selected to wait for first element in queue to step first
+                // Stop iteration here if Queue Wait mode is selected
                 if (stepMode == StepMode.QueueWait) {
                     if (printDebugLogs) Debug.Log("Wait selected, thus stepping ends for this frame.");
                     break;
                 }
-                k++; // Increment k by one here since i do not remove the current element from the list.
+                k++; // Increment k by one here since i did not remove the current element from the list.
             }
         }
 
-        /* Iterate through all the legs that are still waiting for step to perform logic on them */
+        /* Iterate through all the legs that are still in queue, and therefore werent allowed to step.
+         * For them pause the IK solving while they are waiting.
+         */
         foreach (var ikStepper in stepQueue) {
             ikStepper.getIKChain().pauseSolving();
         }
     }
 
-    private void gaitStepMode() {
+    private void AlternatingTetrapodGait() {
+
+        // If the next switch time isnt reached yet, do nothing.
         if (Time.time < nextSwitchTime) return;
 
-        //Switch groups and set new switch time
+
+        /* Since switch time is reached, switch groups and set new switch time.
+         * Note that in the case of dynamic step time, it would not make sense to have each leg assigned its own step time
+         * since i want the stepping to be completed at the same time in order to switch to next group again.
+         * Thus, i simply calculate the average step time of the current group and use it for all legs.
+         * TODO: Add a random offset to the steptime of each leg to imitate nature more closely and use the max value as the next switch time
+         */
         currentGaitGroup = (currentGaitGroup == gaitGroupA) ? gaitGroupB : gaitGroupA;
-        float stepTime = calculateStepTimeFromLegsAverage();
+        float stepTime = calculateAverageStepTime(currentGaitGroup);
         nextSwitchTime = Time.time + stepTime;
 
         if (printDebugLogs) {
@@ -161,10 +187,14 @@ public class IKStepManager : MonoBehaviour {
             Debug.Log(text);
         }
 
-        if (forceStepGaitGroupAlways) {
+        /* Now perform the stepping for the current gait group.
+         * A leg in the gait group will only step if a step is needed.
+         * However, for debug purposes depending on which force mode is selected the other legs can be forced to step anyway.
+         */
+        if (gaitStepForcing == GaitStepForcing.ForceAlways) {
             foreach (var ikStepper in currentGaitGroup) ikStepper.step(stepTime);
         }
-        else if (forceStepGaitGroupIfOneLegSteps) {
+        else if (gaitStepForcing == GaitStepForcing.ForceIfOneLegSteps) {
             bool b = false;
             foreach (var ikStepper in currentGaitGroup) {
                 b = b || ikStepper.stepCheck();
@@ -179,7 +209,7 @@ public class IKStepManager : MonoBehaviour {
         }
     }
 
-    private float calculateStepTimeFromLeg(IKStepper ikStepper) {
+    private float calculateStepTime(IKStepper ikStepper) {
         if (dynamicStepTime) {
             float k = stepTimePerVelocity * spider.getScale(); // At velocity=1, this is the steptime
             float velocityMagnitude = ikStepper.getIKChain().getEndeffectorVelocityPerSecond().magnitude;
@@ -188,23 +218,13 @@ public class IKStepManager : MonoBehaviour {
         else return maxStepTime;
     }
 
-    private float calculateStepTimeFromLegsAverage() {
+    private float calculateAverageStepTime(List<IKStepper> ikSteppers) {
         if (dynamicStepTime) {
             float stepTime = 0;
             foreach (var ikStepper in ikSteppers) {
-                stepTime += calculateStepTimeFromLeg(ikStepper);
+                stepTime += calculateStepTime(ikStepper);
             }
-            stepTime /= ikSteppers.Count;
-            return stepTime;
-        }
-        else return maxStepTime;
-    }
-
-    private float calculateStepTimeFromSpiderVelocity() {
-        if (dynamicStepTime) {
-            float k = stepTimePerVelocity * spider.getScale(); // At velocity=1, this is the steptime
-            float velocityMagnitude = spider.getCurrentVelocityPerSecond().magnitude;
-            return (velocityMagnitude == 0) ? maxStepTime : Mathf.Clamp(k / velocityMagnitude, 0, maxStepTime);
+            return stepTime / ikSteppers.Count;
         }
         else return maxStepTime;
     }

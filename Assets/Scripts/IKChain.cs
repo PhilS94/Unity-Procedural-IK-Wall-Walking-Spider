@@ -65,12 +65,12 @@ public class IKChain : MonoBehaviour {
 
     bool isValidChain() {
         if ((debugTarget == null) && ((targetMode == TargetMode.DebugTarget) || (targetMode == TargetMode.DebugTargetRay))) {
-            Debug.LogError("Please assign a Target Transform when using this mode.");
+            Debug.LogError("Please assign a Target Transform when using a debug mode.");
             return false;
         }
 
         if ((ikStepper == null) && (targetMode == TargetMode.IKStepper)) {
-            Debug.LogError("Please assign a IKStepper Component when using this mode.");
+            Debug.LogError("Please assign a IKStepper Component when using IKStepper mode.");
             return false;
         }
         return true;
@@ -103,6 +103,9 @@ public class IKChain : MonoBehaviour {
         lastEndeffectorPos = endEffector.position;
     }
 
+    /*
+     * This function performs a call to the IKSolvers CCD algorithm, which then solves this chain to the current target.
+     */
     private void solve() {
 
         if (solveFrameByFrame) {
@@ -116,6 +119,9 @@ public class IKChain : MonoBehaviour {
         }
     }
 
+    /*
+     * This functions calculates the length of the IK chain.
+     */
     public float calculateChainLength() {
         float chainLength = 0;
         for (int i = 0; i < joints.Length - 1; i++) {
@@ -124,6 +130,7 @@ public class IKChain : MonoBehaviour {
         return chainLength;
     }
 
+    // Target functions
     private TargetInfo getDebugTarget() {
         return new TargetInfo(debugTarget.position, debugTarget.up);
     }
@@ -138,14 +145,52 @@ public class IKChain : MonoBehaviour {
         }
     }
 
+    /* Use this setter to externally set the target for the CCD algorithm.
+     * The CCD runs with every late frame update and uses this target.
+     * Dont allow external target manipulation if the debug modes are used.
+     */
+    public void setTarget(TargetInfo target) {
+        if (targetMode != TargetMode.IKStepper) {
+            Debug.LogWarning("Not allowed to change target of IKChain " + gameObject.name + " since a debug mode is selected.");
+            return;
+        }
+        currentTarget = target;
+    }
+
+    // Getters for important references
+    public AHingeJoint getRootJoint() {
+        return joints[0];
+    }
+
+    public Transform getEndEffector() {
+        return endEffector;
+    }
+
+    public TargetInfo getTarget() {
+        return currentTarget;
+    }
+
+    // Getters and Setters for important states
     public bool IKStepperActive() {
         return targetMode == TargetMode.IKStepper;
+    }
+    public void pauseSolving() {
+        pause = true;
+    }
+
+    public void unpauseSolving() {
+        pause = false;
     }
 
     // Compare the current distance and the last registered error.
     // If the distance changed, either the target or the endeffector moved (e.g. the spider moved), thus we need to solve again.
     private bool hasMovementOccuredSinceLastSolve() {
         return (Mathf.Abs(Vector3.Distance(endEffector.position, currentTarget.position) - error) > float.Epsilon);
+    }
+
+    // Getters for important values
+    public float getError() {
+        return error;
     }
     public float getTolerance() {
         return transform.lossyScale.y * 0.00001f * tolerance;
@@ -159,43 +204,10 @@ public class IKChain : MonoBehaviour {
         return transform.lossyScale.y * 0.00001f * singularityRadius;
     }
 
-    public AHingeJoint getRootJoint() {
-        return joints[0];
-    }
-
-    public Transform getEndEffector() {
-        return endEffector;
-    }
-
-    public TargetInfo getTarget() {
-        return currentTarget;
-    }
-
-    // Use this setter to set the target for the CCD algorithm. The CCD runs with every frame update and uses this target.
-    // Dont allow external target manipulation if the debug modes are used.
-    public void setTarget(TargetInfo target) {
-        if (targetMode != TargetMode.IKStepper) {
-            Debug.LogWarning("Not allowed to change target of IKChain " + gameObject.name + " since a debug mode is selected.");
-            return;
-        }
-        currentTarget = target;
-    }
-
-    public float getError() {
-        return error;
-    }
-
-    public void pauseSolving() {
-        pause = true;
-    }
-
-    public void unpauseSolving() {
-        pause = false;
-    }
-
     public Vector3 getEndeffectorVelocityPerSecond() {
         return endEffectorVelocity;
     }
+
 
 #if UNITY_EDITOR
     void OnDrawGizmosSelected() {
