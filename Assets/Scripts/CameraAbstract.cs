@@ -162,14 +162,18 @@ public abstract class CameraAbstract : MonoBehaviour {
     }
 
     private void clipZoom() {
-        clipZoomRayPlayerToCam.setEnd(transform.position); // Maybe use camTarget
+        clipZoomRayPlayerToCam.setEnd(camTarget.position); // Could use actual cam position instead of target, but this works more cleanly with more control
         clipZoomRayPlayerToCam.setDistance(maxCameraDistance);
 
         if (clipZoomRayPlayerToCam.castRay(out hitInfo, clipZoomLayer)) {
-            // Only move the actual cam but not the target.
-            // This lead to jittering since the cam wants to move back by lerping in LateUpdate.
-            // For now this is the simplest implementation
+            //Move the target and cam to the hit point.
+            // I might want to have a small margin here though,
+            //but this would introduce making sure to never get too close, or even pass the observed objects position
             transform.position = hitInfo.point;
+            camTarget.position = hitInfo.point;
+        } else {
+            // Move the target to the end point, so cam can lerp smoothly back. This works only because the ray is constructed through the target and not actual cam
+            camTarget.position = clipZoomRayPlayerToCam.getEnd();
         }
     }
 
