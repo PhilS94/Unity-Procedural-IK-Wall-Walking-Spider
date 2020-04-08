@@ -12,7 +12,7 @@ public class DebugShapes : MonoBehaviour {
     }
 
     public static void DrawRay(Vector3 pos, Vector3 direction, float distance, Color col, float duration = 0f) {
-        Debug.DrawLine(pos, direction.normalized * distance, col, duration);
+        Debug.DrawLine(pos, pos + direction.normalized * distance, col, duration);
     }
 
     public static void DrawPoint(Vector3 pos, Color col, float scale, float duration = 0.0f) {

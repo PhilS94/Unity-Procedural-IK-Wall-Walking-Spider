@@ -41,6 +41,10 @@ public abstract class CameraAbstract : MonoBehaviour {
     [Header("Camera Clip Zoom")]
     public bool enableClipZoom;
     public LayerMask clipZoomLayer;
+    [Range(0, 1)]
+    public float clipZoomPaddingFactor;
+    [Range(0, 1)]
+    public float clipZoomMinDistanceFactor;
 
     private RayCast clipZoomRayPlayerToCam;
     private float maxCameraDistance;
@@ -165,13 +169,24 @@ public abstract class CameraAbstract : MonoBehaviour {
         clipZoomRayPlayerToCam.setEnd(camTarget.position); // Could use actual cam position instead of target, but this works more cleanly with more control
         clipZoomRayPlayerToCam.setDistance(maxCameraDistance);
 
+        Vector3 direction = clipZoomRayPlayerToCam.getDirection().normalized;
         if (clipZoomRayPlayerToCam.castRay(out hitInfo, clipZoomLayer)) {
-            //Move the target and cam to the hit point.
-            // I might want to have a small margin here though,
-            //but this would introduce making sure to never get too close, or even pass the observed objects position
-            transform.position = hitInfo.point;
-            camTarget.position = hitInfo.point;
-        } else {
+
+            //Add padding
+            Vector3 newPosition = hitInfo.point - direction * clipZoomPaddingFactor * maxCameraDistance;
+
+            //If either the padding sent me beyond the observed object  OR if im too close to the object, resort to min distance
+            Vector3 v = newPosition - observedObject.position;
+            float minDistance = maxCameraDistance * clipZoomMinDistanceFactor;
+            if (Vector3.Angle(v, direction) > 45f || Vector3.Distance(observedObject.position, newPosition) < minDistance) {
+                newPosition = observedObject.position + direction * minDistance;
+            }
+
+            // Move the target and cam to the new point
+            transform.position = newPosition;
+            camTarget.position = newPosition;
+        }
+        else {
             // Move the target to the end point, so cam can lerp smoothly back. This works only because the ray is constructed through the target and not actual cam
             camTarget.position = clipZoomRayPlayerToCam.getEnd();
         }
@@ -239,10 +254,12 @@ public abstract class CameraAbstract : MonoBehaviour {
         Debug.DrawLine(transform.position, observedObject.position, Color.gray);
 
         //Draw the hide obstruction Ray
-        hideRayCamToPlayer.draw(Color.black);
+        //hideRayCamToPlayer.draw(Color.black);
 
         //Draw the ZoomClip Ray, this isnt up to date since the cam has already lerped before this is called
         clipZoomRayPlayerToCam.draw(Color.white);
+        DebugShapes.DrawRay(clipZoomRayPlayerToCam.getOrigin(), clipZoomRayPlayerToCam.getDirection(), clipZoomMinDistanceFactor*maxCameraDistance, Color.blue);
+        DebugShapes.DrawRay(clipZoomRayPlayerToCam.getEnd(), -clipZoomRayPlayerToCam.getDirection(), clipZoomPaddingFactor*maxCameraDistance, Color.red);
 
         //Draw the angle restrictions
         Vector3 zeroOrientation = getHorizontalRotationAxis();
