@@ -14,6 +14,13 @@ public struct TargetInfo {
     }
 }
 
+/* This class provides the inverse kinematics solving algorithm.
+ * A call to the desired solving function with a reference to the joint chain and the desired target, as well as other parameters,
+ * will solve that chain for the given target.
+ * 
+ * As of now the only implemented algorithm is the CCD, which is called by the function solveChainCCD().
+ */
+
 public class IKSolver : MonoBehaviour {
 
     private static int maxIterations = 10;
@@ -62,6 +69,7 @@ public class IKSolver : MonoBehaviour {
         }
     }
 
+    // Solves the specific joint for the CCD solver
     private static void solveJointCCD(ref AHingeJoint joint, ref Transform endEffector, ref TargetInfo target, float singularityRadius, bool adjustToTargetNormal) {
         Vector3 rotPoint = joint.getRotationPoint();
         Vector3 rotAxis = joint.getRotationAxis();
@@ -158,7 +166,7 @@ public class IKSolver : MonoBehaviour {
 
     }
 
-    // Slighly messy since Unity does not provide Matrix class so i had to work with two dimensional arrays and convert to Vector3 if needed
+    // Slighly messy since Unity does not provide dynamic Matrix class so i had to work with two dimensional arrays and convert to Vector3 if needed
     // Havent tested this thorougly yet, so dont call this
     public static void solveJacobianTranspose(ref AHingeJoint[] joints, Transform endEffector, TargetInfo target, float tolerance, bool hasFoot = false) {
         Vector3 error = target.position - endEffector.position;

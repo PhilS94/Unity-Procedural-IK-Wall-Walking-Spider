@@ -77,7 +77,7 @@ public class IKStepManager : MonoBehaviour {
         // Remove all inactive IKSteppers
         int k = 0;
         foreach (var ikStepper in ikSteppers.ToArray()) {
-            if (!ikStepper.isActive()) ikSteppers.RemoveAt(k);
+            if (!ikStepper.allowedTargetManipulationAccess()) ikSteppers.RemoveAt(k);
             else k++;
         }
 
@@ -92,12 +92,12 @@ public class IKStepManager : MonoBehaviour {
         // Remove all inactive IKSteppers from the Groups
         k = 0;
         foreach (var ikStepper in gaitGroupA.ToArray()) {
-            if (!ikStepper.isActive()) gaitGroupA.RemoveAt(k);
+            if (!ikStepper.allowedTargetManipulationAccess()) gaitGroupA.RemoveAt(k);
             else k++;
         }
         k = 0;
         foreach (var ikStepper in gaitGroupB.ToArray()) {
-            if (!ikStepper.isActive()) gaitGroupB.RemoveAt(k);
+            if (!ikStepper.allowedTargetManipulationAccess()) gaitGroupB.RemoveAt(k);
             else k++;
         }
 

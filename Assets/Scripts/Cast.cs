@@ -9,6 +9,10 @@ namespace Raycasting {
         SphereCast
     }
 
+    /*
+     * Class representing a position relative to a given parent transform.
+     * Basically mimics parenting an object to a parent, but only for position, without creating new transforms.
+     */
     public class PositionRelative {
         private Vector3 position;
         private Transform parent;
@@ -35,6 +39,16 @@ namespace Raycasting {
         }
     }
 
+    /*
+     * Abstract class representing a raycast by origin and end point.
+     * Provides us with functions for casting as well as debug drawing.
+     * The power of this class is that the origin and end points are relative positions, which enables us to parent them to
+     * other transforms. Thus, if a raycasts origin and end point are always fixed relative to a certain transform,
+     * the raycast would only need to be initialized once and never in need for an update.
+     * 
+     * The abstractness follows from the fact that a cast can either be a raycast or a spherecast,
+     * each with their own casting and debug drawing functions. Both classes are implemented below.
+     */
     public abstract class Cast {
 
         protected PositionRelative origin;

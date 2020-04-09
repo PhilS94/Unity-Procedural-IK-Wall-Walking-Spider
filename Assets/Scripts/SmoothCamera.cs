@@ -4,10 +4,12 @@ using UnityEngine;
 
 /*
  * Inherits from abstract class CameraAbstract and manipulates the camera target by simply parenting it to the observed object.
- * Moreover a rollDamp is implemented which will rotate the camera target back vertically.
- * E.g. for rollDamp=0.5f the camera will only rotate halfway, which is useful for the spider which climbs walls.
- * We do not want the camera to completely stick to the spiders change of orientation but only follow it to a certain degree.
+ * Moreover, a rollDamp is implemented which will rotate the camera target back vertically whenever the observed object rotates.
+ * E.g. for rollDamp=0.5f the camera will only rotate halfway, which is useful for the spider which climbs walls, as the camera
+ * then only somewhat follows the spiders rotation but still "guides".
+ * This is what we want since completely sticking the camera to the spiders change of orientation feels clunky.
  */
+
 [RequireComponent(typeof(Camera))]
 public class SmoothCamera : CameraAbstract {
 
@@ -15,20 +17,20 @@ public class SmoothCamera : CameraAbstract {
     [Range(0, 1)]
     public float rollDamp;
 
-    private Vector3 lastParentNormal;
+    private Vector3 lastObservedObjectNormal;
 
     protected override void Awake() {
         base.Awake();
-        lastParentNormal = observedObject.up;
+        lastObservedObjectNormal = observedObject.up;
         camTarget.parent = observedObject;
     }
 
     protected override void Update() {
         base.Update();
         if (rollDamp != 0) {
-            float angle = Vector3.SignedAngle(lastParentNormal, observedObject.up, camTarget.right);
+            float angle = Vector3.SignedAngle(lastObservedObjectNormal, observedObject.up, camTarget.right);
             RotateCameraVertical(rollDamp * -angle);
-            lastParentNormal = observedObject.up;
+            lastObservedObjectNormal = observedObject.up;
         }
     }
 

@@ -1,6 +1,11 @@
 ﻿using UnityEngine;
 using System.Collections;
 
+/*
+ * Class for debug drawing certain shapes.
+ * Creates the specified shapes by the use of multiple Debug.DrawLine calls.
+ */
+
 public class DebugShapes : MonoBehaviour {
 
     public static void DrawLine(Vector3 pos, Vector3 end, Color col, float duration = 0f) {

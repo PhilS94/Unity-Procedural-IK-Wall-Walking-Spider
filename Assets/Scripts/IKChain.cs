@@ -5,11 +5,17 @@ using UnityEditor;
 using Raycasting;
 
 public enum TargetMode {
-    IKStepper,
+    ExternallyHandled,
     DebugTarget,
     DebugTargetRay
 }
 
+/*
+ * This class represents a chain of hinge joints together with an end effector.
+ * It is supplied with a target, for which the chain will give a call to the IKSolvers CCD algorithm every LateUpdate to be solved.
+ * The target can be set externally by the setTarget() function only if the ExternallyHandled target mode is selected.
+ * In the other two debug modes this class handles the target on its own by the set Transform target.
+ */
 public class IKChain : MonoBehaviour {
 
     [Header("Debug")]
@@ -36,7 +42,6 @@ public class IKChain : MonoBehaviour {
 
     // Assign these if corresponding mode is selected
     public Transform debugTarget;
-    private IKStepper ikStepper;
 
     private TargetInfo currentTarget;
     private float error = 0.0f;
@@ -49,7 +54,6 @@ public class IKChain : MonoBehaviour {
     private Vector3 lastEndeffectorPos;
 
     private void Awake() {
-        ikStepper = GetComponent<IKStepper>();
         validChain = isValidChain();
         if (targetMode == TargetMode.DebugTarget) debugModeRay = new RayCast(debugTarget.position + 1.0f * Vector3.up, debugTarget.position - 1.0f * Vector3.up, debugTarget, debugTarget);
         lastEndeffectorPos = endEffector.position;
@@ -60,21 +64,18 @@ public class IKChain : MonoBehaviour {
 
         if (targetMode == TargetMode.DebugTarget) currentTarget = getDebugTarget();
         else if (targetMode == TargetMode.DebugTargetRay) currentTarget = getDebugTargetRay();
-        else if (targetMode == TargetMode.IKStepper) currentTarget = ikStepper.getDefaultTarget();
     }
 
+    /* Initialization methods */
     bool isValidChain() {
         if ((debugTarget == null) && ((targetMode == TargetMode.DebugTarget) || (targetMode == TargetMode.DebugTargetRay))) {
             Debug.LogError("Please assign a Target Transform when using a debug mode.");
             return false;
         }
-
-        if ((ikStepper == null) && (targetMode == TargetMode.IKStepper)) {
-            Debug.LogError("Please assign a IKStepper Component when using IKStepper mode.");
-            return false;
-        }
         return true;
     }
+
+    /* Update calls*/
 
     void Update() {
         if (deactivateSolving || !validChain) return;
@@ -89,6 +90,7 @@ public class IKChain : MonoBehaviour {
         if (targetMode == TargetMode.DebugTargetRay) currentTarget = getDebugTargetRay();
     }
 
+    /* Late Update calls the solve function which will solve this IK chain */
     private void LateUpdate() {
         if (deactivateSolving || !validChain) return;
 
@@ -103,9 +105,7 @@ public class IKChain : MonoBehaviour {
         lastEndeffectorPos = endEffector.position;
     }
 
-    /*
-     * This function performs a call to the IKSolvers CCD algorithm, which then solves this chain to the current target.
-     */
+    /* This function performs a call to the IKSolvers CCD algorithm, which then solves this chain to the current target. */
     private void solve() {
 
         if (solveFrameByFrame) {
@@ -119,9 +119,7 @@ public class IKChain : MonoBehaviour {
         }
     }
 
-    /*
-     * This functions calculates the length of the IK chain.
-     */
+    /* Calculates the length of the IK chain. */
     public float calculateChainLength() {
         float chainLength = 0;
         for (int i = 0; i < joints.Length - 1; i++) {
@@ -130,7 +128,7 @@ public class IKChain : MonoBehaviour {
         return chainLength;
     }
 
-    // Target functions
+    /* Target functions */
     private TargetInfo getDebugTarget() {
         return new TargetInfo(debugTarget.position, debugTarget.up);
     }
@@ -150,7 +148,7 @@ public class IKChain : MonoBehaviour {
      * Dont allow external target manipulation if the debug modes are used.
      */
     public void setTarget(TargetInfo target) {
-        if (targetMode != TargetMode.IKStepper) {
+        if (targetMode != TargetMode.ExternallyHandled) {
             Debug.LogWarning("Not allowed to change target of IKChain " + gameObject.name + " since a debug mode is selected.");
             return;
         }
@@ -171,13 +169,12 @@ public class IKChain : MonoBehaviour {
     }
 
     // Getters and Setters for important states
-    public bool IKStepperActive() {
-        return targetMode == TargetMode.IKStepper;
+    public bool isTargetExternallyHandled() {
+        return targetMode == TargetMode.ExternallyHandled;
     }
     public void pauseSolving() {
         pause = true;
     }
-
     public void unpauseSolving() {
         pause = false;
     }

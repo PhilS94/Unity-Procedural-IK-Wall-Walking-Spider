@@ -121,6 +121,7 @@ public class IKStepper : MonoBehaviour {
 
     private void Awake() {
         ikChain = GetComponent<IKChain>();
+
         rootJoint = ikChain.getRootJoint();
         timeSinceLastStep = 2 * stepCooldown; // Make sure im allowed to step at start
         timeStandingStill = 0f;
@@ -147,6 +148,9 @@ public class IKStepper : MonoBehaviour {
         // Initialize Casts as either RayCast or SphereCast 
         casts = new Dictionary<string, Cast>();
         updateCasts();
+
+        //Set Start Target for IKChain
+        ikChain.setTarget(getDefaultTarget());
     }
 
     /*
@@ -473,8 +477,9 @@ public class IKStepper : MonoBehaviour {
     private bool getIsStepping() {
         return isStepping;
     }
-    public bool isActive() {
-        return ikChain.IKStepperActive();
+
+    public bool allowedTargetManipulationAccess() {
+        return ikChain.isTargetExternallyHandled();
     }
 
     // Getters for important points

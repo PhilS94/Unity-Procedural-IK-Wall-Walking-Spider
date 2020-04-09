@@ -3,7 +3,18 @@ using System.Collections.Generic;
 using UnityEngine;
 using Raycasting;
 
-[DefaultExecutionOrder(0)]
+/*
+ * This class represents the actual spider. It is responsible for "glueing" it to the surfaces around it. This is accomplished by
+ * creating a fake gravitational force in the direction of the surface normal it is standing on. The surface normal is determined
+ * by spherical raycasting downwards, as well as forwards for wall-climbing.
+ * 
+ * The torso of the spider will move and rotate depending on the height of the referenced legs to mimic "spinal movement".
+ * 
+ * The spider does not move on its own. Therefore a controller should call the provided functions walk() and turn() for
+ * the desired control.
+ */
+
+[DefaultExecutionOrder(0)] // Any controller of this spider should have default execution -1
 public class Spider : MonoBehaviour {
 
     private Rigidbody rb;
@@ -126,7 +137,7 @@ public class Spider : MonoBehaviour {
 
     void FixedUpdate() {
         //** Ground Check **//
-        grdInfo = GroundCheckSphere();
+        grdInfo = GroundCheck();
 
         //** Rotation to normal **// 
         float normalAdjustSpeed = (grdInfo.rayType == RayType.ForwardRay) ? forwardNormalAdjustSpeed : groundNormalAdjustSpeed;
@@ -148,19 +159,6 @@ public class Spider : MonoBehaviour {
         else isFalling = false;
     }
 
-    /*
-    * Returns the rotation with specified right and up direction   
-    * May have to make more error catches here. Whatif not orthogonal?
-    */
-    public Quaternion getLookRotation(Vector3 right, Vector3 up) {
-        if (up == Vector3.zero || right == Vector3.zero) return Quaternion.identity;
-        // If vectors are parallel return identity
-        float angle = Vector3.Angle(right, up);
-        if (angle == 0 || angle == 180) return Quaternion.identity;
-        Vector3 forward = Vector3.Cross(right, up);
-        return Quaternion.LookRotation(forward, up);
-    }
-
     void Update() {
         //** Debug **//
         if (showDebug) drawDebug();
@@ -168,7 +166,7 @@ public class Spider : MonoBehaviour {
         Vector3 Y = body.TransformDirection(bodyY);
 
         //Doesnt work the way i want it too! On sphere i go underground. I jiggle around when i go down my centroid moves down to.(Depends on errortolerance of IKSolver)
-        if (legCentroidAdjustment) bodyCentroid = Vector3.Lerp(bodyCentroid, getLegCentroid(), Time.deltaTime * legCentroidSpeed);
+        if (legCentroidAdjustment) bodyCentroid = Vector3.Lerp(bodyCentroid, getLegsCentroid(), Time.deltaTime * legCentroidSpeed);
         else bodyCentroid = getDefaultCentroid();
 
         body.transform.position = bodyCentroid;
@@ -199,6 +197,10 @@ public class Spider : MonoBehaviour {
 
     }
 
+
+    //** Movement methods for public access**//
+    // It is advised to call these on a fixed update basis.
+
     public void turn(Vector3 goalForward, float speed = 1f) {
         //Make sure goalForward is orthogonal to transform up
         goalForward = Vector3.ProjectOnPlane(goalForward, transform.up);
@@ -212,7 +214,6 @@ public class Spider : MonoBehaviour {
         transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(goalForward, transform.up), turnSpeed * speed);
     }
 
-    //Only call this in fixed frame!
     public void walk(Vector3 direction) {
         // TODO: Make sure direction is on the XZ plane of spider! For this maybe refactor the logic from input from spidercontroller to this function.
         if (direction == Vector3.zero) isWalking = false;
@@ -234,24 +235,8 @@ public class Spider : MonoBehaviour {
         transform.position += currentVelocity;
     }
 
-    public bool getIsMoving() {
-        return isWalking || isTurning || isFalling;
-    }
-
-    public Vector3 getCurrentVelocityPerSecond() {
-        return currentVelocity / Time.fixedDeltaTime;
-    }
-
-    public Vector3 getCurrentVelocityPerFixedFrame() {
-        return currentVelocity;
-    }
-
-    public Vector3 getLastNormal() {
-        return lastNormal;
-    }
-
-    //** Ground Check Methods **//
-    private groundInfo GroundCheckSphere() {
+    //** Ground Check Method **//
+    private groundInfo GroundCheck() {
         if (groundCheckOn) {
             if (forwardRay.castRay(out hitInfo, walkableLayer)) {
                 return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - getColliderRadius(), RayType.ForwardRay);
@@ -264,10 +249,25 @@ public class Spider : MonoBehaviour {
         return new groundInfo(false, Vector3.up, float.PositiveInfinity, RayType.None);
     }
 
-    //** IK-Chains (Legs) Methods **//
+    //** Helper methods**//
+
+    /*
+    * Returns the rotation with specified right and up direction   
+    * May have to make more error catches here. Whatif not orthogonal?
+    */
+    private Quaternion getLookRotation(Vector3 right, Vector3 up) {
+        if (up == Vector3.zero || right == Vector3.zero) return Quaternion.identity;
+        // If vectors are parallel return identity
+        float angle = Vector3.Angle(right, up);
+        if (angle == 0 || angle == 180) return Quaternion.identity;
+        Vector3 forward = Vector3.Cross(right, up);
+        return Quaternion.LookRotation(forward, up);
+    }
+
+    //** Torso adjust methods for more realistic movement **//
 
     // Calculate the centroid (center of gravity) given by all end effector positions of the legs
-    private Vector3 getLegCentroid() {
+    private Vector3 getLegsCentroid() {
         if (legs == null || legs.Length == 0) {
             Debug.LogError("Cant calculate leg centroid, legs not assigned.");
             return body.transform.position;
@@ -319,9 +319,29 @@ public class Spider : MonoBehaviour {
         return newNormal;
     }
 
-    //** Get Methods **//
+
+    //** Getters **//
     public float getScale() {
         return transform.lossyScale.y;
+    }
+
+    public bool getIsMoving() {
+        return isWalking || isTurning || isFalling;
+    }
+
+    public Vector3 getCurrentVelocityPerSecond() {
+        return currentVelocity / Time.fixedDeltaTime;
+    }
+
+    public Vector3 getCurrentVelocityPerFixedFrame() {
+        return currentVelocity;
+    }
+    public Vector3 getGroundNormal() {
+        return grdInfo.groundNormal;
+    }
+
+    public Vector3 getLastNormal() {
+        return lastNormal;
     }
 
     public float getColliderRadius() {
@@ -351,10 +371,8 @@ public class Spider : MonoBehaviour {
     public float getGravityOffDistance() {
         return gravityOffDistance * getColliderRadius();
     }
-    public Vector3 getGroundNormal() {
-        return grdInfo.groundNormal;
-    }
 
+    //** Setters **//
     public void setGroundcheck(bool b) {
         groundCheckOn = b;
     }
@@ -375,7 +393,7 @@ public class Spider : MonoBehaviour {
 
         //Draw the Centroids 
         DebugShapes.DrawPoint(getDefaultCentroid(), Color.magenta, 0.1f);
-        DebugShapes.DrawPoint(getLegCentroid(), Color.red, 0.1f);
+        DebugShapes.DrawPoint(getLegsCentroid(), Color.red, 0.1f);
         DebugShapes.DrawPoint(getColliderBottomPoint(), Color.cyan, 0.1f);
     }
 

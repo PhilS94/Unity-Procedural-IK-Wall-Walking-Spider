@@ -5,10 +5,25 @@ using UnityEngine.Rendering;
 using Raycasting;
 
 /*
- * Abstract class for camera movement.
- * Important notice: This abstract class does not manipulate the camera target used for lerping and thus every
- * class inheriting from this has to take care of this itself. This is intended as different types of camera want to manipulate
- * the cameras target differently.
+ * An Abstract class for camera movement.
+ * 
+ * It is an implementation of a smoothly lerping camera towards a given target. This includes translational and rotational interpolation.
+ * Limits to vertical rotation can be set, the interpolation type for smooth movement can be choosen,
+ * as well as and sensitiviy to mouse movement.
+ * 
+ * The observed object must be set, which is usually the player (e.g. the spider) and this class handles other objects obstructing
+ * the view to this observed object in two ways:
+ * 
+ * Obstruction Hiding: Simply render the geometry invisible while it is obstructing.
+ * Clip Zoom: Zoom in more closely to avoid the obstruction.
+ * 
+ * Both have their own adjustable layers, so it is completely configurable for which objects what method should be used.
+ * It is advised to use the Clip Zoom for level borders where the camera would otherwise be out of bounds, and use the obstruction 
+ * hiding method for simple small objects.
+ * 
+ * The reason for this class to be abstract is that the camera target manipulation can have several different implementations.
+ * E.g. simply parenting it to the observed objects or ignoring rotational change of the observed object but following translational change.
+ * Moreover, the rotational axes for vertical and horizontal camera movement can vary, e.g. local Y or global Y axis, and must thus be defined separately.
  */
 public abstract class CameraAbstract : MonoBehaviour {
     public bool showDebug;
@@ -74,6 +89,8 @@ public abstract class CameraAbstract : MonoBehaviour {
 
     }
 
+    /* Initialization methods */
+
     // For the target, create new Gameobject with same position and rotation as this camera currently is
     private void setupCamTarget() {
         GameObject g = new GameObject(gameObject.name + " Target");
@@ -102,9 +119,7 @@ public abstract class CameraAbstract : MonoBehaviour {
         if (enableObstructionHiding) hideObstructions();
     }
 
-    /*
-     * Late Update performs the interpolation of the camera to the camera target. This must not be overriden by inheriting classes.
-     */
+    /* Late Update performs the interpolation of the camera to the camera target. This must not be overriden by inheriting classes. */
     protected void LateUpdate() {
         // Translation Interpolation
         switch (positionInterpolationType) {
@@ -127,6 +142,8 @@ public abstract class CameraAbstract : MonoBehaviour {
 
         if (showDebug && cam.enabled) drawDebug();
     }
+
+    /* Camera Rotation methods */
 
     public void RotateCameraHorizontal(float angle, bool onlyTarget = true) {
         Vector3 rotationAxis = getHorizontalRotationAxis();
@@ -157,7 +174,7 @@ public abstract class CameraAbstract : MonoBehaviour {
         if (!onlyTarget) transform.RotateAround(observedObject.position, rotationAxis, angle);
     }
 
-    //Clamp angle to (-180,180]
+    // Clamps angle to (-180,180]
     private void clampAngle(ref float angle) {
         angle = angle % 360;
         if (angle == -180) angle = 180;
@@ -165,6 +182,7 @@ public abstract class CameraAbstract : MonoBehaviour {
         if (angle < -180) angle += 360;
     }
 
+    /* Anti camera clipping methods */
     private void clipZoom() {
         clipZoomRayPlayerToCam.setEnd(camTarget.position); // Could use actual cam position instead of target, but this works more cleanly with more control
         clipZoomRayPlayerToCam.setDistance(maxCameraDistance);
@@ -214,12 +232,11 @@ public abstract class CameraAbstract : MonoBehaviour {
         }
     }
 
-    // Abstract rotation axis so every class which inherits from this has to define these
+    /* Abstract rotation axis so every class which inherits from this has to define these. */
     protected abstract Vector3 getHorizontalRotationAxis();
-
     protected abstract Vector3 getVerticalRotationAxis();
 
-    // Getter functions
+    /* Getters */
     public Camera getCamera() {
         return cam;
     }
@@ -240,6 +257,7 @@ public abstract class CameraAbstract : MonoBehaviour {
         return observedObject;
     }
 
+    /* Setters */
     public void setTargetPosition(Vector3 pos) {
         camTarget.position = pos;
     }

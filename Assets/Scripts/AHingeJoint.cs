@@ -2,6 +2,12 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+/*
+ * This class represents a hinge joint with a specified rotation axis, rotation point and rotational limits.
+ * The function applyRotation() is made to be called externally to rotate the gameobject this class is attached to.
+ * It is supplied with a weigth parameter which can be accessed externally for e.g. IK solving purposes.
+ */
+
 
 public class AHingeJoint : MonoBehaviour {
 

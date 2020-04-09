@@ -2,6 +2,12 @@
 using System.Collections.Generic;
 using UnityEngine;
 
+/*
+ * A simple class which allows switching between a player input spider controller (SpiderController) and a randomly
+ * generated movement (SpiderNPCController).
+ * To each mode a camera is bound and by the press of a button, here TAB, a switch of controller and camera is performed.
+ */
+
 public class SpiderModeSwitch : MonoBehaviour {
 
     public SpiderController spiderController;
@@ -20,7 +26,7 @@ public class SpiderModeSwitch : MonoBehaviour {
     }
     void Update() {
 
-        if (Input.GetKeyDown(KeyCode.LeftShift)) {
+        if (Input.GetKeyDown(KeyCode.Tab)) {
             controllerCam.enabled = !controllerCam.enabled;
             npcCam.enabled = !npcCam.enabled;
             spiderNPC.enabled = !spiderNPC.enabled;

@@ -1,5 +1,7 @@
 ﻿using UnityEngine;
 
+/* Simple class for some general game settings. */
+
 public class GeneralSettings : MonoBehaviour {
     private void Awake() {
         Cursor.lockState = CursorLockMode.Locked;

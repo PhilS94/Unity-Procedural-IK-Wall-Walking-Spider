@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /*
- * Inherits from abstract class CameraAbstract and manipulates the camera target by mimicking position change of the observed object
- * and setting the camera to the rotation that looks at the observed object while forcing it to stay upright to global Y.
+ * Inherits from abstract class CameraAbstract and manipulates the camera target by mimicking position change of the observed object,
+ * but ignoring rotational change. The camera targets rotation is always set to look at the observed object while forcing it
+ * to stay upright to global Y.
  */
 public class SpectatingCamera : CameraAbstract {
 

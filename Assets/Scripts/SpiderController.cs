@@ -2,7 +2,13 @@
 using System.Collections;
 using Raycasting;
 
-[DefaultExecutionOrder(-1)] //Make sure the players input spider movement is applied before the spider itself will do a ground check and possibly add gravity
+/*
+ * This class needs a reference to the Spider class and calls the walk and turn functions depending on player input.
+ * So in essence, this class translates player input to spider movement. The input direction is relative to a camera and so a 
+ * reference to one is needed.
+ */
+
+[DefaultExecutionOrder(-1)] // Make sure the players input movement is applied before the spider itself will do a ground check and possibly add gravity
 public class SpiderController : MonoBehaviour {
 
     public Spider spider;
