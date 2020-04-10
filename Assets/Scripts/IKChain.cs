@@ -32,7 +32,7 @@ public class IKChain : MonoBehaviour {
     public float singularityRadius;
 
     [Header("Chain")]
-    public AHingeJoint[] joints;
+    public JointHinge[] joints;
     public Transform endEffector;
     public bool adjustLastJointToNormal;
 
@@ -156,7 +156,7 @@ public class IKChain : MonoBehaviour {
     }
 
     // Getters for important references
-    public AHingeJoint getRootJoint() {
+    public JointHinge getRootJoint() {
         return joints[0];
     }
 

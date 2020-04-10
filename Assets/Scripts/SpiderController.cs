@@ -20,8 +20,8 @@ public class SpiderController : MonoBehaviour {
         //** Movement **//
         Vector3 input = getInput();
 
-        //Adds an acceleration/deceleration to smooth out the movement.
-        spider.walk(input);
+        if (Input.GetKey(KeyCode.LeftShift)) spider.run(input);
+        else spider.walk(input);
 
         Quaternion tempCamTargetRotation = smoothCam.getCamTargetRotation();
         Vector3 tempCamTargetPosition = smoothCam.getCamTargetPosition();
@@ -38,7 +38,7 @@ public class SpiderController : MonoBehaviour {
     private Vector3 getInput() {
         Vector3 up = spider.transform.up;
         Vector3 right = spider.transform.right;
-        Vector3 input = Vector3.ProjectOnPlane(smoothCam.getCameraTarget().forward,up).normalized * Input.GetAxis("Vertical") + (Vector3.ProjectOnPlane(smoothCam.getCameraTarget().right, up).normalized * Input.GetAxis("Horizontal"));
+        Vector3 input = Vector3.ProjectOnPlane(smoothCam.getCameraTarget().forward, up).normalized * Input.GetAxis("Vertical") + (Vector3.ProjectOnPlane(smoothCam.getCameraTarget().right, up).normalized * Input.GetAxis("Horizontal"));
         Quaternion fromTo = Quaternion.AngleAxis(Vector3.SignedAngle(up, spider.getGroundNormal(), right), right);
         input = fromTo * input;
         float magnitude = input.magnitude;

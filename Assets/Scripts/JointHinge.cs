@@ -9,7 +9,7 @@ using UnityEngine;
  */
 
 
-public class AHingeJoint : MonoBehaviour {
+public class JointHinge : MonoBehaviour {
 
 
     [Header("Debug")]

@@ -103,7 +103,7 @@ public class IKStepper : MonoBehaviour {
     private Dictionary<string, Cast> casts;
     RaycastHit hitInfo;
 
-    private AHingeJoint rootJoint;
+    private JointHinge rootJoint;
     private float chainLength;
     private Vector3 defaultPositionLocal;
     private Vector3 lastResortPositionLocal;

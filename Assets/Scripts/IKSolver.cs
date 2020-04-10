@@ -37,7 +37,7 @@ public class IKSolver : MonoBehaviour {
      * @param hasFoot: If set to true, the last joint will adjust to the normal given by the target. 
      * @param printDebugLogs: If set to true, debug logs will be printed into Unity console
      */
-    public static void solveChainCCD(ref AHingeJoint[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, float singularityRadius=0 ,bool hasFoot = false, bool printDebugLogs = false) {
+    public static void solveChainCCD(ref JointHinge[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, float singularityRadius=0 ,bool hasFoot = false, bool printDebugLogs = false) {
 
         int iteration = 0;
         float error = Vector3.Distance(target.position, endEffector.position);
@@ -70,7 +70,7 @@ public class IKSolver : MonoBehaviour {
     }
 
     // Solves the specific joint for the CCD solver
-    private static void solveJointCCD(ref AHingeJoint joint, ref Transform endEffector, ref TargetInfo target, float singularityRadius, bool adjustToTargetNormal) {
+    private static void solveJointCCD(ref JointHinge joint, ref Transform endEffector, ref TargetInfo target, float singularityRadius, bool adjustToTargetNormal) {
         Vector3 rotPoint = joint.getRotationPoint();
         Vector3 rotAxis = joint.getRotationAxis();
         Vector3 toEnd = Vector3.ProjectOnPlane((endEffector.position - rotPoint), rotAxis);
@@ -98,7 +98,7 @@ public class IKSolver : MonoBehaviour {
      * It allows me to go through the iterations steps frame by frame and pause the editor.
      * This will be deleted once i dont need the frame by frame debuging anymore.
      */
-    public static IEnumerator solveChainCCDFrameByFrame(AHingeJoint[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, float singularityRadius=0, bool hasFoot = false, bool printDebugLogs = false) {
+    public static IEnumerator solveChainCCDFrameByFrame(JointHinge[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, float singularityRadius=0, bool hasFoot = false, bool printDebugLogs = false) {
 
         int iteration = 0;
         float error = Vector3.Distance(target.position, endEffector.position);
@@ -168,7 +168,7 @@ public class IKSolver : MonoBehaviour {
 
     // Slighly messy since Unity does not provide dynamic Matrix class so i had to work with two dimensional arrays and convert to Vector3 if needed
     // Havent tested this thorougly yet, so dont call this
-    public static void solveJacobianTranspose(ref AHingeJoint[] joints, Transform endEffector, TargetInfo target, float tolerance, bool hasFoot = false) {
+    public static void solveJacobianTranspose(ref JointHinge[] joints, Transform endEffector, TargetInfo target, float tolerance, bool hasFoot = false) {
         Vector3 error = target.position - endEffector.position;
         float[] err = new float[] { error.x, error.y, error.z };
         float[,] J = new float[3, joints.Length];

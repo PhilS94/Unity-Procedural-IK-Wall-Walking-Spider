@@ -23,13 +23,17 @@ public class Spider : MonoBehaviour {
     public bool showDebug;
 
     [Header("Movement")]
-    public CapsuleCollider col;
     [Range(1, 10)]
     public float walkSpeed;
+    [Range(1, 10)]
+    public float runSpeed;
     [Range(1, 5)]
     public float turnSpeed;
     [Range(0.001f, 1)]
     public float walkDrag;
+
+    [Header("Grounding")]
+    public CapsuleCollider capsuleCollider;
     [Range(1, 10)]
     public float groundNormalAdjustSpeed;
     [Range(1, 10)]
@@ -198,32 +202,25 @@ public class Spider : MonoBehaviour {
     }
 
 
-    //** Movement methods for public access**//
-    // It is advised to call these on a fixed update basis.
+    //** Movement methods**//
 
-    public void turn(Vector3 goalForward, float speed = 1f) {
-        //Make sure goalForward is orthogonal to transform up
-        goalForward = Vector3.ProjectOnPlane(goalForward, transform.up);
-        if (goalForward == Vector3.zero || speed == 0) {
-            isTurning = false;
-            return;
-        }
-        isTurning = true;
-        goalForward = Vector3.ProjectOnPlane(goalForward, transform.up);
+    private void move(Vector3 direction, float speed) {
 
-        transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(goalForward, transform.up), turnSpeed * speed);
-    }
-
-    public void walk(Vector3 direction) {
         // TODO: Make sure direction is on the XZ plane of spider! For this maybe refactor the logic from input from spidercontroller to this function.
         if (direction == Vector3.zero) isWalking = false;
         else isWalking = true;
 
+        //Only allow direction vector to have a length of 1 or lower
+        float magnitude = direction.magnitude;
+        if (magnitude > 1) {
+            direction = direction.normalized;
+            magnitude = 1f;
+        }
+
         // Scale the magnitude and Clamp to not move more than down ray radius (Makes sure the ground is not lost due to moving too fast)
         if (direction != Vector3.zero) {
-            float magnitude = direction.magnitude;
             float directionDamp = Mathf.Pow(Mathf.Clamp(Vector3.Dot(direction / magnitude, transform.forward), 0, 1), 2);
-            float distance = 0.0004f * walkSpeed * magnitude * directionDamp * getScale();
+            float distance = 0.0004f * speed * magnitude * directionDamp * getScale();
             distance = Mathf.Clamp(distance, 0, 0.99f * downRayRadius);
             direction = distance * (direction / magnitude);
         }
@@ -235,15 +232,39 @@ public class Spider : MonoBehaviour {
         transform.position += currentVelocity;
     }
 
+    public void turn(Vector3 goalForward) {
+        //Make sure goalForward is orthogonal to transform up
+        goalForward = Vector3.ProjectOnPlane(goalForward, transform.up).normalized;
+        if (goalForward == Vector3.zero || Vector3.Angle(goalForward, transform.forward) < Mathf.Epsilon) {
+            isTurning = false;
+            return;
+        }
+        isTurning = true;
+        goalForward = Vector3.ProjectOnPlane(goalForward, transform.up);
+
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(goalForward, transform.up), turnSpeed);
+    }
+
+    //** Movement methods for public access**//
+    // It is advised to call these on a fixed update basis.
+
+    public void walk(Vector3 direction) {
+        move(direction, walkSpeed);
+    }
+
+    public void run(Vector3 direction) {
+        move(direction, runSpeed);
+    }
+
     //** Ground Check Method **//
     private groundInfo GroundCheck() {
         if (groundCheckOn) {
             if (forwardRay.castRay(out hitInfo, walkableLayer)) {
-                return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - getColliderRadius(), RayType.ForwardRay);
+                return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(capsuleCollider.center), hitInfo.point) - getColliderRadius(), RayType.ForwardRay);
             }
 
             if (downRay.castRay(out hitInfo, walkableLayer)) {
-                return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(col.center), hitInfo.point) - getColliderRadius(), RayType.DownRay);
+                return new groundInfo(true, hitInfo.normal.normalized, Vector3.Distance(transform.TransformPoint(capsuleCollider.center), hitInfo.point) - getColliderRadius(), RayType.DownRay);
             }
         }
         return new groundInfo(false, Vector3.up, float.PositiveInfinity, RayType.None);
@@ -345,23 +366,23 @@ public class Spider : MonoBehaviour {
     }
 
     public float getColliderRadius() {
-        return getScale() * col.radius;
+        return getScale() * capsuleCollider.radius;
     }
 
     public float getNonScaledColliderRadius() {
-        return col.radius;
+        return capsuleCollider.radius;
     }
 
     public float getColliderLength() {
-        return getScale() * col.height;
+        return getScale() * capsuleCollider.height;
     }
 
     public Vector3 getColliderCenter() {
-        return transform.TransformPoint(col.center);
+        return transform.TransformPoint(capsuleCollider.center);
     }
 
     public Vector3 getColliderBottomPoint() {
-        return transform.TransformPoint(col.center - col.radius * new Vector3(0, 1, 0));
+        return transform.TransformPoint(capsuleCollider.center - capsuleCollider.radius * new Vector3(0, 1, 0));
     }
 
     public Vector3 getDefaultCentroid() {
