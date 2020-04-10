@@ -26,7 +26,7 @@ This project is still in early development and not finished.
 ## How to use?
 1. Create a new Unity project
 2. Drag and drop the files into your Unity project.
-3. Open the scene "Main Spider IK Test Scene" 
+3. Open the scene "TestRoom" 
 4. Press play and enjoy
 
 ## Credits
