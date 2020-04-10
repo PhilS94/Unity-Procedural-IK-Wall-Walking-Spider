@@ -60,7 +60,7 @@ public class Spider : MonoBehaviour {
 
     [Header("Leg Normal")]
     public bool legNormalAdjustment;
-    [Range(0, 10)]
+    [Range(0, 100)]
     public float legNormalSpeed;
     [Range(0, 1)]
     public float legNormalWeight;
