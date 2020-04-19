@@ -61,6 +61,8 @@ Lastly, the spiders body elevates and rotates in correspondence to the legs heig
 3. Open the scene "TestRoom" 
 4. Press play and enjoy
 
+I am currently working on creating a decent build, which i will make available for download here soon.
+
 ## Credits
 Special thanks to [Daniel Harrison](http://www.harrisondaniel.com/) for creating the spider model used in this project.
 
