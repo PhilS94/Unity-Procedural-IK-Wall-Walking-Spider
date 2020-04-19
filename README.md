@@ -1,27 +1,32 @@
 ## Unity-Procedural-IK-Wall-Walking-Spider
 A Unity Engine Project in which a controllable wall-walking spider uses inverse kinematics (IK) to position its legs to its surroundings in a smart fashion, such that is moves realistically.
 The user can freely control the spider, which is able to walk on any surface: walls, corners, ceilings, ... you name it!
-While moving, the legs dynamically position themselves to the surroundings without the use of any animations, that is all the movement is procedural.
+While moving, the legs dynamically position themselves to the surroundings without the use of any animations, that is all the movement is procedural. This project is still in development and not finished.
 
 ## Motivation
 Back when i was developing a game i created a spider which was able to walk on any surface. It was exciting to see the spider walk on, around, over and under any kind of object such as tables, chairs, lamps, food items etc.
 However, since the thrill of controlling such a spider is to experience the world through its eyes and its scale it seemed very important for it to have very precise movement instead of the pre set animations it had at the time.
 Controlling a spider, or any small creature at that, is very different from controlling a human for example, in that the player is already enticed by the very movement of the spider.
 For example, walking over a banana or a spoon can already feel exciting and fun for the player. And this could only be realized using some kind of dynamic movement using information gathered from the surroundings in realtime.
-As i done more research i stumpled upon inverse kinematics. However, the task isn't done by simply implementing such an algorithm.
-The algorithm only solves for a position given a target position.
-But how do i calculate the target position? When do i have to update it? There is a bunch of information needed to answer these questions, such as the topology of the surroundings, the movement of the spider, asynchronity to other legs, the degrees of freedom the joints of the legs have etc.
+As i done more research i stumbled upon inverse kinematics, and started implementing joints, chains of joints and an IK solving algorithm. However, the task isn't done by implementation of this system since the system solves a chain of joints for a given target position.
+But how do i calculate the target position? When do i have to update it? There is a bunch of information needed to answer these questions, such as the topology of the surroundings, the movement of the spider, asynchronicity to other legs, the degrees of freedom the joints of the legs have etc.
 Implementing an IK system together with a smart system of calculating and predicting target positions gave me the procedural animation i wanted.
 
 ## Showcase
 [![Watch Showcase](SpiderShowcaseVimeoPreview.png)](https://vimeo.com/400710898)
 
-## Features
-There are a lot of IK systems out there. However, this projects goal isn't an implementation of a lot of fancy IK algorithms.
-The project uses a simple, yet tailored, CCD (Cyclic Coordinate Descent) algorithm.
-The main focus of this project is to feed the IK algorithm the right smart targets, configured and fine tuned for the spider such that it moves realistically without the use of any kind of animation.
+## Features / How it works
 
-This project is still in early development and not finished.
+For the wall-walking the spider uses sphere casting, that is downwards for terrain adjustment and forwards for wall-climbing. A fake gravity in respect to its current normal sticks the spider to the surface.
+
+Each spider leg is modeled by a chain of hinge joints with implemented rotational limits and
+for the IK solving part, the project uses a simple, yet tailored, CCD (Cyclic Coordinate Descent) algorithm.
+
+The stepping of each leg is controlled by a single managing class which respects asyncronicity to other legs and ultimately decides when a leg is allowed to step. There are two different approaches implemented. The first one being a queue based approach which for each leg respects neighbouring asynchronous legs (A more local approach), and the second one a so called "Alternating Tetrapod Gait" inspired by how spiders walk in real life which just separates the legs into two groups and allows the groups to step only in certain time frames (A more global approach).
+
+An actual new step target is calculated by using an anchor position, defined in the spiders local coordinate frame, and drawing a line from the previous target to the anchor position, but extending it a bit. After correcting the new point by the spiders predicted travel distance while stepping, a system of raycasts is used to find an actual surface point to step to. The sytem of raycasts understands the topology of the surroundings by casting in different directions such as downwards, outwards, inwards, ..., such that ultimately the spider can step on varying types of terrain (not only somewhat flat).
+
+Lastly, the spiders body elevates and rotates in correspondence to the legs heights, which together with all the above ultimately leads to realistic procedural animation.
 
 ## How to use?
 1. Create a new Unity project
