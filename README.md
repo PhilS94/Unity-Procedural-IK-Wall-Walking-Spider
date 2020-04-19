@@ -1,4 +1,4 @@
-## Unity-Procedural-IK-Wall-Walking-Spider
+## Unity Procedural IK Wall-Walking Spider
 A Unity Engine Project in which a controllable wall-walking spider uses inverse kinematics (IK) to position its legs to its surroundings in a smart fashion, such that is moves realistically.
 The user can freely control the spider, which is able to walk on any surface: walls, corners, ceilings, ... you name it!
 While moving, the legs dynamically position themselves to the surroundings without the use of any animations, that is all the movement is procedural. This project is still in development and not finished.
