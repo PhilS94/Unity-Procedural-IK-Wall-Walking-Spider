@@ -22,12 +22,36 @@ As i done more research i stumbled upon inverse kinematics, and started implemen
 ## How it works
 For the wall-walking the spider uses sphere casting, that is downwards for terrain adjustment and forwards for wall-climbing. A fake gravity in respect to its current normal sticks the spider to the surface.
 
+<details>
+  <summary>Show image</summary>
+  
+  ![](media/7.Wall-Walking.jpg)  
+</details>
+
 Each spider leg is modeled by a chain of hinge joints with implemented rotational limits and
 for the IK solving part, the project uses a simple, yet tailored, CCD (Cyclic Coordinate Descent) algorithm.
 
-The stepping of each leg is controlled by a single managing class which respects asyncronicity to other legs and ultimately decides when a leg is allowed to step. There are two different approaches implemented. The first one being a queue based approach which for each leg respects neighbouring asynchronous legs (A more local approach), and the second one a so called "Alternating Tetrapod Gait" inspired by how spiders walk in real life which just separates the legs into two groups and allows the groups to step only in certain time frames (A more global approach).
+<details>
+  <summary>Show images</summary>
+  
+  ![](media/1.ChainAndRotationalLimits.jpg)
+  ![](media/2.ChainIKSolving.jpg)
+</details>
+
+A leg desires to step if the IK solver can not solve the leg sufficiently anymore, that is up to a set tolerance.
+The stepping of all legs is controlled by a single managing class which respects each legs desire to step as well as their asyncronicity to other legs and ultimately decides when a step is allowed. There are two different approaches implemented. The first one being a queue based approach which for each leg respects neighbouring asynchronous legs (A more local approach), and the second one a so called "Alternating Tetrapod Gait" inspired by how spiders walk in real life which just separates the legs into two groups and allows the groups to step only in certain time frames (A more global approach).
 
 An actual new step target is calculated by using an anchor position, defined in the spiders local coordinate frame, and drawing a line from the previous target to the anchor position, but extending it a bit. After correcting the new point by the spiders predicted travel distance while stepping, a system of raycasts is used to find an actual surface point to step to. The sytem of raycasts understands the topology of the surroundings by casting in different directions such as downwards, outwards, inwards, ..., such that ultimately the spider can step on varying types of terrain (not only somewhat flat).
+
+<details>
+  <summary>Show images</summary>
+  
+  ![](media/3.StepDesire.jpg)
+  ![](media/4.StepPrediction.jpg)
+  ![](media/5.AFindSurfacePoint.jpg)
+  ![](media/5.BFindSurfacePoint.jpg)
+  ![](media/6.Step.jpg)
+</details>
 
 Lastly, the spiders body elevates and rotates in correspondence to the legs heights, which together with all the above ultimately leads to realistic procedural animation.
 
