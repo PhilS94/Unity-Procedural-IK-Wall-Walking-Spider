@@ -6,17 +6,19 @@ While moving, the legs dynamically position themselves to the surroundings witho
 ## Motivation
 Back when i was developing a game i created a spider which was able to walk on any surface. It was exciting to see the spider walk on, around, over and under any kind of object such as tables, chairs, lamps, food items etc.
 However, since the thrill of controlling such a spider is to experience the world through its eyes and its scale it seemed very important for it to have very precise movement instead of the pre set animations it had at the time.
-Controlling a spider, or any small creature at that, is very different from controlling a human for example, in that the player is already enticed by the very movement of the spider.
-For example, walking over a banana or a spoon can already feel exciting and fun for the player. And this could only be realized using some kind of dynamic movement using information gathered from the surroundings in realtime.
-As i done more research i stumbled upon inverse kinematics, and started implementing joints, chains of joints and an IK solving algorithm. However, the task isn't done by implementation of this system since the system solves a chain of joints for a given target position.
-But how do i calculate the target position? When do i have to update it? There is a bunch of information needed to answer these questions, such as the topology of the surroundings, the movement of the spider, asynchronicity to other legs, the degrees of freedom the joints of the legs have etc.
-Implementing an IK system together with a smart system of calculating and predicting target positions gave me the procedural animation i wanted.
+Controlling a spider, or any small creature at that, is very different from controlling a human for example, in that the player is already enticed by the very movement of the spider. For example, walking over a banana or a spoon can already feel exciting and fun for the player. And this could only be realized using some kind of dynamic movement using information gathered from the surroundings in realtime.
+As i done more research i stumbled upon inverse kinematics, and started implementing joints, chains of joints and an IK solving algorithm. However, the task isn't done by implementation of this system since the system solves a chain of joints for only a given target position. But how do i calculate the target position? When do i have to update it? There is a bunch of information needed to answer these questions, such as the topology of the surroundings, the movement of the spider, asynchronicity to other legs, the degrees of freedom the joints of the legs have etc. Implementing an IK system together with a smart system of calculating and predicting target positions gave me the procedural animation i wanted.
 
 ## Showcase
 [![Watch Showcase](SpiderShowcaseVimeoPreview.png)](https://vimeo.com/400710898)
 
-## Features / How it works
+## Features
+  - Fully procedurally animated
+  - Walk and climb on any surface
+  - Fully controllable with intuitive camera controls
+  - NPC mode (Random movement together with observing camera)
 
+## How it works
 For the wall-walking the spider uses sphere casting, that is downwards for terrain adjustment and forwards for wall-climbing. A fake gravity in respect to its current normal sticks the spider to the surface.
 
 Each spider leg is modeled by a chain of hinge joints with implemented rotational limits and
