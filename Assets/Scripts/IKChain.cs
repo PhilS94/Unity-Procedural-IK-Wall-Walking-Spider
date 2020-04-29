@@ -22,7 +22,7 @@ public class IKChain : MonoBehaviour {
     public bool printDebugLogs;
     public bool deactivateSolving = false;
 
-    public enum IKSolveMethod { CCD, CCDFrameByFrame };
+    public enum IKSolveMethod { CCD, FABRIK, CCDFrameByFrame };
 
     [Header("Solving")]
     public IKSolveMethod ikSolveMethod;
@@ -54,9 +54,12 @@ public class IKChain : MonoBehaviour {
     private Vector3 endEffectorVelocity;
     private Vector3 lastEndeffectorPos;
 
+    private float[] jointDistances;
+
     private void Awake() {
         if (targetMode == TargetMode.DebugTarget) debugModeRay = new RayCast(debugTarget.position + 1.0f * Vector3.up, debugTarget.position - 1.0f * Vector3.up, debugTarget, debugTarget);
         lastEndeffectorPos = endEffector.position;
+        jointDistances = new float[joints.Length];
     }
 
     private void Start() {
@@ -97,7 +100,10 @@ public class IKChain : MonoBehaviour {
     /* This function performs a call to the IKSolvers CCD algorithm, which then solves this chain to the current target. */
     private void solve() {
 
-        if (ikSolveMethod==IKSolveMethod.CCD) {
+        if (ikSolveMethod == IKSolveMethod.FABRIK) {
+            IKSolver.solveChainFABRIK(ref joints, ref jointDistances, endEffector, currentTarget, getTolerance(), true);
+        }
+        else if (ikSolveMethod == IKSolveMethod.CCD) {
             IKSolver.solveChainCCD(ref joints, endEffector, currentTarget, getTolerance(), getMinimumChangePerIterationOfSolving(), getSingularityRadius(), adjustLastJointToNormal, printDebugLogs);
         }
         else if (ikSolveMethod == IKSolveMethod.CCDFrameByFrame) {
@@ -107,7 +113,7 @@ public class IKChain : MonoBehaviour {
         }
         error = Vector3.Distance(endEffector.position, currentTarget.position);
     }
-  
+
     /* Calculates the length of the IK chain. */
     // Gets called from IKStepper and not from this class .
     // Should capsule this in this class though. However IKStepper needs the chain length at Awake...
@@ -116,7 +122,10 @@ public class IKChain : MonoBehaviour {
         for (int i = 0; i < joints.Length; i++) {
             Vector3 p = joints[i].getRotationPoint();
             Vector3 q = (i != joints.Length - 1) ? joints[i + 1].getRotationPoint() : endEffector.position;
-            chainLength += Vector3.Distance(p, q);
+
+            float d = Vector3.Distance(p, q);
+            jointDistances[i] = d;
+            chainLength += d;
         }
         return chainLength;
     }

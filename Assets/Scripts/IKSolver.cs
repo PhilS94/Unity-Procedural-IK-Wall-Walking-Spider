@@ -37,7 +37,7 @@ public class IKSolver : MonoBehaviour {
      * @param hasFoot: If set to true, the last joint will adjust to the normal given by the target. 
      * @param printDebugLogs: If set to true, debug logs will be printed into Unity console
      */
-    public static void solveChainCCD(ref JointHinge[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, float singularityRadius=0 ,bool hasFoot = false, bool printDebugLogs = false) {
+    public static void solveChainCCD(ref JointHinge[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, float singularityRadius = 0, bool hasFoot = false, bool printDebugLogs = false) {
 
         int iteration = 0;
         float error = Vector3.Distance(target.position, endEffector.position);
@@ -98,7 +98,7 @@ public class IKSolver : MonoBehaviour {
      * It allows me to go through the iterations steps frame by frame and pause the editor.
      * This will be deleted once i dont need the frame by frame debuging anymore.
      */
-    public static IEnumerator solveChainCCDFrameByFrame(JointHinge[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, float singularityRadius=0, bool hasFoot = false, bool printDebugLogs = false) {
+    public static IEnumerator solveChainCCDFrameByFrame(JointHinge[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, float singularityRadius = 0, bool hasFoot = false, bool printDebugLogs = false) {
 
         int iteration = 0;
         float error = Vector3.Distance(target.position, endEffector.position);
@@ -165,6 +165,118 @@ public class IKSolver : MonoBehaviour {
         yield return null;
 
     }
+
+
+    public static void solveChainFABRIK(ref JointHinge[] joints, ref float[] jointDistances, Transform endEffector, TargetInfo target, float tolerance, bool printDebugLogs = false) {
+        // jointDistances has following structure: at index 0 the distance between joint 0 and joint 1 is saved
+        // Thus jointDistances is same size joints (since joints doesnt include endeffector)
+
+        // Start by checking solvability by comparing chainlength to target distance
+        float distanceRootTarget = Vector3.Distance(joints[0].getRotationPoint(), target.position);
+        float chainLength=0;
+        for (int k = 0; k < jointDistances.Length; k++) {
+            chainLength += jointDistances[k];
+        }
+
+        if (distanceRootTarget > chainLength) {
+            /** Non Solvable Case **/
+
+            //Iterate through joints starting at root
+            for (int k = 0; k < joints.Length; k++) {
+                Vector3 p = joints[k].getRotationPoint();
+
+                float r = Vector3.Distance(p, target.position);
+                float lambda = jointDistances[k] / r;
+                Vector3 newPosition = (1 - lambda) * p + lambda * target.position;
+
+                // Set rotation point of joint k+1 to this new position (Handle Endeffector case appropriately)
+                if (k == joints.Length - 1) endEffector.position = newPosition;
+                else joints[k + 1].translateRotationPointTo(newPosition); //Have to ignore children of this joint though!
+            }
+
+            if (printDebugLogs) Debug.Log(endEffector.gameObject.name + " completed FABRIK in the unsolvable case.");
+            
+        }
+        else {
+            /** Solvable Case  **/
+
+            //Careful since rotation point and transform position are two different things
+            Vector3 b = joints[0].transform.position;
+            float iteration = 0;
+            float error = Vector3.Distance(target.position, endEffector.position);
+
+            while (iteration < maxIterations && error > tolerance) {
+
+                /* Forwards Reaching */
+                endEffector.position = target.position;
+
+                //Iterate through joints starting at the last joint (not endeffector) going up to root
+                for (int k = joints.Length - 1; k >= 0; k--) {
+                    Vector3 p = joints[k].getRotationPoint(); 
+
+                    //Next p is the joint below p going down the chain
+                    Vector3 next_p;
+                    if (k == joints.Length - 1) next_p = endEffector.position;
+                    else next_p = joints[k+1].getRotationPoint();
+
+                    float r = Vector3.Distance(next_p, p);
+                    float lambda = jointDistances[k] / r;
+                    Vector3 newPosition = (1 - lambda) * next_p + lambda * p;
+
+
+                    /* Check and Force Orientation of new point */
+                    /* Check and Force Rotational Limit of new point */
+                    /* Draw line nextp nach forced new p and get final position*/
+
+
+
+                    // Set rotation point of joint k to this new position
+                    joints[k].translateRotationPointTo(newPosition); //Have to ignore children of this joint though!
+
+                    /* Force Orientation of joint here */
+                }
+
+
+                /* Backwards Reaching */
+                joints[0].transform.position = b;
+
+                // Iterate through joints starting at root and going down to last joint (not endeffector)
+                for (int k=0;k<joints.Length;k++) {
+                    Vector3 p = joints[k].getRotationPoint();
+
+                    //Next p is the joint below p going down the chain
+                    Vector3 next_p;
+                    if (k == joints.Length - 1) next_p = endEffector.position;
+                    else next_p = joints[k + 1].getRotationPoint();
+
+                    float r = Vector3.Distance(p, next_p);
+                    float lambda = jointDistances[k] / r;
+                    Vector3 newPosition = (1 - lambda) * p + lambda * next_p;
+
+
+                    /* Check and Force Orientation of new point */
+                    /* Check and Force Rotational Limit of new point */
+                    /* Draw line p nach forced newpos and get final position*/
+
+
+                    // Set rotation point of joint k+1 to the new position (Handle Endeffector case appropriately)
+                    if (k == joints.Length - 1) endEffector.position = newPosition;
+                    else joints[k + 1].translateRotationPointTo(newPosition);  //Have to ignore children of this joint though!
+                }
+
+                //Refresh error
+                error = Vector3.Distance(target.position, endEffector.position);
+            }
+
+            if (printDebugLogs) {
+                if (iteration == maxIterations) Debug.Log(endEffector.gameObject.name + " could not solve with " + iteration + " iterations. The error is " + error);
+                if (iteration != maxIterations && iteration > 0) Debug.Log(endEffector.gameObject.name + " completed FABRIK with " + iteration + " iterations and an error of " + error);
+            }
+        }
+    }
+
+
+
 
     // Slighly messy since Unity does not provide dynamic Matrix class so i had to work with two dimensional arrays and convert to Vector3 if needed
     // Havent tested this thorougly yet, so dont call this

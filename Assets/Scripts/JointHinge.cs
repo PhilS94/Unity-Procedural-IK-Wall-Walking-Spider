@@ -154,6 +154,11 @@ public class JointHinge : MonoBehaviour {
         currentAngle += angle;
     }
 
+    public void translateRotationPointTo(Vector3 newRotationPoint) {
+        Vector3 translation = newRotationPoint - getRotationPoint();
+        transform.Translate(translation);
+    }
+   
     public float getWeight() {
         return weight;
     }
