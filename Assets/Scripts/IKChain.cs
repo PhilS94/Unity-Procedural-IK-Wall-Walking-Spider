@@ -20,10 +20,12 @@ public class IKChain : MonoBehaviour {
 
     [Header("Debug")]
     public bool printDebugLogs;
-    public bool solveFrameByFrame;
     public bool deactivateSolving = false;
 
+    public enum IKSolveMethod { CCD, CCDFrameByFrame };
+
     [Header("Solving")]
+    public IKSolveMethod ikSolveMethod;
     [Range(0.1f, 10f)]
     public float tolerance;
     [Range(0.01f, 1f)]
@@ -45,7 +47,6 @@ public class IKChain : MonoBehaviour {
 
     private TargetInfo currentTarget;
     private float error = 0.0f;
-    private bool validChain;
     private bool pause = false;
 
     private RayCast debugModeRay;
@@ -54,45 +55,33 @@ public class IKChain : MonoBehaviour {
     private Vector3 lastEndeffectorPos;
 
     private void Awake() {
-        validChain = isValidChain();
         if (targetMode == TargetMode.DebugTarget) debugModeRay = new RayCast(debugTarget.position + 1.0f * Vector3.up, debugTarget.position - 1.0f * Vector3.up, debugTarget, debugTarget);
         lastEndeffectorPos = endEffector.position;
     }
 
     private void Start() {
-        if (!validChain) return;
-
         if (targetMode == TargetMode.DebugTarget) currentTarget = getDebugTarget();
         else if (targetMode == TargetMode.DebugTargetRay) currentTarget = getDebugTargetRay();
-    }
-
-    /* Initialization methods */
-    bool isValidChain() {
-        if ((debugTarget == null) && ((targetMode == TargetMode.DebugTarget) || (targetMode == TargetMode.DebugTargetRay))) {
-            Debug.LogError("Please assign a Target Transform when using a debug mode.");
-            return false;
-        }
-        return true;
     }
 
     /* Update calls*/
 
     void Update() {
-        if (deactivateSolving || !validChain) return;
+        if (deactivateSolving) return;
 
         if (targetMode == TargetMode.DebugTarget) currentTarget = getDebugTarget();
     }
 
     private void FixedUpdate() {
 
-        if (deactivateSolving || !validChain) return;
+        if (deactivateSolving) return;
 
         if (targetMode == TargetMode.DebugTargetRay) currentTarget = getDebugTargetRay();
     }
 
     /* Late Update calls the solve function which will solve this IK chain */
     private void LateUpdate() {
-        if (deactivateSolving || !validChain) return;
+        if (deactivateSolving) return;
 
         endEffectorVelocity = (endEffector.position - lastEndeffectorPos) / Time.deltaTime;
 
@@ -108,22 +97,26 @@ public class IKChain : MonoBehaviour {
     /* This function performs a call to the IKSolvers CCD algorithm, which then solves this chain to the current target. */
     private void solve() {
 
-        if (solveFrameByFrame) {
+        if (ikSolveMethod==IKSolveMethod.CCD) {
+            IKSolver.solveChainCCD(ref joints, endEffector, currentTarget, getTolerance(), getMinimumChangePerIterationOfSolving(), getSingularityRadius(), adjustLastJointToNormal, printDebugLogs);
+        }
+        else if (ikSolveMethod == IKSolveMethod.CCDFrameByFrame) {
             StartCoroutine(IKSolver.solveChainCCDFrameByFrame(joints, endEffector, currentTarget, getTolerance(), getMinimumChangePerIterationOfSolving(), getSingularityRadius(), adjustLastJointToNormal, printDebugLogs));
             deactivateSolving = true;
-            //Important here is that the coroutine has to update the error after it is done. Not implemented yet here
+            //Important here is that the coroutine has to update the error after it is done. Not implemented here yet!
         }
-        else {
-            IKSolver.solveChainCCD(ref joints, endEffector, currentTarget, getTolerance(), getMinimumChangePerIterationOfSolving(), getSingularityRadius(), adjustLastJointToNormal, printDebugLogs);
-            error = Vector3.Distance(endEffector.position, currentTarget.position);
-        }
+        error = Vector3.Distance(endEffector.position, currentTarget.position);
     }
-
+  
     /* Calculates the length of the IK chain. */
+    // Gets called from IKStepper and not from this class .
+    // Should capsule this in this class though. However IKStepper needs the chain length at Awake...
     public float calculateChainLength() {
         float chainLength = 0;
-        for (int i = 0; i < joints.Length - 1; i++) {
-            chainLength += Vector3.Distance(joints[i].getRotationPoint(), joints[i + 1].getRotationPoint());
+        for (int i = 0; i < joints.Length; i++) {
+            Vector3 p = joints[i].getRotationPoint();
+            Vector3 q = (i != joints.Length - 1) ? joints[i + 1].getRotationPoint() : endEffector.position;
+            chainLength += Vector3.Distance(p, q);
         }
         return chainLength;
     }
@@ -212,10 +205,9 @@ public class IKChain : MonoBehaviour {
         if (UnityEditor.EditorApplication.isPlaying) return;
         if (!UnityEditor.Selection.Contains(transform.gameObject)) return;
 
-        // Set ChainLength and ValidChain here
         Awake();
 
-        if (!validChain) return;
+        if (debugTarget == null && (targetMode == TargetMode.DebugTarget || targetMode == TargetMode.DebugTargetRay)) return;
 
         //Draw the Chain
         for (int k = 0; k < joints.Length - 1; k++) {
