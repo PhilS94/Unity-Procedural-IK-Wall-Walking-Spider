@@ -66,4 +66,4 @@ I am currently working on creating a decent build, which i will make available f
 ## Credits
 Special thanks to [Daniel Harrison](http://www.harrisondaniel.com/) for creating the spider model used in this project.
 
-MIT © Philipp Schofield
+© Philipp Schofield
