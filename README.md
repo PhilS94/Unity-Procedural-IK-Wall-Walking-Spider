@@ -11,7 +11,7 @@ Controlling a spider, or any small creature at that, is very different from cont
 As i done more research i stumbled upon inverse kinematics, and started implementing joints, chains of joints and an IK solving algorithm. However, the task isn't done by implementation of this system since the system solves a chain of joints for only a given target position. But how do i calculate the target position? When do i have to update it? There is a bunch of information needed to answer these questions, such as the topology of the surroundings, the movement of the spider, asynchronicity to other legs, the degrees of freedom the joints of the legs have etc. Implementing an IK system together with a smart system of calculating and predicting target positions gave me the procedural animation i wanted.
 
 ## Showcase
-[![Watch Showcase](media/SpiderShowcaseVimeoPreview.png)](https://vimeo.com/400710898)
+[![Watch Showcase](media/SpiderShowcaseVimeoPreview.png)](https://vimeo.com/448093489)
 
 ## Features
   - Fully procedurally animated
