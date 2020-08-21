@@ -63,10 +63,10 @@ Lastly, the spiders body elevates and rotates in correspondence to the legs heig
 
 I am currently working on creating a decent build, which i will make available for download here soon.
 
-## License
-For licensing questions, contact me at [mail@PhilippSchofield.com](mailto:mail@PhilippSchofield.com).
-
 ## Credits
 Special thanks to [Daniel Harrison](http://www.harrisondaniel.com) for creating the spider model used in this project.
+
+## License
+For licensing questions, contact me at [mail@PhilippSchofield.com](mailto:mail@PhilippSchofield.com).
 
 © Philipp Schofield
