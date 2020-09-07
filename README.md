@@ -1,4 +1,9 @@
 ## Unity Procedural IK Wall-Walking Spider
+[![](https://img.shields.io/github/stars/phils94/Unity-Procedural-IK-Wall-Walking-Spider.svg?style=for-the-badge)]()
+[![](https://img.shields.io/github/forks/phils94/Unity-Procedural-IK-Wall-Walking-Spider.svg?style=for-the-badge)]()
+[![](https://img.shields.io/github/languages/top/phils94/Unity-Procedural-IK-Wall-Walking-Spider.svg?style=for-the-badge)]()
+<img src="media/unitylogo.png" align="right" height="50px"></br></br>
+  
 A Unity Engine Project in which a controllable wall-walking spider uses inverse kinematics (IK) to position its legs to its surroundings in a smart fashion, such that is moves realistically.
 The user can freely control the spider, which is able to walk on any surface: walls, corners, ceilings, ... you name it!
 While moving, the legs dynamically position themselves to the surroundings without the use of any animations, that is all the movement is procedural.
@@ -64,9 +69,12 @@ Lastly, the spiders body elevates and rotates in correspondence to the legs heig
 I am currently working on creating a decent build, which i will make available for download here soon.
 
 ## Credits
-Special thanks to [Daniel Harrison](http://www.harrisondaniel.com) for creating the spider model used in this project.
+Special thanks to [![](https://img.shields.io/badge/-Daniel_Harrison-yellow)](http://www.harrisondaniel.com) for creating the spider model used in this project.
 
 ## License
-For licensing questions, contact me at [mail@PhilippSchofield.com](mailto:mail@PhilippSchofield.com).
+For licensing, contact me at: [mail@PhilippSchofield.com](mailto:mail@PhilippSchofield.com)
 
-© Philipp Schofield
+© Philipp Schofield 
+
+[![](https://img.shields.io/static/v1?label=Website&message=www.philippschofield.com&color=brightgreen)](https://www.philippschofield.com)
+[![](https://img.shields.io/static/v1?label=E-mail&message=mail@PhilippSchofield.com&color=blue)](mailto:mail@PhilippSchofield.com)
