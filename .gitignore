@@ -84,3 +84,6 @@ Assets/Scenes/IKSpiderTestScene/LightingData.asset
 *.exr
 Assets/Scenes/IKSpiderTestScene/LightingData.asset.meta
 Assets/Scenes/IKSpiderTestScene/ReflectionProbe-0.exr.meta
+
+Assets/Scripts/SwingTwistJoint.cs
+Assets/Scripts/SwingTwistJoint.cs.meta
