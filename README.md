@@ -1,4 +1,4 @@
-## Unity Procedural IK Wall-Walking Spider
+# Unity Procedural IK Wall Walking Spider
 [![](https://img.shields.io/github/stars/phils94/Unity-Procedural-IK-Wall-Walking-Spider.svg?style=for-the-badge)]()
 [![](https://img.shields.io/github/forks/phils94/Unity-Procedural-IK-Wall-Walking-Spider.svg?style=for-the-badge)]()
 [![](https://img.shields.io/github/languages/top/phils94/Unity-Procedural-IK-Wall-Walking-Spider.svg?style=for-the-badge)]()
