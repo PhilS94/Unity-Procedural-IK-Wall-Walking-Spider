@@ -1,4 +1,9 @@
-﻿using System.Collections;
+﻿/* 
+ * This file is part of Unity-Procedural-IK-Wall-Walking-Spider on github.com/PhilS94
+ * Copyright (C) 2020 Philipp Schofield - All Rights Reserved
+ */
+
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -6,8 +11,8 @@ using UnityEngine;
  * This class needs a reference to the Spider class and calls the walk and turn functions depending on a random perlin generated input.
  * In essence, this class translates random input to spider movement.
  * 
- * Pelin Noise ise used to generate a random yet smooth direction. A random binarized speed paramter is used to mimic the "stop and go"
- * nature of spiders.
+ * Perlin Noise is used to generate a random yet smooth direction.
+ * A random binarized speed parameter is used to mimic the "stop and go" nature of spiders.
  */
 
 [DefaultExecutionOrder(-1)] // Make sure the input movement is applied before the spider itself will do a ground check and possibly add gravity

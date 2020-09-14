@@ -1,4 +1,9 @@
-﻿using UnityEngine;
+﻿/* 
+ * This file is part of Unity-Procedural-IK-Wall-Walking-Spider on github.com/PhilS94
+ * Copyright (C) 2020 Philipp Schofield - All Rights Reserved
+ */
+
+using UnityEngine;
 using System.Collections;
 using Raycasting;
 

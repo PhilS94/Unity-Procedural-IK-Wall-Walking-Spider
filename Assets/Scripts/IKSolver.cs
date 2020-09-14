@@ -1,4 +1,9 @@
-﻿using System.Collections;
+﻿/* 
+ * This file is part of Unity-Procedural-IK-Wall-Walking-Spider on github.com/PhilS94
+ * Copyright (C) 2020 Philipp Schofield - All Rights Reserved
+ */
+
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -94,9 +99,9 @@ public class IKSolver : MonoBehaviour {
     }
 
     /*
-     * This coroutine is a copy paste of the original CCD solver above. It exists due to debug reasons.
-     * It allows me to go through the iterations steps frame by frame and pause the editor.
-     * This will be deleted once i dont need the frame by frame debuging anymore.
+     * This coroutine is a temporary copy paste of the original CCD solver above with added yield return nulls.
+     * It exists due to debug reasons and it allows me to go through the iterations steps frame by frame and pause the editor.
+     * This coroutine will be deleted once i dont need the frame by frame debugging anymore.
      */
     public static IEnumerator solveChainCCDFrameByFrame(JointHinge[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, float singularityRadius=0, bool hasFoot = false, bool printDebugLogs = false) {
 
@@ -166,8 +171,11 @@ public class IKSolver : MonoBehaviour {
 
     }
 
-    // Slighly messy since Unity does not provide dynamic Matrix class so i had to work with two dimensional arrays and convert to Vector3 if needed
-    // Havent tested this thorougly yet, so dont call this
+    /* 
+     * Implementation of Jacobian Transpose IK Solver
+     * Slighly messy since Unity does not provide a Matrix class so i had to work with two dimensional arrays and convert to Vector3 if needed
+     * This solver is too slow for realtime purposes and thus is not used. Moreover, I havent tested this implementation thorougly yet.
+     */
     public static void solveJacobianTranspose(ref JointHinge[] joints, Transform endEffector, TargetInfo target, float tolerance, bool hasFoot = false) {
         Vector3 error = target.position - endEffector.position;
         float[] err = new float[] { error.x, error.y, error.z };

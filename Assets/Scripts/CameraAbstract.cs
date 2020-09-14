@@ -1,10 +1,15 @@
-﻿using System.Collections;
+﻿/* 
+ * This file is part of Unity-Procedural-IK-Wall-Walking-Spider on github.com/PhilS94
+ * Copyright (C) 2020 Philipp Schofield - All Rights Reserved
+ */
+
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using Raycasting;
 
-/*
+/* 
  * An Abstract class for camera movement.
  * 
  * It is an implementation of a smoothly lerping camera towards a given target. This includes translational and rotational interpolation.

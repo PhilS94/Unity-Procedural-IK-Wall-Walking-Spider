@@ -1,4 +1,9 @@
-﻿using System.Collections;
+﻿/* 
+ * This file is part of Unity-Procedural-IK-Wall-Walking-Spider on github.com/PhilS94
+ * Copyright (C) 2020 Philipp Schofield - All Rights Reserved
+ */
+
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -13,7 +18,7 @@ namespace Raycasting {
      * Class representing a position relative to a given parent transform.
      * Basically mimics parenting an object to a parent, but only for position, without creating new transforms.
      */
-    public class PositionRelative {
+public class PositionRelative {
         private Vector3 position;
         private Transform parent;
 

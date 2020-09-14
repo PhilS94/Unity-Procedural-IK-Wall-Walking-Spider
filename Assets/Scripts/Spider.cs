@@ -1,4 +1,9 @@
-﻿using System.Collections;
+﻿/* 
+ * This file is part of Unity-Procedural-IK-Wall-Walking-Spider on github.com/PhilS94
+ * Copyright (C) 2020 Philipp Schofield - All Rights Reserved
+ */
+
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Raycasting;
@@ -34,6 +39,8 @@ public class Spider : MonoBehaviour {
 
     [Header("Grounding")]
     public CapsuleCollider capsuleCollider;
+    [Range(1, 10)]
+    public float gravityMultiplier;
     [Range(1, 10)]
     public float groundNormalAdjustSpeed;
     [Range(1, 10)]
@@ -158,7 +165,7 @@ public class Spider : MonoBehaviour {
         // Dont apply gravity if close enough to ground
         if (grdInfo.distanceToGround > getGravityOffDistance()) {
             isFalling = true;
-            rb.AddForce(-grdInfo.groundNormal * 0.0981f * getScale()); //Important using the groundnormal and not the lerping normal here!
+            rb.AddForce(-grdInfo.groundNormal * gravityMultiplier* 0.0981f * getScale()); //Important using the groundnormal and not the lerping normal here!
         }
         else isFalling = false;
     }
