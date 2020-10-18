@@ -94,9 +94,7 @@ public class Spider : MonoBehaviour {
     private float downRayRadius;
 
     private Vector3 currentVelocity;
-    private bool isWalking = false;
-    private bool isTurning = false;
-    private bool isFalling = false;
+    private bool isMoving = true;
     private bool groundCheckOn = true;
 
     private Vector3 lastNormal;
@@ -160,14 +158,12 @@ public class Spider : MonoBehaviour {
         lastNormal = transform.up;
 
         //Apply the rotation to the spider
-        transform.rotation = goalrotation;
+        if (Quaternion.Angle(transform.rotation,goalrotation)>Mathf.Epsilon) transform.rotation = goalrotation;
 
         // Dont apply gravity if close enough to ground
         if (grdInfo.distanceToGround > getGravityOffDistance()) {
-            isFalling = true;
-            rb.AddForce(-grdInfo.groundNormal * gravityMultiplier* 0.0981f * getScale()); //Important using the groundnormal and not the lerping normal here!
+            rb.AddForce(-grdInfo.groundNormal * gravityMultiplier * 0.0981f * getScale()); //Important using the groundnormal and not the lerping normal here!
         }
-        else isFalling = false;
     }
 
     void Update() {
@@ -206,6 +202,12 @@ public class Spider : MonoBehaviour {
             body.transform.position = bodyCentroid + amplitude * (Mathf.Sin(t) + 1f) * direction;
         }
 
+        // Update the moving status
+        if (transform.hasChanged) {
+            isMoving = true;
+            transform.hasChanged = false;
+        }
+        else isMoving = false;
     }
 
 
@@ -214,8 +216,6 @@ public class Spider : MonoBehaviour {
     private void move(Vector3 direction, float speed) {
 
         // TODO: Make sure direction is on the XZ plane of spider! For this maybe refactor the logic from input from spidercontroller to this function.
-        if (direction == Vector3.zero) isWalking = false;
-        else isWalking = true;
 
         //Only allow direction vector to have a length of 1 or lower
         float magnitude = direction.magnitude;
@@ -242,11 +242,10 @@ public class Spider : MonoBehaviour {
     public void turn(Vector3 goalForward) {
         //Make sure goalForward is orthogonal to transform up
         goalForward = Vector3.ProjectOnPlane(goalForward, transform.up).normalized;
+
         if (goalForward == Vector3.zero || Vector3.Angle(goalForward, transform.forward) < Mathf.Epsilon) {
-            isTurning = false;
             return;
         }
-        isTurning = true;
         goalForward = Vector3.ProjectOnPlane(goalForward, transform.up);
 
         transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(goalForward, transform.up), turnSpeed);
@@ -256,10 +255,12 @@ public class Spider : MonoBehaviour {
     // It is advised to call these on a fixed update basis.
 
     public void walk(Vector3 direction) {
+        if (direction.magnitude < Mathf.Epsilon) return;
         move(direction, walkSpeed);
     }
 
     public void run(Vector3 direction) {
+        if (direction.magnitude < Mathf.Epsilon) return;
         move(direction, runSpeed);
     }
 
@@ -354,7 +355,7 @@ public class Spider : MonoBehaviour {
     }
 
     public bool getIsMoving() {
-        return isWalking || isTurning || isFalling;
+        return isMoving;
     }
 
     public Vector3 getCurrentVelocityPerSecond() {
