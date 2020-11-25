@@ -8,6 +8,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using Raycasting;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 /*
  * This class represents the actual spider. It is responsible for "glueing" it to the surfaces around it. This is accomplished by
  * creating a fake gravitational force in the direction of the surface normal it is standing on. The surface normal is determined
@@ -23,9 +27,6 @@ using Raycasting;
 public class Spider : MonoBehaviour {
 
     private Rigidbody rb;
-
-    [Header("Debug")]
-    public bool showDebug;
 
     [Header("Movement")]
     [Range(1, 10)]
@@ -72,7 +73,7 @@ public class Spider : MonoBehaviour {
     [Range(0, 1)]
     public float legNormalWeight;
 
-    private Vector3 bodyY;
+    public Vector3 bodyY { get; private set; }
     private Vector3 bodyZ;
 
     [Header("Breathing")]
@@ -101,7 +102,8 @@ public class Spider : MonoBehaviour {
     private Vector3 bodyDefaultCentroid;
     private Vector3 bodyCentroid;
 
-    private SphereCast downRay, forwardRay;
+    public SphereCast downRay { get; private set; }
+    public SphereCast forwardRay { get; private set; }
     private RaycastHit hitInfo;
 
     private enum RayType { None, ForwardRay, DownRay };
@@ -121,7 +123,7 @@ public class Spider : MonoBehaviour {
 
     private groundInfo grdInfo;
 
-    private void Awake() {
+    public void Awake() {
 
         //Make sure the scale is uniform, since otherwise lossy scale will not be accurate.
         float x = transform.localScale.x; float y = transform.localScale.y; float z = transform.localScale.z;
@@ -158,7 +160,7 @@ public class Spider : MonoBehaviour {
         lastNormal = transform.up;
 
         //Apply the rotation to the spider
-        if (Quaternion.Angle(transform.rotation,goalrotation)>Mathf.Epsilon) transform.rotation = goalrotation;
+        if (Quaternion.Angle(transform.rotation, goalrotation) > Mathf.Epsilon) transform.rotation = goalrotation;
 
         // Dont apply gravity if close enough to ground
         if (grdInfo.distanceToGround > getGravityOffDistance()) {
@@ -167,9 +169,6 @@ public class Spider : MonoBehaviour {
     }
 
     void Update() {
-        //** Debug **//
-        if (showDebug) drawDebug();
-
         Vector3 Y = body.TransformDirection(bodyY);
 
         //Doesnt work the way i want it too! On sphere i go underground. I jiggle around when i go down my centroid moves down to.(Depends on errortolerance of IKSolver)
@@ -296,7 +295,7 @@ public class Spider : MonoBehaviour {
     //** Torso adjust methods for more realistic movement **//
 
     // Calculate the centroid (center of gravity) given by all end effector positions of the legs
-    private Vector3 getLegsCentroid() {
+    public Vector3 getLegsCentroid() {
         if (legs == null || legs.Length == 0) {
             Debug.LogError("Cant calculate leg centroid, legs not assigned.");
             return body.transform.position;
@@ -405,37 +404,102 @@ public class Spider : MonoBehaviour {
     public void setGroundcheck(bool b) {
         groundCheckOn = b;
     }
+}
 
-    //** Debug Methods **//
-    private void drawDebug() {
-        //Draw the two Sphere Rays
-        downRay.draw(Color.green);
-        forwardRay.draw(Color.blue);
-
-        //Draw the Gravity off distance
-        Vector3 borderpoint = getColliderBottomPoint();
-        Debug.DrawLine(borderpoint, borderpoint + getGravityOffDistance() * -transform.up, Color.magenta);
-
-        //Draw the current transform.up and the bodys current Y orientation
-        Debug.DrawLine(transform.position, transform.position + 2f * getColliderRadius() * transform.up, new Color(1, 0.5f, 0, 1));
-        Debug.DrawLine(transform.position, transform.position + 2f * getColliderRadius() * body.TransformDirection(bodyY), Color.blue);
-
-        //Draw the Centroids 
-        DebugShapes.DrawPoint(getDefaultCentroid(), Color.magenta, 0.1f);
-        DebugShapes.DrawPoint(getLegsCentroid(), Color.red, 0.1f);
-        DebugShapes.DrawPoint(getColliderBottomPoint(), Color.cyan, 0.1f);
-    }
 
 #if UNITY_EDITOR
-    void OnDrawGizmosSelected() {
+[CustomEditor(typeof(Spider))]
+public class SpiderEditor : Editor {
 
-        if (!showDebug) return;
-        if (UnityEditor.EditorApplication.isPlaying) return;
-        if (!UnityEditor.Selection.Contains(transform.gameObject)) return;
+    private Spider spider;
 
-        Awake();
-        drawDebug();
+    private bool showDebug = true;
+    private bool showRaycasts = true;
+    private bool showGravityOffDistance = true;
+    private bool showOrientations = true;
+    private bool showCentroid = true;
+
+    public void OnEnable() {
+        spider = (Spider)target;
+        Debug.Log("Called Awake " + spider.name);
+        spider.Awake();
     }
-#endif
+
+    public override void OnInspectorGUI() {
+        if (spider == null) return;
+
+        Undo.RecordObject(spider, "Changes to Spider");
+
+        DrawUILine(Color.gray);
+        EditorGUILayout.LabelField("Debug Drawing", EditorStyles.boldLabel);
+        showDebug = EditorGUILayout.Toggle("Show Debug Drawings", showDebug);
+        if (showDebug) {
+            EditorGUI.indentLevel++;
+            showRaycasts = EditorGUILayout.Toggle("Draw Raycasts", showRaycasts);
+            showGravityOffDistance = EditorGUILayout.Toggle("Draw Gravity Off Distance", showGravityOffDistance);
+            showOrientations = EditorGUILayout.Toggle("Draw Orienations", showOrientations);
+            showCentroid = EditorGUILayout.Toggle("Draw Centroid", showCentroid);
+            EditorGUI.indentLevel--;
+        }
+        DrawUILine(Color.gray);
+
+        base.OnInspectorGUI();
+    }
+
+    void OnSceneGUI() {
+        if (!showDebug || spider == null) return;
+
+        //Draw the two Sphere Rays
+        if (showRaycasts) {
+            Vector3 enddown = spider.downRay.getEnd();
+            Vector3 endforward = spider.forwardRay.getEnd();
+
+            Handles.color = Color.green;
+            Handles.DrawDottedLine(spider.downRay.getOrigin(), enddown, 2);
+            Handles.RadiusHandle(spider.transform.rotation, enddown, spider.downRay.getRadius(), false);
+
+            Handles.color = Color.blue;
+            Handles.DrawDottedLine(spider.forwardRay.getOrigin(), endforward, 2);
+            Handles.RadiusHandle(spider.transform.rotation, endforward, spider.forwardRay.getRadius(), false);
+        }
+
+        //Draw the Gravity off distance
+        if (showGravityOffDistance) {
+            Vector3 borderpoint = spider.getColliderBottomPoint();
+            Handles.color = Color.magenta;
+            Handles.DrawDottedLine(borderpoint, borderpoint + spider.getGravityOffDistance() * -spider.transform.up, 2);
+        }
+
+        //Draw the current transform.up and the bodys current Y orientation
+        if (showOrientations) {
+            Handles.color = new Color(1, 0.5f, 0, 1);
+            Handles.DrawLine(spider.transform.position, spider.transform.position + 2f * spider.getColliderRadius() * spider.transform.up);
+
+            Handles.color = Color.blue;
+            Debug.DrawLine(spider.transform.position, spider.transform.position + 2f * spider.getColliderRadius() * spider.body.TransformDirection(spider.bodyY), Color.blue);
+        }
+
+        //Draw the Centroids 
+        if (showCentroid) {
+            Handles.color = Color.magenta;
+            Handles.DrawWireCube(spider.getDefaultCentroid(), 0.1f * Vector3.one);
+
+            Handles.color = Color.red;
+            Handles.DrawWireCube(spider.getLegsCentroid(), 0.1f * Vector3.one);
+
+            Handles.color = Color.cyan;
+            Handles.DrawWireCube(spider.getColliderBottomPoint(), 0.1f * Vector3.one);
+        }
+    }
+
+    public static void DrawUILine(Color color, int thickness = 2, int padding = 10) {
+        Rect r = EditorGUILayout.GetControlRect(GUILayout.Height(padding + thickness));
+        r.height = thickness;
+        r.y += padding / 2;
+        r.x -= 2;
+        r.width += 6;
+        EditorGUI.DrawRect(r, color);
+    }
 
 }
+#endif

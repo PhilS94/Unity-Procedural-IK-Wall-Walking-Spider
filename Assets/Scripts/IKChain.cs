@@ -6,8 +6,11 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEditor;
 using Raycasting;
+
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 public enum TargetMode {
     ExternallyHandled,
@@ -59,7 +62,7 @@ public class IKChain : MonoBehaviour {
     private Vector3 endEffectorVelocity;
     private Vector3 lastEndeffectorPos;
 
-    private void Awake() {
+    public void Awake() {
         if (targetMode == TargetMode.DebugTarget) debugModeRay = new RayCast(debugTarget.position + 1.0f * Vector3.up, debugTarget.position - 1.0f * Vector3.up, debugTarget, debugTarget);
         lastEndeffectorPos = endEffector.position;
     }
@@ -102,7 +105,7 @@ public class IKChain : MonoBehaviour {
     /* This function performs a call to the IKSolvers CCD algorithm, which then solves this chain to the current target. */
     private void solve() {
 
-        if (ikSolveMethod==IKSolveMethod.CCD) {
+        if (ikSolveMethod == IKSolveMethod.CCD) {
             IKSolver.solveChainCCD(ref joints, endEffector, currentTarget, getTolerance(), getMinimumChangePerIterationOfSolving(), getSingularityRadius(), adjustLastJointToNormal, printDebugLogs);
         }
         else if (ikSolveMethod == IKSolveMethod.CCDFrameByFrame) {
@@ -112,7 +115,7 @@ public class IKChain : MonoBehaviour {
         }
         error = Vector3.Distance(endEffector.position, currentTarget.position);
     }
-  
+
     /* Calculates the length of the IK chain. */
     // Gets called from IKStepper and not from this class .
     // Should capsule this in this class though. However IKStepper needs the chain length at Awake...
@@ -203,36 +206,96 @@ public class IKChain : MonoBehaviour {
         return endEffectorVelocity;
     }
 
+}
+
 
 #if UNITY_EDITOR
-    void OnDrawGizmosSelected() {
+[CustomEditor(typeof(IKChain))]
+public class IKChainEditor : Editor {
 
-        if (UnityEditor.EditorApplication.isPlaying) return;
-        if (!UnityEditor.Selection.Contains(transform.gameObject)) return;
+    private IKChain ikchain;
 
-        Awake();
+    private bool showDebug = true;
+    private bool showChain = true;
+    private bool showSolveTolerance = true;
+    private bool showMinimumSolveChange = true;
+    private bool showSingularityRadius = true;
 
-        if (debugTarget == null && (targetMode == TargetMode.DebugTarget || targetMode == TargetMode.DebugTargetRay)) return;
+    public void OnEnable() {
+        ikchain = (IKChain)target;
+        Debug.Log("Called Awake " + ikchain.name);
+        ikchain.Awake();
+    }
+
+    public override void OnInspectorGUI() {
+        if (ikchain == null) return;
+
+        Undo.RecordObject(ikchain, "Changes to IKChain");
+
+        DrawUILine(Color.gray);
+        EditorGUILayout.LabelField("Debug Drawing", EditorStyles.boldLabel);
+        showDebug = EditorGUILayout.Toggle("Show Debug Drawings", showDebug);
+        if (showDebug) {
+            EditorGUI.indentLevel++;
+            showChain = EditorGUILayout.Toggle("Draw IK Chain", showChain);
+            showSolveTolerance = EditorGUILayout.Toggle("Draw IK Solve Tolerance", showSolveTolerance);
+            showMinimumSolveChange = EditorGUILayout.Toggle("Draw Minimum Solve Change Breakcondition", showMinimumSolveChange);
+            showSingularityRadius = EditorGUILayout.Toggle("Draw Singularity Radius", showSingularityRadius);
+            EditorGUI.indentLevel--;
+        }
+        DrawUILine(Color.gray);
+
+        base.OnInspectorGUI();
+    }
+
+    void OnSceneGUI() {
+        if (!showDebug || ikchain == null) return;
 
         //Draw the Chain
-        for (int k = 0; k < joints.Length - 1; k++) {
-            Debug.DrawLine(joints[k].getRotationPoint(), joints[k + 1].getRotationPoint(), Color.green);
+        if (showChain) DrawChain(ref ikchain, Color.green);
+
+        //Draw the solve tolerance as a sphere
+        if (showSolveTolerance) DrawSolveTolerance(ref ikchain, Color.yellow);
+
+        //Draw the minimum change break condition of endeffector as a sphere
+        if (showMinimumSolveChange) DrawMinimumSolveChange(ref ikchain, Color.blue);
+
+        //Draw the singularity radius for each joint
+        if (showSingularityRadius) DrawSingularityRadius(ref ikchain, Color.red);
+    }
+
+    public static void DrawUILine(Color color, int thickness = 2, int padding = 10) {
+        Rect r = EditorGUILayout.GetControlRect(GUILayout.Height(padding + thickness));
+        r.height = thickness;
+        r.y += padding / 2;
+        r.x -= 2;
+        r.width += 6;
+        EditorGUI.DrawRect(r, color);
+    }
+
+    public void DrawChain(ref IKChain ikchain, Color col) {
+        Handles.color = col;
+        for (int k = 0; k < ikchain.joints.Length - 1; k++) {
+            Handles.DrawLine(ikchain.joints[k].getRotationPoint(), ikchain.joints[k + 1].getRotationPoint());
         }
-        Debug.DrawLine(joints[joints.Length - 1].getRotationPoint(), endEffector.position, Color.green);
+        Handles.DrawLine(ikchain.joints[ikchain.joints.Length - 1].getRotationPoint(), ikchain.endEffector.position);
+    }
 
-        //Draw the tolerance as a sphere
-        Gizmos.color = Color.red;
-        Gizmos.DrawSphere(endEffector.position, getTolerance());
+    public void DrawSolveTolerance(ref IKChain ikchain, Color col) {
+        Handles.color = col;
+        Handles.RadiusHandle(ikchain.endEffector.rotation, ikchain.endEffector.position, ikchain.getTolerance(), false);
+    }
 
-        //Draw the minChange as a sphere slighly next to endeffector
-        Gizmos.color = Color.blue;
-        Gizmos.DrawSphere(endEffector.position + (getTolerance() + getMinimumChangePerIterationOfSolving()) * transform.up, getMinimumChangePerIterationOfSolving());
+    public void DrawMinimumSolveChange(ref IKChain ikchain, Color col) {
+        Handles.color = col;
+        Handles.RadiusHandle(ikchain.endEffector.rotation, ikchain.endEffector.position + (ikchain.getTolerance() + ikchain.getMinimumChangePerIterationOfSolving()) * ikchain.transform.up, ikchain.getMinimumChangePerIterationOfSolving(), false);
+    }
 
-        //Draw the singularity radius
-        Gizmos.color = Color.red;
-        for (int k = 0; k < joints.Length; k++) {
-            Gizmos.DrawWireSphere(joints[k].getRotationPoint(), getSingularityRadius());
+    public void DrawSingularityRadius(ref IKChain ikchain, Color col) {
+        Handles.color = col;
+        for (int k = 0; k < ikchain.joints.Length; k++) {
+            Handles.RadiusHandle(ikchain.joints[k].transform.rotation, ikchain.joints[k].getRotationPoint(), ikchain.getSingularityRadius(), false);
         }
     }
-#endif
 }
+#endif

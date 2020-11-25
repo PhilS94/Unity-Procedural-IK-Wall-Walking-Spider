@@ -8,6 +8,10 @@ using System.Collections.Generic;
 using UnityEngine;
 using Raycasting;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 /*
  * This class requires an IKChain to function and supplies it with the ability to perform steps.
  * It contains all the logic in order for the IKChain to perform realistic steps to actual geometrical surface points.
@@ -27,11 +31,8 @@ public class IKStepper : MonoBehaviour {
     public Spider spider;
 
     [Header("Debug")]
-    public bool showDebug;
     public bool printDebugLogs;
     public bool pauseOnStep = false;
-    [Range(1, 10.0f)]
-    public float debugIconScale;
 
     [Header("Step Layer")]
     public LayerMask stepLayer;
@@ -103,28 +104,28 @@ public class IKStepper : MonoBehaviour {
     private bool isStepping = false;
     private float timeStandingStill;
 
-    private float minDistance;
+    public float minDistance { get; private set; }
 
-    private Dictionary<string, Cast> casts;
+    public Dictionary<string, Cast> casts { get; private set; }
     RaycastHit hitInfo;
 
-    private JointHinge rootJoint;
-    private float chainLength;
-    private Vector3 defaultPositionLocal;
+    public JointHinge rootJoint { get; private set; }
+    public float chainLength { get; private set; }
+    public Vector3 defaultPositionLocal { get; private set; }
     private Vector3 lastResortPositionLocal;
     private Vector3 frontalStartPositionLocal;
-    private Vector3 prediction;
+    public Vector3 prediction { get; private set; }
 
     //Debug Variables
-    private Vector3 lastEndEffectorPos;
-    private Vector3 projPrediction;
-    private Vector3 overshootPrediction;
-    private Vector3 minOrient;
-    private Vector3 maxOrient;
-    private string lastHitRay;
+    public Vector3 lastEndEffectorPos { get; private set; }
+    public Vector3 projPrediction { get; private set; }
+    public Vector3 overshootPrediction { get; private set; }
+    public Vector3 minOrient { get; private set; }
+    public Vector3 maxOrient { get; private set; }
+    public string lastHitRay { get; private set; }
 
 
-    private void Awake() {
+    public void Awake() {
         ikChain = GetComponent<IKChain>();
 
         rootJoint = ikChain.getRootJoint();
@@ -277,10 +278,6 @@ public class IKStepper : MonoBehaviour {
         timeSinceLastStep += Time.deltaTime;
         if (!spider.getIsMoving()) timeStandingStill += Time.deltaTime;
         else timeStandingStill = 0f;
-
-#if UNITY_EDITOR
-        if (showDebug && UnityEditor.Selection.Contains(transform.gameObject)) drawDebug();
-#endif
     }
 
     /*
@@ -479,7 +476,7 @@ public class IKStepper : MonoBehaviour {
     }
 
     // Getters for important states
-    private bool getIsStepping() {
+    public bool getIsStepping() {
         return isStepping;
     }
 
@@ -488,97 +485,168 @@ public class IKStepper : MonoBehaviour {
     }
 
     // Getters for important points
-    private Vector3 getDefault() {
+    public Vector3 getDefault() {
         return spider.transform.TransformPoint(defaultPositionLocal);
     }
     public TargetInfo getDefaultTarget() {
         return new TargetInfo(getDefault(), spider.transform.up);
     }
-    private Vector3 getLastResort() {
+    public Vector3 getLastResort() {
         return spider.transform.TransformPoint(lastResortPositionLocal);
     }
-    private TargetInfo getLastResortTarget() {
+    public TargetInfo getLastResortTarget() {
         return new TargetInfo(getLastResort(), spider.transform.up, false);
     }
-    private Vector3 getTopFocalPoint() {
+    public Vector3 getTopFocalPoint() {
         return spider.transform.TransformPoint(rayTopFocalPoint);
     }
-    private Vector3 getBottomFocalPoint() {
+    public Vector3 getBottomFocalPoint() {
         return spider.transform.TransformPoint(rayBottomFocalPoint);
     }
-    private Vector3 getFrontalStartPosition() {
+    public Vector3 getFrontalStartPosition() {
         return spider.transform.TransformPoint(frontalStartPositionLocal);
     }
+}
 
-    /*
-     * This function will perform debug drawing using Gizmos.
-     */
-    private void drawDebug(bool points = true, bool steppingProcess = true, bool rayCasts = true, bool DOFArc = true) {
-
-        float scale = spider.getScale() * 0.0001f * debugIconScale;
-        if (points) {
-            // Default Position
-            DebugShapes.DrawPoint(getDefault(), Color.magenta, scale);
-
-            // Last Resort Position
-            DebugShapes.DrawPoint(getLastResortTarget().position, Color.cyan, scale);
-
-
-            //Draw the top and bottom ray points
-            DebugShapes.DrawPoint(getTopFocalPoint(), Color.green, scale);
-            DebugShapes.DrawPoint(getBottomFocalPoint(), Color.green, scale);
-
-            //Target Point
-            if (isStepping) DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, scale, 0.2f);
-            else DebugShapes.DrawPoint(ikChain.getTarget().position, Color.cyan, scale);
-        }
-
-        if (steppingProcess) {
-            //Draw the prediction process
-            DebugShapes.DrawPoint(lastEndEffectorPos, Color.white, scale);
-            DebugShapes.DrawPoint(projPrediction, Color.grey, scale);
-            DebugShapes.DrawPoint(overshootPrediction, Color.green, scale);
-            DebugShapes.DrawPoint(prediction, Color.yellow, scale);
-            Debug.DrawLine(lastEndEffectorPos, projPrediction, Color.white);
-            Debug.DrawLine(projPrediction, overshootPrediction, Color.grey);
-            Debug.DrawLine(overshootPrediction, prediction, Color.green);
-        }
-
-        if (rayCasts) {
-            Color col = Color.black;
-            foreach (var cast in casts) {
-                if (cast.Key.Contains("Default")) col = Color.magenta;
-                else if (cast.Key.Contains("Prediction")) col = Color.yellow;
-
-                if (cast.Key != lastHitRay) col = Color.Lerp(col, Color.white, 0.5f);
-                cast.Value.draw(col);
-            }
-        }
-
-        if (DOFArc) {
-            Vector3 v = spider.transform.TransformDirection(minOrient);
-            Vector3 w = spider.transform.TransformDirection(maxOrient);
-            Vector3 p = spider.transform.InverseTransformPoint(rootJoint.getRotationPoint());
-            p.y = defaultPositionLocal.y;
-            p = spider.transform.TransformPoint(p);
-            DebugShapes.DrawCircleSection(p, v, w, rootJoint.getRotationAxis(), minDistance, chainLength, Color.red);
-        }
-    }
 
 
 #if UNITY_EDITOR
-    /*
-     * This function is called from Unity Editor even when not in play mode, allowing debug drawing to be performed.
-     */
-    private void OnDrawGizmosSelected() {
-        if (UnityEditor.EditorApplication.isPlaying) return;
-        if (!UnityEditor.Selection.Contains(transform.gameObject)) return;
-        if (!showDebug) return;
+[CustomEditor(typeof(IKStepper))]
+public class IKStepperEditor : Editor {
 
-        // Run Awake to set the pointers
-        Awake();
+    private IKStepper ikstepper;
 
-        drawDebug(true, false, true, true);
+    private bool showDebug = true;
+    private static float debugIconScale = 5.0f;
+    private bool showPoints = true;
+    private bool showSteppingProcess = true;
+    private bool showRayCasts = true;
+    private bool showDOFArc = true;
+
+    public void OnEnable() {
+        ikstepper = (IKStepper)target;
+        Debug.Log("Called Awake " + ikstepper.name);
+        ikstepper.Awake();
     }
-#endif
+
+    public override void OnInspectorGUI() {
+        if (ikstepper == null) return;
+
+        Undo.RecordObject(ikstepper, "Changes to IKStepper");
+
+        DrawUILine(Color.gray);
+        EditorGUILayout.LabelField("Debug Drawing", EditorStyles.boldLabel);
+        showDebug = EditorGUILayout.Toggle("Show Debug Drawings", showDebug);
+        if (showDebug) {
+            EditorGUI.indentLevel++;
+            debugIconScale = EditorGUILayout.Slider("Drawing Scale", debugIconScale, 1f, 10f);
+            showPoints = EditorGUILayout.Toggle("Draw Points", showPoints);
+            showSteppingProcess = EditorGUILayout.Toggle("Draw Stepping Process", showSteppingProcess);
+            showRayCasts = EditorGUILayout.Toggle("Draw Raycasts", showRayCasts);
+            showDOFArc = EditorGUILayout.Toggle("Draw Degree of Freedom Arc", showDOFArc);
+            EditorGUI.indentLevel--;
+        }
+        DrawUILine(Color.gray);
+
+        base.OnInspectorGUI();
+    }
+
+    void OnSceneGUI() {
+        if (!showDebug || ikstepper == null) return;
+
+        float scale = ikstepper.spider.getScale() * 0.0001f * debugIconScale;
+
+        if (showSteppingProcess) DrawSteppingProcess(ref ikstepper, scale);
+        if (showRayCasts) DrawRaycasts(ref ikstepper, Color.magenta, Color.yellow);
+        if (showDOFArc) DrawDegreeOfFreedomArc(ref ikstepper, Color.red);
+
+        if (showPoints) {
+            DrawLastResort(ref ikstepper, Color.red, scale);
+            DrawFocalPoints(ref ikstepper, Color.green, scale);
+            DrawTarget(ref ikstepper, Color.black, scale);
+            DrawDefaultPoint(ref ikstepper, Color.magenta, scale);
+        }
+    }
+
+    public static void DrawUILine(Color color, int thickness = 2, int padding = 10) {
+        Rect r = EditorGUILayout.GetControlRect(GUILayout.Height(padding + thickness));
+        r.height = thickness;
+        r.y += padding / 2;
+        r.x -= 2;
+        r.width += 6;
+        EditorGUI.DrawRect(r, color);
+    }
+
+    public void DrawDefaultPoint(ref IKStepper ikstepper, Color col, float scale) {
+        Handles.color = col;
+        Handles.DrawWireCube(ikstepper.getDefault(), scale * Vector3.one);
+    }
+
+    public void DrawLastResort(ref IKStepper ikstepper, Color col, float scale) {
+        Handles.color = col;
+        Handles.DrawWireCube(ikstepper.getLastResortTarget().position, scale * Vector3.one);
+    }
+
+    public void DrawFocalPoints(ref IKStepper ikstepper, Color col, float scale) {
+        Handles.color = col;
+        Handles.DrawWireCube(ikstepper.getTopFocalPoint(), scale * Vector3.one);
+        Handles.DrawWireCube(ikstepper.getBottomFocalPoint(), scale * Vector3.one);
+    }
+
+    public void DrawTarget(ref IKStepper ikstepper, Color col, float scale) {
+        Handles.color = col;
+        Handles.DrawWireCube(ikstepper.getIKChain().getTarget().position, scale * Vector3.one);
+    }
+
+    public void DrawSteppingProcess(ref IKStepper ikstepper, float scale) {
+        Handles.color = Color.white;
+        Handles.DrawWireCube(ikstepper.lastEndEffectorPos, scale * Vector3.one);
+
+        Handles.color = Color.grey;
+        Handles.DrawWireCube(ikstepper.projPrediction, scale * Vector3.one);
+
+        Handles.color = Color.green;
+        Handles.DrawWireCube(ikstepper.overshootPrediction, scale * Vector3.one);
+
+        Handles.color = Color.yellow;
+        Handles.DrawWireCube(ikstepper.prediction, scale * Vector3.one);
+
+        Handles.color = Color.white;
+        Handles.DrawDottedLine(ikstepper.lastEndEffectorPos, ikstepper.projPrediction, 2);
+
+        Handles.color = Color.grey;
+        Handles.DrawDottedLine(ikstepper.projPrediction, ikstepper.overshootPrediction, 2);
+
+        Handles.color = Color.green;
+        Handles.DrawDottedLine(ikstepper.overshootPrediction, ikstepper.prediction, 2);
+
+    }
+
+    public void DrawRaycasts(ref IKStepper ikstepper, Color color1, Color color2) {
+        Color col = Color.black;
+        foreach (var cast in ikstepper.casts) {
+            if (cast.Key.Contains("Default")) col = color1;
+            else if (cast.Key.Contains("Prediction")) col = color2;
+
+            if (cast.Key != ikstepper.lastHitRay) col = Color.Lerp(col, Color.white, 0.5f);
+
+            Handles.color = col;
+            Handles.DrawLine(cast.Value.getOrigin(), cast.Value.getEnd());
+            //cast.Value.draw(col);
+        }
+    }
+
+    public void DrawDegreeOfFreedomArc(ref IKStepper ikstepper, Color col) {
+        Vector3 v = ikstepper.spider.transform.TransformDirection(ikstepper.minOrient);
+        Vector3 w = ikstepper.spider.transform.TransformDirection(ikstepper.maxOrient);
+        Vector3 p = ikstepper.spider.transform.InverseTransformPoint(ikstepper.rootJoint.getRotationPoint());
+        p.y = ikstepper.defaultPositionLocal.y;
+        p = ikstepper.spider.transform.TransformPoint(p);
+
+        Handles.color = col;
+        Handles.DrawWireArc(p, ikstepper.rootJoint.getRotationAxis(), v, ikstepper.rootJoint.getAngleRange(), ikstepper.chainLength);
+        Handles.DrawLine(p, p + v * ikstepper.chainLength);
+        Handles.DrawLine(p, p + w * ikstepper.chainLength);
+    }
 }
+#endif

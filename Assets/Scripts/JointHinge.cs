@@ -7,6 +7,11 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
+
 /*
  * This class represents a hinge joint with a specified rotation axis, rotation point and rotational limits.
  * The function applyRotation() is made to be called externally to rotate the gameobject this class is attached to.
@@ -18,9 +23,6 @@ public class JointHinge : MonoBehaviour {
 
 
     [Header("Debug")]
-    [Range(1f, 10.0f)]
-    public float debugIconScale = 1.0f;
-
     public bool deactivateJoint = false;
     public bool useRotationLimits = true;
 
@@ -64,9 +66,9 @@ public class JointHinge : MonoBehaviour {
     private Vector3 maxOrientationLocal;
 
     //Keeps track of the current state of rotation and is important part of the angle clamping
-    private float currentAngle = 0;
+    public float currentAngle { get; private set; } = 0;
 
-    private void Awake() {
+    public void Awake() {
         setupValues();
     }
 
@@ -197,19 +199,19 @@ public class JointHinge : MonoBehaviour {
         return transform.TransformPoint(0.01f * rotationPointOffset);
     }
 
-    private Vector3 getOrientation() {
+    public Vector3 getOrientation() {
         return transform.TransformDirection(orientationLocal);
     }
 
-    private Vector3 getDefaultOrientation() {
+    public Vector3 getDefaultOrientation() {
         return transform.TransformDirection(defaultOrientationLocal);
     }
 
-    private Vector3 getMinOrientation() {
+    public Vector3 getMinOrientation() {
         return transform.TransformDirection(minOrientationLocal);
     }
 
-    private Vector3 getMaxOrientation() {
+    public Vector3 getMaxOrientation() {
         return transform.TransformDirection(maxOrientationLocal);
     }
     public Vector3 getMidOrientation() {
@@ -219,45 +221,95 @@ public class JointHinge : MonoBehaviour {
     public float getAngleRange() {
         return maxAngle - minAngle;
     }
+}
 
 #if UNITY_EDITOR
-    void OnDrawGizmosSelected() {
-        if (!UnityEditor.Selection.Contains(transform.gameObject)) return;
+[CustomEditor(typeof(JointHinge))]
+public class JointHingeEditor : Editor {
 
-        Awake();
+    private JointHinge joint;
 
-        float scale = transform.lossyScale.y * 0.005f * debugIconScale;
+    private static float debugIconScale = 5.0f;
+    private static bool showDebug = true;
+    private static bool showRotationAxis = true;
+    private static bool showRotationPoint = true;
+    private static bool showAngleArc = true;
 
-
-        Vector3 rotationAxis = getRotationAxis();
-        Vector3 rotPoint = getRotationPoint();
-        Vector3 minOrientation = getMinOrientation();
-        Vector3 orientation = getOrientation();
-        Vector3 defaultOrientation = getDefaultOrientation();
-
-        //RotAxis
-        Gizmos.color = Color.blue;
-        Gizmos.DrawLine(rotPoint, rotPoint + scale * rotationAxis);
-
-        //RotPoint
-        Gizmos.color = Color.green;
-        Gizmos.DrawSphere(rotPoint, 0.01f * scale);
-
-        // Rotation Limit Arc
-        UnityEditor.Handles.color = Color.yellow;
-        UnityEditor.Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, maxAngle - minAngle, 0.2f * scale);
-
-        // Current Rotation Used Arc
-        UnityEditor.Handles.color = Color.red;
-        UnityEditor.Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, currentAngle - minAngle, 0.1f * scale);
-
-        // Current Rotation used (same as above) just an additional line to emphasize
-        Gizmos.color = Color.red;
-        Gizmos.DrawLine(rotPoint, rotPoint + 0.2f * scale * orientation);
-
-        // Default Rotation
-        Gizmos.color = Color.magenta;
-        Gizmos.DrawLine(rotPoint, rotPoint + 0.2f * scale * defaultOrientation);
+    public void OnEnable() {
+        joint = (JointHinge)target;
+        Debug.Log("Called Awake " + joint.name);
+        joint.Awake();
     }
-#endif
+
+    public override void OnInspectorGUI() {
+        if (joint == null) return;
+
+        Undo.RecordObject(joint, "Changes to JointHinge");
+
+        DrawUILine(Color.gray);
+        EditorGUILayout.LabelField("Debug Drawing", EditorStyles.boldLabel);
+        showDebug = EditorGUILayout.Toggle("Show Debug Drawings", showDebug);
+        if (showDebug) {
+            EditorGUI.indentLevel++;
+            debugIconScale = EditorGUILayout.Slider("Drawing Scale", debugIconScale, 1f, 10f);
+            showRotationAxis = EditorGUILayout.Toggle("Draw Rotation Axis", showRotationAxis);
+            showRotationPoint = EditorGUILayout.Toggle("Draw Rotation Point", showRotationPoint);
+            showAngleArc = EditorGUILayout.Toggle("Draw Joint Restricton Arc", showAngleArc);
+            EditorGUI.indentLevel--;
+        }
+        DrawUILine(Color.gray);
+
+        base.OnInspectorGUI();
+    }
+
+    void OnSceneGUI() {
+        if (!showDebug || joint == null) return;
+
+        float scale = joint.transform.lossyScale.y * 0.0002f * debugIconScale;
+
+        Vector3 rotationAxis = joint.getRotationAxis();
+        Vector3 rotPoint = joint.getRotationPoint();
+        Vector3 minOrientation = joint.getMinOrientation();
+        Vector3 orientation = joint.getOrientation();
+        Vector3 defaultOrientation = joint.getDefaultOrientation();
+
+        //Rotation Axis
+        if (showRotationAxis) {
+            Handles.color = Color.blue;
+            Handles.DrawLine(rotPoint, rotPoint + scale * rotationAxis);
+        }
+
+        //Rotation Point
+        if (showRotationPoint) {
+            Handles.color = Color.green;
+            Handles.RadiusHandle(joint.transform.rotation, rotPoint, 0.1f * scale, false);
+        }
+
+        // Joint Angle Arc
+        if (showAngleArc) {
+            // Rotation Limit Arc
+            Handles.color = Color.yellow;
+            Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, joint.maxAngle - joint.minAngle, scale);
+
+            // Rotation Current Arc
+            Handles.color = Color.red;
+            Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, joint.currentAngle - joint.minAngle, 0.5f * scale);
+            Handles.DrawLine(rotPoint, rotPoint + scale * orientation);
+
+            // Default Rotation
+            Handles.color = Color.magenta;
+            Handles.DrawLine(rotPoint, rotPoint + scale * defaultOrientation);
+        }
+        //SceneView.RepaintAll();
+    }
+
+    public static void DrawUILine(Color color, int thickness = 2, int padding = 10) {
+        Rect r = EditorGUILayout.GetControlRect(GUILayout.Height(padding + thickness));
+        r.height = thickness;
+        r.y += padding / 2;
+        r.x -= 2;
+        r.width += 6;
+        EditorGUI.DrawRect(r, color);
+    }
 }
+#endif
