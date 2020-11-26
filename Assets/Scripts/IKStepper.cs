@@ -517,6 +517,7 @@ public class IKStepperEditor : Editor {
     private IKStepper ikstepper;
 
     private bool showDebug = true;
+
     private static float debugIconScale = 5.0f;
     private bool showPoints = true;
     private bool showSteppingProcess = true;
@@ -534,7 +535,7 @@ public class IKStepperEditor : Editor {
 
         Undo.RecordObject(ikstepper, "Changes to IKStepper");
 
-        DrawUILine(Color.gray);
+        EditorDrawing.DrawHorizontalLine(Color.gray);
         EditorGUILayout.LabelField("Debug Drawing", EditorStyles.boldLabel);
         showDebug = EditorGUILayout.Toggle("Show Debug Drawings", showDebug);
         if (showDebug) {
@@ -546,7 +547,7 @@ public class IKStepperEditor : Editor {
             showDOFArc = EditorGUILayout.Toggle("Draw Degree of Freedom Arc", showDOFArc);
             EditorGUI.indentLevel--;
         }
-        DrawUILine(Color.gray);
+        EditorDrawing.DrawHorizontalLine(Color.gray);
 
         base.OnInspectorGUI();
     }
@@ -566,15 +567,6 @@ public class IKStepperEditor : Editor {
             DrawTarget(ref ikstepper, Color.black, scale);
             DrawDefaultPoint(ref ikstepper, Color.magenta, scale);
         }
-    }
-
-    public static void DrawUILine(Color color, int thickness = 2, int padding = 10) {
-        Rect r = EditorGUILayout.GetControlRect(GUILayout.Height(padding + thickness));
-        r.height = thickness;
-        r.y += padding / 2;
-        r.x -= 2;
-        r.width += 6;
-        EditorGUI.DrawRect(r, color);
     }
 
     public void DrawDefaultPoint(ref IKStepper ikstepper, Color col, float scale) {

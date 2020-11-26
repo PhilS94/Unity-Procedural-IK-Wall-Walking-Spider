@@ -216,6 +216,7 @@ public class IKChainEditor : Editor {
     private IKChain ikchain;
 
     private bool showDebug = true;
+
     private bool showChain = true;
     private bool showSolveTolerance = true;
     private bool showMinimumSolveChange = true;
@@ -232,7 +233,7 @@ public class IKChainEditor : Editor {
 
         Undo.RecordObject(ikchain, "Changes to IKChain");
 
-        DrawUILine(Color.gray);
+        EditorDrawing.DrawHorizontalLine(Color.gray);
         EditorGUILayout.LabelField("Debug Drawing", EditorStyles.boldLabel);
         showDebug = EditorGUILayout.Toggle("Show Debug Drawings", showDebug);
         if (showDebug) {
@@ -243,7 +244,7 @@ public class IKChainEditor : Editor {
             showSingularityRadius = EditorGUILayout.Toggle("Draw Singularity Radius", showSingularityRadius);
             EditorGUI.indentLevel--;
         }
-        DrawUILine(Color.gray);
+        EditorDrawing.DrawHorizontalLine(Color.gray);
 
         base.OnInspectorGUI();
     }
@@ -262,15 +263,6 @@ public class IKChainEditor : Editor {
 
         //Draw the singularity radius for each joint
         if (showSingularityRadius) DrawSingularityRadius(ref ikchain, Color.red);
-    }
-
-    public static void DrawUILine(Color color, int thickness = 2, int padding = 10) {
-        Rect r = EditorGUILayout.GetControlRect(GUILayout.Height(padding + thickness));
-        r.height = thickness;
-        r.y += padding / 2;
-        r.x -= 2;
-        r.width += 6;
-        EditorGUI.DrawRect(r, color);
     }
 
     public void DrawChain(ref IKChain ikchain, Color col) {

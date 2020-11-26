@@ -230,6 +230,7 @@ public class JointHingeEditor : Editor {
     private JointHinge joint;
 
     private static float debugIconScale = 5.0f;
+
     private static bool showDebug = true;
     private static bool showRotationAxis = true;
     private static bool showRotationPoint = true;
@@ -246,7 +247,7 @@ public class JointHingeEditor : Editor {
 
         Undo.RecordObject(joint, "Changes to JointHinge");
 
-        DrawUILine(Color.gray);
+        EditorDrawing.DrawHorizontalLine(Color.gray);
         EditorGUILayout.LabelField("Debug Drawing", EditorStyles.boldLabel);
         showDebug = EditorGUILayout.Toggle("Show Debug Drawings", showDebug);
         if (showDebug) {
@@ -257,7 +258,7 @@ public class JointHingeEditor : Editor {
             showAngleArc = EditorGUILayout.Toggle("Draw Joint Restricton Arc", showAngleArc);
             EditorGUI.indentLevel--;
         }
-        DrawUILine(Color.gray);
+        EditorDrawing.DrawHorizontalLine(Color.gray);
 
         base.OnInspectorGUI();
     }
@@ -294,22 +295,13 @@ public class JointHingeEditor : Editor {
             // Rotation Current Arc
             Handles.color = Color.red;
             Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, joint.currentAngle - joint.minAngle, 0.5f * scale);
+            Handles.color = Color.black;
             Handles.DrawLine(rotPoint, rotPoint + scale * orientation);
 
             // Default Rotation
-            Handles.color = Color.magenta;
+            Handles.color = Color.green;
             Handles.DrawLine(rotPoint, rotPoint + scale * defaultOrientation);
         }
-        //SceneView.RepaintAll();
-    }
-
-    public static void DrawUILine(Color color, int thickness = 2, int padding = 10) {
-        Rect r = EditorGUILayout.GetControlRect(GUILayout.Height(padding + thickness));
-        r.height = thickness;
-        r.y += padding / 2;
-        r.x -= 2;
-        r.width += 6;
-        EditorGUI.DrawRect(r, color);
     }
 }
 #endif

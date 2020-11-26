@@ -414,6 +414,7 @@ public class SpiderEditor : Editor {
     private Spider spider;
 
     private bool showDebug = true;
+
     private bool showRaycasts = true;
     private bool showGravityOffDistance = true;
     private bool showOrientations = true;
@@ -430,7 +431,7 @@ public class SpiderEditor : Editor {
 
         Undo.RecordObject(spider, "Changes to Spider");
 
-        DrawUILine(Color.gray);
+        EditorDrawing.DrawHorizontalLine(Color.gray);
         EditorGUILayout.LabelField("Debug Drawing", EditorStyles.boldLabel);
         showDebug = EditorGUILayout.Toggle("Show Debug Drawings", showDebug);
         if (showDebug) {
@@ -441,7 +442,7 @@ public class SpiderEditor : Editor {
             showCentroid = EditorGUILayout.Toggle("Draw Centroid", showCentroid);
             EditorGUI.indentLevel--;
         }
-        DrawUILine(Color.gray);
+        EditorDrawing.DrawHorizontalLine(Color.gray);
 
         base.OnInspectorGUI();
     }
@@ -491,15 +492,5 @@ public class SpiderEditor : Editor {
             Handles.DrawWireCube(spider.getColliderBottomPoint(), 0.1f * Vector3.one);
         }
     }
-
-    public static void DrawUILine(Color color, int thickness = 2, int padding = 10) {
-        Rect r = EditorGUILayout.GetControlRect(GUILayout.Height(padding + thickness));
-        r.height = thickness;
-        r.y += padding / 2;
-        r.x -= 2;
-        r.width += 6;
-        EditorGUI.DrawRect(r, color);
-    }
-
 }
 #endif
