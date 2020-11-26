@@ -12,5 +12,16 @@ public static class EditorDrawing
         r.width += 6;
         EditorGUI.DrawRect(r, color);
     }
+
+    public static void DrawText(Vector3 pos, string text, Color col,bool emphasize=false) {
+        GUIStyle style = new GUIStyle();
+        style.normal.textColor = col;
+        style.alignment = TextAnchor.MiddleCenter;
+        if (emphasize) {
+            style.fontStyle = FontStyle.Bold;
+            style.normal.background = Texture2D.whiteTexture;
+        }
+        Handles.Label(pos, text, style);
+    }
 }
 #endif

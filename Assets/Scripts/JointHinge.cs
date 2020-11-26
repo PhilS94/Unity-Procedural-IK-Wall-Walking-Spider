@@ -261,6 +261,7 @@ public class JointHingeEditor : Editor {
         EditorDrawing.DrawHorizontalLine(Color.gray);
 
         base.OnInspectorGUI();
+        joint.Awake();
     }
 
     void OnSceneGUI() {
@@ -288,20 +289,20 @@ public class JointHingeEditor : Editor {
 
         // Joint Angle Arc
         if (showAngleArc) {
-            // Rotation Limit Arc
+            // Rotation Limit Arc and start orientation
             Handles.color = Color.yellow;
             Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, joint.maxAngle - joint.minAngle, scale);
+            Handles.DrawLine(rotPoint, rotPoint + 1.3f * scale * defaultOrientation);
 
             // Rotation Current Arc
             Handles.color = Color.red;
             Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, joint.currentAngle - joint.minAngle, 0.5f * scale);
-            Handles.color = Color.black;
             Handles.DrawLine(rotPoint, rotPoint + scale * orientation);
-
-            // Default Rotation
-            Handles.color = Color.green;
-            Handles.DrawLine(rotPoint, rotPoint + scale * defaultOrientation);
         }
+
+        GUIStyle style = new GUIStyle();
+        style.normal.textColor = Color.yellow;
+        Handles.Label(joint.transform.position, joint.name, style);
     }
 }
 #endif

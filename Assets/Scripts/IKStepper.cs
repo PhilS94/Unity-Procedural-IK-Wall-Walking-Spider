@@ -516,13 +516,13 @@ public class IKStepperEditor : Editor {
 
     private IKStepper ikstepper;
 
-    private bool showDebug = true;
+    private static bool showDebug = true;
 
     private static float debugIconScale = 5.0f;
-    private bool showPoints = true;
-    private bool showSteppingProcess = true;
-    private bool showRayCasts = true;
-    private bool showDOFArc = true;
+    private static bool showPoints = true;
+    private static bool showSteppingProcess = true;
+    private static bool showRayCasts = true;
+    private static bool showDOFArc = true;
 
     public void OnEnable() {
         ikstepper = (IKStepper)target;
@@ -557,61 +557,67 @@ public class IKStepperEditor : Editor {
 
         float scale = ikstepper.spider.getScale() * 0.0001f * debugIconScale;
 
-        if (showSteppingProcess) DrawSteppingProcess(ref ikstepper, scale);
-        if (showRayCasts) DrawRaycasts(ref ikstepper, Color.magenta, Color.yellow);
+        if (showSteppingProcess) DrawSteppingProcess(ref ikstepper, new Color(0.2f, 0.2f, 0.2f, 1f), Color.white, Color.green, Color.yellow, scale);
+        if (showRayCasts) DrawRaycasts(ref ikstepper,Color.Lerp(Color.magenta,Color.white,0.2f), Color.Lerp(Color.yellow, Color.white, 0.2f));
         if (showDOFArc) DrawDegreeOfFreedomArc(ref ikstepper, Color.red);
 
         if (showPoints) {
             DrawLastResort(ref ikstepper, Color.red, scale);
             DrawFocalPoints(ref ikstepper, Color.green, scale);
-            DrawTarget(ref ikstepper, Color.black, scale);
+            DrawTarget(ref ikstepper, Color.cyan, scale);
             DrawDefaultPoint(ref ikstepper, Color.magenta, scale);
         }
     }
 
     public void DrawDefaultPoint(ref IKStepper ikstepper, Color col, float scale) {
+        Vector3 pos = ikstepper.getDefault();
         Handles.color = col;
-        Handles.DrawWireCube(ikstepper.getDefault(), scale * Vector3.one);
+        Handles.DrawWireCube(pos, scale * Vector3.one);
+        EditorDrawing.DrawText(pos, "Default", col);
     }
 
     public void DrawLastResort(ref IKStepper ikstepper, Color col, float scale) {
+        Vector3 pos = ikstepper.getLastResortTarget().position;
         Handles.color = col;
-        Handles.DrawWireCube(ikstepper.getLastResortTarget().position, scale * Vector3.one);
+        Handles.DrawWireCube(pos, scale * Vector3.one);
+        EditorDrawing.DrawText(pos, "Last Resort", col);
     }
 
     public void DrawFocalPoints(ref IKStepper ikstepper, Color col, float scale) {
+        Vector3 top = ikstepper.getTopFocalPoint();
+        Vector3 bottom = ikstepper.getBottomFocalPoint();
         Handles.color = col;
-        Handles.DrawWireCube(ikstepper.getTopFocalPoint(), scale * Vector3.one);
-        Handles.DrawWireCube(ikstepper.getBottomFocalPoint(), scale * Vector3.one);
+        Handles.DrawWireCube(top, scale * Vector3.one);
+        Handles.DrawWireCube(bottom, scale * Vector3.one);
+        EditorDrawing.DrawText(top, "Top Focal Point", col);
+        EditorDrawing.DrawText(bottom, "Bottom Focal Point", col);
     }
 
     public void DrawTarget(ref IKStepper ikstepper, Color col, float scale) {
+        Vector3 pos = ikstepper.getIKChain().getTarget().position;
         Handles.color = col;
-        Handles.DrawWireCube(ikstepper.getIKChain().getTarget().position, scale * Vector3.one);
+        Handles.DrawWireCube(pos, scale * Vector3.one);
+        EditorDrawing.DrawText(pos, "Target", col);
     }
 
-    public void DrawSteppingProcess(ref IKStepper ikstepper, float scale) {
-        Handles.color = Color.white;
+    public void DrawSteppingProcess(ref IKStepper ikstepper, Color color1, Color color2, Color color3, Color color4, float scale) {
+        Handles.color = color1;
         Handles.DrawWireCube(ikstepper.lastEndEffectorPos, scale * Vector3.one);
+        EditorDrawing.DrawText(ikstepper.lastEndEffectorPos, "Last Position", color1);
 
-        Handles.color = Color.grey;
+        Handles.color = color2;
         Handles.DrawWireCube(ikstepper.projPrediction, scale * Vector3.one);
-
-        Handles.color = Color.green;
-        Handles.DrawWireCube(ikstepper.overshootPrediction, scale * Vector3.one);
-
-        Handles.color = Color.yellow;
-        Handles.DrawWireCube(ikstepper.prediction, scale * Vector3.one);
-
-        Handles.color = Color.white;
         Handles.DrawDottedLine(ikstepper.lastEndEffectorPos, ikstepper.projPrediction, 2);
 
-        Handles.color = Color.grey;
+        Handles.color = color3;
+        Handles.DrawWireCube(ikstepper.overshootPrediction, scale * Vector3.one);
         Handles.DrawDottedLine(ikstepper.projPrediction, ikstepper.overshootPrediction, 2);
+        EditorDrawing.DrawText(ikstepper.overshootPrediction, "Overshoot", color3);
 
-        Handles.color = Color.green;
+        Handles.color = color4;
+        Handles.DrawWireCube(ikstepper.prediction, scale * Vector3.one);
         Handles.DrawDottedLine(ikstepper.overshootPrediction, ikstepper.prediction, 2);
-
+        EditorDrawing.DrawText(ikstepper.prediction, "Prediction", color4);
     }
 
     public void DrawRaycasts(ref IKStepper ikstepper, Color color1, Color color2) {
@@ -620,11 +626,11 @@ public class IKStepperEditor : Editor {
             if (cast.Key.Contains("Default")) col = color1;
             else if (cast.Key.Contains("Prediction")) col = color2;
 
-            if (cast.Key != ikstepper.lastHitRay) col = Color.Lerp(col, Color.white, 0.5f);
-
             Handles.color = col;
-            Handles.DrawLine(cast.Value.getOrigin(), cast.Value.getEnd());
-            //cast.Value.draw(col);
+            Vector3 end = cast.Value.getEnd();
+            Vector3 origin = cast.Value.getOrigin();
+            Handles.DrawLine(origin, end);
+            EditorDrawing.DrawText(end, cast.Key, col, cast.Key == ikstepper.lastHitRay);
         }
     }
 

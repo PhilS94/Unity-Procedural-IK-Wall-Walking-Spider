@@ -413,12 +413,13 @@ public class SpiderEditor : Editor {
 
     private Spider spider;
 
-    private bool showDebug = true;
+    private static bool showDebug = true;
 
-    private bool showRaycasts = true;
-    private bool showGravityOffDistance = true;
-    private bool showOrientations = true;
-    private bool showCentroid = true;
+    private static float debugIconScale = 1.0f;
+    private static bool showRaycasts = true;
+    private static bool showGravityOffDistance = true;
+    private static bool showOrientations = true;
+    private static bool showCentroid = true;
 
     public void OnEnable() {
         spider = (Spider)target;
@@ -436,6 +437,7 @@ public class SpiderEditor : Editor {
         showDebug = EditorGUILayout.Toggle("Show Debug Drawings", showDebug);
         if (showDebug) {
             EditorGUI.indentLevel++;
+            debugIconScale = EditorGUILayout.Slider("Drawing Scale", debugIconScale, 0.01f, 0.1f);
             showRaycasts = EditorGUILayout.Toggle("Draw Raycasts", showRaycasts);
             showGravityOffDistance = EditorGUILayout.Toggle("Draw Gravity Off Distance", showGravityOffDistance);
             showOrientations = EditorGUILayout.Toggle("Draw Orienations", showOrientations);
@@ -452,44 +454,62 @@ public class SpiderEditor : Editor {
 
         //Draw the two Sphere Rays
         if (showRaycasts) {
+            Vector3 origindown = spider.downRay.getOrigin();
             Vector3 enddown = spider.downRay.getEnd();
+            Vector3 originforward = spider.forwardRay.getOrigin();
             Vector3 endforward = spider.forwardRay.getEnd();
 
             Handles.color = Color.green;
-            Handles.DrawDottedLine(spider.downRay.getOrigin(), enddown, 2);
+            Handles.DrawDottedLine(origindown, enddown, 2);
             Handles.RadiusHandle(spider.transform.rotation, enddown, spider.downRay.getRadius(), false);
+            EditorDrawing.DrawText(enddown, "Downwards Ray", Color.green);
 
             Handles.color = Color.blue;
-            Handles.DrawDottedLine(spider.forwardRay.getOrigin(), endforward, 2);
+            Handles.DrawDottedLine(originforward, endforward, 2);
             Handles.RadiusHandle(spider.transform.rotation, endforward, spider.forwardRay.getRadius(), false);
+            EditorDrawing.DrawText(endforward, "Forwards Ray", Color.blue);
         }
 
         //Draw the Gravity off distance
         if (showGravityOffDistance) {
             Vector3 borderpoint = spider.getColliderBottomPoint();
+            Vector3 endpoint = borderpoint + spider.getGravityOffDistance() * -spider.transform.up;
             Handles.color = Color.magenta;
-            Handles.DrawDottedLine(borderpoint, borderpoint + spider.getGravityOffDistance() * -spider.transform.up, 2);
+            Handles.DrawDottedLine(borderpoint, endpoint, 2);
+            EditorDrawing.DrawText(endpoint, "Gravity Off\nDistance", Color.magenta);
         }
 
         //Draw the current transform.up and the bodys current Y orientation
         if (showOrientations) {
-            Handles.color = new Color(1, 0.5f, 0, 1);
-            Handles.DrawLine(spider.transform.position, spider.transform.position + 2f * spider.getColliderRadius() * spider.transform.up);
+            Vector3 end = spider.transform.position + 2f * spider.getColliderRadius() * spider.transform.up;
+            Vector3 endLocal = spider.transform.position + 2f * spider.getColliderRadius() * spider.body.TransformDirection(spider.bodyY);
 
             Handles.color = Color.blue;
-            Debug.DrawLine(spider.transform.position, spider.transform.position + 2f * spider.getColliderRadius() * spider.body.TransformDirection(spider.bodyY), Color.blue);
+            Handles.DrawLine(spider.transform.position, endLocal);
+            EditorDrawing.DrawText(endLocal, "Body\nOrientation", Color.blue);
+
+            Handles.color = Color.green;
+            Handles.DrawLine(spider.transform.position, end);
+            EditorDrawing.DrawText(end, "Controller\nOrientation", Color.green);
         }
 
         //Draw the Centroids 
         if (showCentroid) {
+            Vector3 centroid = spider.getDefaultCentroid();
+            Vector3 legcentroid = spider.getLegsCentroid();
+            Vector3 colbottom = spider.getColliderBottomPoint();
+
             Handles.color = Color.magenta;
-            Handles.DrawWireCube(spider.getDefaultCentroid(), 0.1f * Vector3.one);
+            Handles.DrawWireCube(centroid, debugIconScale * Vector3.one);
+            EditorDrawing.DrawText(centroid, "Body\nCentroid", Color.magenta);
 
             Handles.color = Color.red;
-            Handles.DrawWireCube(spider.getLegsCentroid(), 0.1f * Vector3.one);
+            Handles.DrawWireCube(legcentroid, debugIconScale * Vector3.one);
+            EditorDrawing.DrawText(legcentroid, "Legs\nCentroid", Color.red);
 
             Handles.color = Color.cyan;
-            Handles.DrawWireCube(spider.getColliderBottomPoint(), 0.1f * Vector3.one);
+            Handles.DrawWireCube(colbottom, debugIconScale * Vector3.one);
+            EditorDrawing.DrawText(colbottom, "Collider\nBottom", Color.cyan);
         }
     }
 }

@@ -215,12 +215,12 @@ public class IKChainEditor : Editor {
 
     private IKChain ikchain;
 
-    private bool showDebug = true;
+    private static bool showDebug = true;
 
-    private bool showChain = true;
-    private bool showSolveTolerance = true;
-    private bool showMinimumSolveChange = true;
-    private bool showSingularityRadius = true;
+    private static bool showChain = true;
+    private static bool showSolveTolerance = true;
+    private static bool showMinimumSolveChange = true;
+    private static bool showSingularityRadius = true;
 
     public void OnEnable() {
         ikchain = (IKChain)target;
@@ -276,17 +276,22 @@ public class IKChainEditor : Editor {
     public void DrawSolveTolerance(ref IKChain ikchain, Color col) {
         Handles.color = col;
         Handles.RadiusHandle(ikchain.endEffector.rotation, ikchain.endEffector.position, ikchain.getTolerance(), false);
+        EditorDrawing.DrawText(ikchain.endEffector.position,"Tolerance", col);
     }
 
     public void DrawMinimumSolveChange(ref IKChain ikchain, Color col) {
         Handles.color = col;
-        Handles.RadiusHandle(ikchain.endEffector.rotation, ikchain.endEffector.position + (ikchain.getTolerance() + ikchain.getMinimumChangePerIterationOfSolving()) * ikchain.transform.up, ikchain.getMinimumChangePerIterationOfSolving(), false);
+        Vector3 position = ikchain.endEffector.position + (ikchain.getTolerance() + ikchain.getMinimumChangePerIterationOfSolving()) * ikchain.transform.up;
+        Handles.RadiusHandle(ikchain.endEffector.rotation, position, ikchain.getMinimumChangePerIterationOfSolving(), false);
+        EditorDrawing.DrawText(position, "Minimum Change", col);
     }
 
     public void DrawSingularityRadius(ref IKChain ikchain, Color col) {
         Handles.color = col;
         for (int k = 0; k < ikchain.joints.Length; k++) {
-            Handles.RadiusHandle(ikchain.joints[k].transform.rotation, ikchain.joints[k].getRotationPoint(), ikchain.getSingularityRadius(), false);
+            JointHinge joint = ikchain.joints[k];
+            Handles.RadiusHandle(joint.transform.rotation, joint.getRotationPoint(), ikchain.getSingularityRadius(), false);
+            EditorDrawing.DrawText(joint.transform.position, "Singularity\n"+joint.name, col);
         }
     }
 }
