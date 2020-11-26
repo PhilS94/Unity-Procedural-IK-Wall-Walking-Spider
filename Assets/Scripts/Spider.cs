@@ -124,7 +124,7 @@ public class Spider : MonoBehaviour {
     private groundInfo grdInfo;
 
     public void Awake() {
-
+        Debug.Log("Called Awake " + name + " on Spider");
         //Make sure the scale is uniform, since otherwise lossy scale will not be accurate.
         float x = transform.localScale.x; float y = transform.localScale.y; float z = transform.localScale.z;
         if (Mathf.Abs(x - y) > float.Epsilon || Mathf.Abs(x - z) > float.Epsilon || Mathf.Abs(y - z) > float.Epsilon) {
@@ -423,8 +423,7 @@ public class SpiderEditor : Editor {
 
     public void OnEnable() {
         spider = (Spider)target;
-        Debug.Log("Called Awake " + spider.name);
-        spider.Awake();
+        if (showDebug) spider.Awake();
     }
 
     public override void OnInspectorGUI() {
@@ -447,6 +446,7 @@ public class SpiderEditor : Editor {
         EditorDrawing.DrawHorizontalLine(Color.gray);
 
         base.OnInspectorGUI();
+        if (showDebug) spider.Awake();
     }
 
     void OnSceneGUI() {
@@ -456,18 +456,23 @@ public class SpiderEditor : Editor {
         if (showRaycasts) {
             Vector3 origindown = spider.downRay.getOrigin();
             Vector3 enddown = spider.downRay.getEnd();
+            Vector3 downdir = spider.downRay.getDirection().normalized;
             Vector3 originforward = spider.forwardRay.getOrigin();
             Vector3 endforward = spider.forwardRay.getEnd();
+            Vector3 forwarddir = spider.forwardRay.getDirection().normalized;
+            float t = 5f* debugIconScale;
 
             Handles.color = Color.green;
             Handles.DrawDottedLine(origindown, enddown, 2);
             Handles.RadiusHandle(spider.transform.rotation, enddown, spider.downRay.getRadius(), false);
             EditorDrawing.DrawText(enddown, "Downwards Ray", Color.green);
+            Handles.ArrowHandleCap(0, enddown - downdir * t, Quaternion.LookRotation(downdir), t, EventType.Repaint);
 
             Handles.color = Color.blue;
             Handles.DrawDottedLine(originforward, endforward, 2);
             Handles.RadiusHandle(spider.transform.rotation, endforward, spider.forwardRay.getRadius(), false);
             EditorDrawing.DrawText(endforward, "Forwards Ray", Color.blue);
+            Handles.ArrowHandleCap(0, endforward-forwarddir*t, Quaternion.LookRotation(forwarddir), t, EventType.Repaint);
         }
 
         //Draw the Gravity off distance

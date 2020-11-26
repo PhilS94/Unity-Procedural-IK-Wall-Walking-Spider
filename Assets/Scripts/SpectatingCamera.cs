@@ -39,10 +39,10 @@ public class SpectatingCamera : CameraAbstract {
             camTarget.rotation = Quaternion.LookRotation(observedObject.position - camTarget.position, Vector3.up);
     }
 
-    protected override Vector3 getHorizontalRotationAxis() {
+    public override Vector3 getHorizontalRotationAxis() {
         return Vector3.up;
     }
-    protected override Vector3 getVerticalRotationAxis() {
+    public override Vector3 getVerticalRotationAxis() {
         return camTarget.right;
     }
 }

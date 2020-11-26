@@ -126,6 +126,7 @@ public class IKStepper : MonoBehaviour {
 
 
     public void Awake() {
+        Debug.Log("Called Awake " + name +" on IKStepper");
         ikChain = GetComponent<IKChain>();
 
         rootJoint = ikChain.getRootJoint();
@@ -526,8 +527,7 @@ public class IKStepperEditor : Editor {
 
     public void OnEnable() {
         ikstepper = (IKStepper)target;
-        Debug.Log("Called Awake " + ikstepper.name);
-        ikstepper.Awake();
+        if (showDebug) ikstepper.Awake();
     }
 
     public override void OnInspectorGUI() {
@@ -550,6 +550,7 @@ public class IKStepperEditor : Editor {
         EditorDrawing.DrawHorizontalLine(Color.gray);
 
         base.OnInspectorGUI();
+        if (showDebug) ikstepper.Awake();
     }
 
     void OnSceneGUI() {
@@ -558,7 +559,7 @@ public class IKStepperEditor : Editor {
         float scale = ikstepper.spider.getScale() * 0.0001f * debugIconScale;
 
         if (showSteppingProcess) DrawSteppingProcess(ref ikstepper, new Color(0.2f, 0.2f, 0.2f, 1f), Color.white, Color.green, Color.yellow, scale);
-        if (showRayCasts) DrawRaycasts(ref ikstepper,Color.Lerp(Color.magenta,Color.white,0.2f), Color.Lerp(Color.yellow, Color.white, 0.2f));
+        if (showRayCasts) DrawRaycasts(ref ikstepper, Color.Lerp(Color.magenta, Color.white, 0.2f), Color.Lerp(Color.yellow, Color.white, 0.2f), scale);
         if (showDOFArc) DrawDegreeOfFreedomArc(ref ikstepper, Color.red);
 
         if (showPoints) {
@@ -620,7 +621,7 @@ public class IKStepperEditor : Editor {
         EditorDrawing.DrawText(ikstepper.prediction, "Prediction", color4);
     }
 
-    public void DrawRaycasts(ref IKStepper ikstepper, Color color1, Color color2) {
+    public void DrawRaycasts(ref IKStepper ikstepper, Color color1, Color color2, float scale) {
         Color col = Color.black;
         foreach (var cast in ikstepper.casts) {
             if (cast.Key.Contains("Default")) col = color1;
@@ -629,7 +630,14 @@ public class IKStepperEditor : Editor {
             Handles.color = col;
             Vector3 end = cast.Value.getEnd();
             Vector3 origin = cast.Value.getOrigin();
+            Vector3 dir = cast.Value.getDirection().normalized;
             Handles.DrawLine(origin, end);
+
+            float t = 5f * scale;
+            Quaternion rot = Quaternion.LookRotation(dir);
+            Handles.ArrowHandleCap(0, end - t * dir, rot, t, EventType.Repaint);
+            Handles.ArrowHandleCap(0, origin, rot, t, EventType.Repaint);
+
             EditorDrawing.DrawText(end, cast.Key, col, cast.Key == ikstepper.lastHitRay);
         }
     }

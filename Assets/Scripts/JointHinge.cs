@@ -69,6 +69,7 @@ public class JointHinge : MonoBehaviour {
     public float currentAngle { get; private set; } = 0;
 
     public void Awake() {
+        Debug.Log("Called Awake " + name + " on JointHinge");
         setupValues();
     }
 
@@ -238,8 +239,7 @@ public class JointHingeEditor : Editor {
 
     public void OnEnable() {
         joint = (JointHinge)target;
-        Debug.Log("Called Awake " + joint.name);
-        joint.Awake();
+        if (showDebug) joint.Awake();
     }
 
     public override void OnInspectorGUI() {
@@ -261,7 +261,7 @@ public class JointHingeEditor : Editor {
         EditorDrawing.DrawHorizontalLine(Color.gray);
 
         base.OnInspectorGUI();
-        joint.Awake();
+        if (showDebug) joint.Awake();
     }
 
     void OnSceneGUI() {

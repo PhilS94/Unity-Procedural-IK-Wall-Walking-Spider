@@ -39,10 +39,10 @@ public class SmoothCamera : CameraAbstract {
         }
     }
 
-    protected override Vector3 getHorizontalRotationAxis() {
+    public override Vector3 getHorizontalRotationAxis() {
         return observedObject.transform.up;
     }
-    protected override Vector3 getVerticalRotationAxis() {
+    public override Vector3 getVerticalRotationAxis() {
         return camTarget.right;
     }
 }

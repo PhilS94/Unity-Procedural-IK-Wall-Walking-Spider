@@ -9,6 +9,10 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using Raycasting;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 /* 
  * An Abstract class for camera movement.
  * 
@@ -31,7 +35,6 @@ using Raycasting;
  * Moreover, the rotational axes for vertical and horizontal camera movement can vary, e.g. local Y or global Y axis, and must thus be defined separately.
  */
 public abstract class CameraAbstract : MonoBehaviour {
-    public bool showDebug;
     public Transform observedObject;
 
     protected Transform camTarget;
@@ -66,8 +69,8 @@ public abstract class CameraAbstract : MonoBehaviour {
     [Range(0, 1)]
     public float clipZoomMinDistanceFactor;
 
-    private RayCast clipZoomRayPlayerToCam;
-    private float maxCameraDistance;
+    public RayCast clipZoomRayPlayerToCam { get; private set; }
+    public float maxCameraDistance { get; private set; }
     private RaycastHit hitInfo;
 
     [Header("Obstruction Hiding")]
@@ -76,11 +79,12 @@ public abstract class CameraAbstract : MonoBehaviour {
     [Range(0, 1f)]
     public float rayRadiusObstructionHiding;
 
-    private SphereCast hideRayCamToPlayer;
+    public SphereCast hideRayCamToPlayer { get; private set; }
     private RaycastHit[] camObstructions;
     private ShadowCastingMode[] camObstructionsCastingMode;
 
     protected virtual void Awake() {
+        Debug.Log("Called Awake " + name + " on CameraAbstract");
         cam = GetComponent<Camera>();
         setupCamTarget();
         initializeRayCasting();
@@ -96,6 +100,11 @@ public abstract class CameraAbstract : MonoBehaviour {
 
     /* Initialization methods */
 
+    // Sets target to own transform, camera will not act smooth
+    public void defaultCameraTarget() {
+        camTarget = transform;
+    }
+
     // For the target, create new Gameobject with same position and rotation as this camera currently is
     private void setupCamTarget() {
         GameObject g = new GameObject(gameObject.name + " Target");
@@ -104,7 +113,7 @@ public abstract class CameraAbstract : MonoBehaviour {
         camTarget.rotation = transform.rotation;
     }
 
-    private void initializeRayCasting() {
+    public void initializeRayCasting() {
         maxCameraDistance = Vector3.Distance(observedObject.position, transform.position);
         clipZoomRayPlayerToCam = new RayCast(observedObject.position, camTarget.position, observedObject, null);
         hideRayCamToPlayer = new SphereCast(transform.position, observedObject.position, rayRadiusObstructionHiding * transform.lossyScale.y * 0.01f, transform, observedObject);
@@ -144,8 +153,6 @@ public abstract class CameraAbstract : MonoBehaviour {
 
         // Rotation Interpolation
         transform.rotation = Quaternion.Slerp(transform.rotation, camTarget.rotation, Time.deltaTime * rotationSpeed);
-
-        if (showDebug && cam.enabled) drawDebug();
     }
 
     /* Camera Rotation methods */
@@ -238,8 +245,8 @@ public abstract class CameraAbstract : MonoBehaviour {
     }
 
     /* Abstract rotation axis so every class which inherits from this has to define these. */
-    protected abstract Vector3 getHorizontalRotationAxis();
-    protected abstract Vector3 getVerticalRotationAxis();
+    public abstract Vector3 getHorizontalRotationAxis();
+    public abstract Vector3 getVerticalRotationAxis();
 
     /* Getters */
     public Camera getCamera() {
@@ -270,49 +277,136 @@ public abstract class CameraAbstract : MonoBehaviour {
     public void setTargetRotation(Quaternion rot) {
         camTarget.rotation = rot;
     }
+}
 
-    //** Debug Methods **//
-    private void drawDebug() {
-        //Draw line from this cam to the observed object
-        Debug.DrawLine(transform.position, observedObject.position, Color.gray);
+#if UNITY_EDITOR
+[CustomEditor(typeof(CameraAbstract), true)]
+public class CameraAbstractEditor : Editor {
+
+    private CameraAbstract cam;
+
+    private static bool showDebug = true;
+
+    private static float debugIconScale = 1.0f;
+    private static bool showObstructionRay = true;
+    private static bool showClipRay = true;
+    private static bool showAngleRestrictions = true;
+    private static bool showTarget = true;
+
+
+    public void OnEnable() {
+        cam = (CameraAbstract)target;
+        if (showDebug) {
+            cam.defaultCameraTarget();
+            cam.initializeRayCasting();
+        }
+    }
+
+    public override void OnInspectorGUI() {
+        if (cam == null) return;
+
+        Undo.RecordObject(cam, "Changes to Camera");
+
+        EditorDrawing.DrawHorizontalLine(Color.gray);
+        EditorGUILayout.LabelField("Debug Drawing", EditorStyles.boldLabel);
+        showDebug = EditorGUILayout.Toggle("Show Debug Drawings", showDebug);
+        if (showDebug) {
+            EditorGUI.indentLevel++;
+            debugIconScale = EditorGUILayout.Slider("Drawing Scale", debugIconScale, 0.1f, 1f);
+            showObstructionRay = EditorGUILayout.Toggle("Draw Obstruction Ray", showObstructionRay);
+            showClipRay = EditorGUILayout.Toggle("Draw Clip Ray", showClipRay);
+            showAngleRestrictions = EditorGUILayout.Toggle("Draw Angle Restrictions", showAngleRestrictions);
+            showTarget = EditorGUILayout.Toggle("Draw Target", showTarget);
+            EditorGUI.indentLevel--;
+        }
+        EditorDrawing.DrawHorizontalLine(Color.gray);
+
+        base.OnInspectorGUI();
+        if(showDebug) {
+            cam.defaultCameraTarget();
+            cam.initializeRayCasting();
+        }
+    }
+
+    void OnSceneGUI() {
+        if (!showDebug || cam == null || cam.observedObject == null) return;
 
         //Draw the hide obstruction Ray
-        //hideRayCamToPlayer.draw(Color.black);
+        if (showObstructionRay && cam.enableObstructionHiding) {
+            Vector3 origin = cam.hideRayCamToPlayer.getOrigin();
+            Vector3 end = cam.hideRayCamToPlayer.getEnd();
+            Vector3 dir = cam.hideRayCamToPlayer.getDirection().normalized;
+            Handles.color = Color.white;
+            Handles.RadiusHandle(cam.transform.rotation, origin, cam.hideRayCamToPlayer.getRadius());
+            Handles.DrawDottedLine(origin, end, 2);
+            EditorDrawing.DrawText(origin, "Obstruction\nRay", Color.white);
+
+            //Draw Arrows
+            Quaternion rot = Quaternion.LookRotation(dir);
+            Handles.ArrowHandleCap(0, origin, rot, debugIconScale, EventType.Repaint);
+            Handles.ArrowHandleCap(0, end - dir * debugIconScale, rot, debugIconScale, EventType.Repaint);
+        }
 
         //Draw the ZoomClip Ray, this isnt up to date since the cam has already lerped before this is called
-        clipZoomRayPlayerToCam.draw(Color.white);
-        DebugShapes.DrawRay(clipZoomRayPlayerToCam.getOrigin(), clipZoomRayPlayerToCam.getDirection(), clipZoomMinDistanceFactor*maxCameraDistance, Color.blue);
-        DebugShapes.DrawRay(clipZoomRayPlayerToCam.getEnd(), -clipZoomRayPlayerToCam.getDirection(), clipZoomPaddingFactor*maxCameraDistance, Color.red);
+        if (showClipRay && cam.enableClipZoom) {
+            Vector3 origin = cam.clipZoomRayPlayerToCam.getOrigin();
+            Vector3 end = cam.clipZoomRayPlayerToCam.getEnd();
+            Vector3 dir = cam.clipZoomRayPlayerToCam.getDirection().normalized;
+
+            // Whole Ray
+            Handles.color = Color.cyan;
+            Handles.DrawDottedLine(origin, end, 2);
+            EditorDrawing.DrawText(origin, "Clip\nRay", Color.cyan);
+
+            //Draw Arrows
+            Quaternion rot = Quaternion.LookRotation(dir);
+            Handles.ArrowHandleCap(0, origin, rot, debugIconScale, EventType.Repaint);
+            Handles.ArrowHandleCap(0, end - dir * debugIconScale, rot, debugIconScale, EventType.Repaint);
+
+            // Minimum Distance cam has to keep to observed object
+            Vector3 minDistance = origin + dir * cam.clipZoomMinDistanceFactor * cam.maxCameraDistance;
+            Handles.color = Color.blue;
+            Handles.DrawDottedLine(origin, minDistance, 2);
+            EditorDrawing.DrawText(minDistance, "Clip\nMin Distance", Color.blue);
+
+            // Padding for camera repositioning
+            Vector3 paddingEnd = cam.getCameraTarget().position + dir * cam.clipZoomPaddingFactor * cam.maxCameraDistance;
+            Handles.color = Color.red;
+            Handles.DrawDottedLine(cam.getCameraTarget().position, paddingEnd, 3);
+            EditorDrawing.DrawText(paddingEnd, "Clip\nPadding", Color.red);
+        }
 
         //Draw the angle restrictions
-        Vector3 zeroOrientation = getHorizontalRotationAxis();
-        Vector3 up = Quaternion.AngleAxis(-camUpperAngleMargin, camTarget.right) * zeroOrientation;
-        Vector3 down = Quaternion.AngleAxis(-camLowerAngleMargin, camTarget.right) * zeroOrientation;
+        if (showAngleRestrictions) {
+            Vector3 targetRight = cam.getCameraTarget().right;
+            Vector3 zeroOrientation = cam.getHorizontalRotationAxis();
+            Vector3 up = Quaternion.AngleAxis(-cam.camUpperAngleMargin, targetRight) * zeroOrientation;
+            Vector3 down = Quaternion.AngleAxis(-cam.camLowerAngleMargin, targetRight) * zeroOrientation;
+            Vector3 currentOrientation = cam.getCameraTarget().position - cam.observedObject.position;
 
-#if UNITY_EDITOR
-        if (!UnityEditor.EditorApplication.isPlaying) {
-            UnityEditor.Handles.color = Color.white;
-            UnityEditor.Handles.DrawSolidArc(observedObject.position, camTarget.right, down, Vector3.SignedAngle(down, up, camTarget.right), maxCameraDistance / 4);
-
+            Handles.color = Color.yellow;
+            Handles.DrawSolidArc(cam.observedObject.position, targetRight, down, Vector3.SignedAngle(down, up, targetRight), 0.5f * debugIconScale);
+            Handles.color = Color.red;
+            Handles.DrawSolidArc(cam.observedObject.position, targetRight, down, Vector3.SignedAngle(down, currentOrientation, targetRight), 0.25f * debugIconScale);
+            Handles.DrawLine(cam.observedObject.position, cam.observedObject.position + 0.5f * debugIconScale * currentOrientation.normalized);
         }
-#endif
 
         //Draw Target Transform
-        DebugShapes.DrawPoint(camTarget.position, Color.magenta, 0.1f);
-        DebugShapes.DrawRay(camTarget.position, camTarget.forward, Color.blue);
-        DebugShapes.DrawRay(camTarget.position, camTarget.right, Color.red);
-        DebugShapes.DrawRay(camTarget.position, camTarget.up, Color.green);
-    }
+        if (showTarget) {
+            Transform camTarget = cam.getCameraTarget();
 
-#if UNITY_EDITOR
-    private void OnDrawGizmosSelected() {
-        if (!showDebug) return;
-        if (UnityEditor.EditorApplication.isPlaying) return;
-        if (!UnityEditor.Selection.Contains(transform.gameObject)) return;
-        if (observedObject == null) return;
-        camTarget = transform;
-        initializeRayCasting();
-        drawDebug();
+            Handles.color = Color.magenta;
+            Handles.DrawWireCube(camTarget.position, 0.2f * debugIconScale * Vector3.one);
+
+            Handles.color = Color.blue;
+            Handles.DrawLine(camTarget.position, camTarget.position + camTarget.forward);
+
+            Handles.color = Color.red;
+            Handles.DrawLine(camTarget.position, camTarget.position + camTarget.right);
+
+            Handles.color = Color.green;
+            Handles.DrawLine(camTarget.position, camTarget.position + camTarget.up);
+        }
     }
-#endif
 }
+#endif

@@ -63,6 +63,7 @@ public class IKChain : MonoBehaviour {
     private Vector3 lastEndeffectorPos;
 
     public void Awake() {
+        Debug.Log("Called Awake " + name + " on IKChain");
         if (targetMode == TargetMode.DebugTarget) debugModeRay = new RayCast(debugTarget.position + 1.0f * Vector3.up, debugTarget.position - 1.0f * Vector3.up, debugTarget, debugTarget);
         lastEndeffectorPos = endEffector.position;
     }
@@ -224,8 +225,7 @@ public class IKChainEditor : Editor {
 
     public void OnEnable() {
         ikchain = (IKChain)target;
-        Debug.Log("Called Awake " + ikchain.name);
-        ikchain.Awake();
+        if (showDebug) ikchain.Awake();
     }
 
     public override void OnInspectorGUI() {
@@ -247,6 +247,7 @@ public class IKChainEditor : Editor {
         EditorDrawing.DrawHorizontalLine(Color.gray);
 
         base.OnInspectorGUI();
+        if (showDebug) ikchain.Awake();
     }
 
     void OnSceneGUI() {
