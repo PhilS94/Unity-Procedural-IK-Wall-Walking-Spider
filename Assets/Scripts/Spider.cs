@@ -52,7 +52,8 @@ public class Spider : MonoBehaviour {
 
     [Header("IK Legs")]
     public Transform body;
-    public IKChain[] legs;
+
+    public IKChain[] legs { get; private set; }
 
     [Header("Body Offset Height")]
     public float bodyOffsetHeight;
@@ -131,6 +132,9 @@ public class Spider : MonoBehaviour {
         }
 
         rb = GetComponent<Rigidbody>();
+
+        //Find all childed IKChains
+        legs = GetComponentsInChildren<IKChain>();
 
         //Initialize the two Sphere Casts
         downRayRadius = downRaySize * getColliderRadius();
@@ -434,6 +438,16 @@ public class SpiderEditor : Editor {
         EditorDrawing.DrawHorizontalLine(Color.gray);
 
         base.OnInspectorGUI();
+
+        EditorDrawing.DrawHorizontalLine(Color.gray);
+
+        EditorGUILayout.LabelField("Found IK Legs", EditorStyles.boldLabel);
+        GUI.enabled = false;
+        for (int i = 0; i < spider.legs.Length; i++) {
+            spider.legs[i] = (IKChain)EditorGUILayout.ObjectField(spider.legs[i], typeof(IKChain), false);
+        }
+        GUI.enabled = true;
+
         if (showDebug) spider.Awake();
     }
 
@@ -448,7 +462,7 @@ public class SpiderEditor : Editor {
             Vector3 originforward = spider.forwardRay.getOrigin();
             Vector3 endforward = spider.forwardRay.getEnd();
             Vector3 forwarddir = spider.forwardRay.getDirection().normalized;
-            float t = 5f* debugIconScale;
+            float t = 5f * debugIconScale;
 
             Handles.color = Color.green;
             Handles.DrawDottedLine(origindown, enddown, 2);
@@ -460,7 +474,7 @@ public class SpiderEditor : Editor {
             Handles.DrawDottedLine(originforward, endforward, 2);
             Handles.RadiusHandle(spider.transform.rotation, endforward, spider.forwardRay.getRadius(), false);
             EditorDrawing.DrawText(endforward, "Forwards Ray", Color.blue);
-            Handles.ArrowHandleCap(0, endforward-forwarddir*t, Quaternion.LookRotation(forwarddir), t, EventType.Repaint);
+            Handles.ArrowHandleCap(0, endforward - forwarddir * t, Quaternion.LookRotation(forwarddir), t, EventType.Repaint);
         }
 
         //Draw the Gravity off distance
