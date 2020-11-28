@@ -12,30 +12,39 @@ using UnityEngine;
  * generated movement (SpiderNPCController).
  * To each mode a camera is bound and by the press of a button, here TAB, a switch of controller and camera is performed.
  */
-
+[RequireComponent(typeof(SpiderController))]
+[RequireComponent(typeof(SpiderNPCController))]
 public class SpiderModeSwitch : MonoBehaviour {
 
-    public SpiderController spiderController;
-    public SpiderNPCController spiderNPC;
-    public Camera controllerCam;
+    private SpiderController control;
+    private SpiderNPCController npcControl;
+
+    private Camera controlCam;
     public Camera npcCam;
+
+    private void Awake() {
+        control = GetComponent<SpiderController>();
+        npcControl = GetComponent<SpiderNPCController>();
+
+        controlCam = control.smoothCam.cam;
+    }
 
     void Start() {
         //Start with spider camera enabled
-        if (controllerCam.enabled && npcCam.enabled) npcCam.enabled = false;
-        if (!controllerCam.enabled && !npcCam.enabled) controllerCam.enabled = true;
+        if (controlCam.enabled && npcCam.enabled) npcCam.enabled = false;
+        if (!controlCam.enabled && !npcCam.enabled) controlCam.enabled = true;
 
         // Start with spider controller enabled
-        if (spiderController.enabled && spiderNPC.enabled) spiderNPC.enabled = false;
-        if (!spiderController.enabled && !spiderNPC.enabled) spiderController.enabled = true;
+        if (control.enabled && npcControl.enabled) npcControl.enabled = false;
+        if (!control.enabled && !npcControl.enabled) control.enabled = true;
     }
     void Update() {
 
         if (Input.GetKeyDown(KeyCode.Tab)) {
-            controllerCam.enabled = !controllerCam.enabled;
+            controlCam.enabled = !controlCam.enabled;
             npcCam.enabled = !npcCam.enabled;
-            spiderNPC.enabled = !spiderNPC.enabled;
-            spiderController.enabled = !spiderController.enabled;
+            npcControl.enabled = !npcControl.enabled;
+            control.enabled = !control.enabled;
         }
     }
 }

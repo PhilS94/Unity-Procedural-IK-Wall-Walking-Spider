@@ -16,14 +16,14 @@ using UnityEngine;
  */
 
 [DefaultExecutionOrder(-1)] // Make sure the input movement is applied before the spider itself will do a ground check and possibly add gravity
+[RequireComponent(typeof(Spider))]
 public class SpiderNPCController : MonoBehaviour {
 
 
     [Header("Debug")]
     public bool showDebug;
 
-    [Header("Spider Reference")]
-    public Spider spider;
+    private Spider spider;
 
     private float perlinDirectionStep = 0.07f;
     private float perlinSpeedStep = 0.5f;
@@ -34,6 +34,8 @@ public class SpiderNPCController : MonoBehaviour {
     private Vector3 Y;
 
     private void Awake() {
+        spider = GetComponent<Spider>();
+
         Random.InitState(System.DateTime.Now.Millisecond);
         startValue = Random.value;
 
