@@ -52,7 +52,6 @@ public class Spider : MonoBehaviour {
 
     [Header("IK Legs")]
     public Transform body;
-
     public IKChain[] legs { get; private set; }
 
     [Header("Body Offset Height")]
@@ -125,6 +124,7 @@ public class Spider : MonoBehaviour {
 
     public void Awake() {
         Debug.Log("Called Awake " + name + " on Spider");
+
         //Make sure the scale is uniform, since otherwise lossy scale will not be accurate.
         float x = transform.localScale.x; float y = transform.localScale.y; float z = transform.localScale.z;
         if (Mathf.Abs(x - y) > float.Epsilon || Mathf.Abs(x - z) > float.Epsilon || Mathf.Abs(y - z) > float.Epsilon) {
@@ -415,13 +415,11 @@ public class SpiderEditor : Editor {
 
     public void OnEnable() {
         spider = (Spider)target;
-        if (showDebug) spider.Awake();
+        if (showDebug && !EditorApplication.isPlaying) spider.Awake();
     }
 
     public override void OnInspectorGUI() {
         if (spider == null) return;
-
-        Undo.RecordObject(spider, "Changes to Spider");
 
         EditorDrawing.DrawHorizontalLine(Color.gray);
         EditorGUILayout.LabelField("Debug Drawing", EditorStyles.boldLabel);
@@ -444,11 +442,11 @@ public class SpiderEditor : Editor {
         EditorGUILayout.LabelField("Found IK Legs", EditorStyles.boldLabel);
         GUI.enabled = false;
         for (int i = 0; i < spider.legs.Length; i++) {
-            spider.legs[i] = (IKChain)EditorGUILayout.ObjectField(spider.legs[i], typeof(IKChain), false);
+            EditorGUILayout.ObjectField(spider.legs[i], typeof(IKChain), false);
         }
         GUI.enabled = true;
 
-        if (showDebug) spider.Awake();
+        if (showDebug && !EditorApplication.isPlaying) spider.Awake();
     }
 
     void OnSceneGUI() {

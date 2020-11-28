@@ -275,7 +275,7 @@ public class CameraAbstractEditor : Editor {
 
     public void OnEnable() {
         cam = (CameraAbstract)target;
-        if (showDebug) {
+        if (showDebug && !EditorApplication.isPlaying) {
             cam.defaultCameraTarget();
             cam.initializeRayCasting();
         }
@@ -301,7 +301,7 @@ public class CameraAbstractEditor : Editor {
         EditorDrawing.DrawHorizontalLine(Color.gray);
 
         base.OnInspectorGUI();
-        if(showDebug) {
+        if (showDebug && !EditorApplication.isPlaying) {
             cam.defaultCameraTarget();
             cam.initializeRayCasting();
         }

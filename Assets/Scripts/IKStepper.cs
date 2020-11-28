@@ -126,7 +126,7 @@ public class IKStepper : MonoBehaviour {
 
 
     public void Awake() {
-        Debug.Log("Called Awake " + name +" on IKStepper");
+        Debug.Log("Called Awake " + name + " on IKStepper");
         ikChain = GetComponent<IKChain>();
 
         rootJoint = ikChain.getRootJoint();
@@ -517,7 +517,7 @@ public class IKStepperEditor : Editor {
 
     public void OnEnable() {
         ikstepper = (IKStepper)target;
-        if (showDebug) ikstepper.Awake();
+        if (showDebug && !EditorApplication.isPlaying) ikstepper.Awake();
     }
 
     public override void OnInspectorGUI() {
@@ -540,7 +540,7 @@ public class IKStepperEditor : Editor {
         EditorDrawing.DrawHorizontalLine(Color.gray);
 
         base.OnInspectorGUI();
-        if (showDebug) ikstepper.Awake();
+        if (showDebug && !EditorApplication.isPlaying) ikstepper.Awake();
     }
 
     void OnSceneGUI() {
@@ -643,7 +643,7 @@ public class IKStepperEditor : Editor {
         float chainLength = ikstepper.ikChain.getChainLength();
 
         Handles.color = col;
-        Handles.DrawWireArc(p, ikstepper.rootJoint.getRotationAxis(), v, ikstepper.rootJoint.getAngleRange(), chainLength);
+        Handles.DrawWireArc(p, ikstepper.spider.transform.up, v, ikstepper.rootJoint.getAngleRange(), chainLength);
         Handles.DrawLine(p, p + v * chainLength);
         Handles.DrawLine(p, p + w * chainLength);
     }

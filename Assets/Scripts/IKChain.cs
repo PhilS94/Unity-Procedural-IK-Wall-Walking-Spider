@@ -225,7 +225,7 @@ public class IKChainEditor : Editor {
 
     public void OnEnable() {
         ikchain = (IKChain)target;
-        if (showDebug) ikchain.Awake();
+        if (showDebug && !EditorApplication.isPlaying) ikchain.Awake();
     }
 
     public override void OnInspectorGUI() {
@@ -247,7 +247,7 @@ public class IKChainEditor : Editor {
         EditorDrawing.DrawHorizontalLine(Color.gray);
 
         base.OnInspectorGUI();
-        if (showDebug) ikchain.Awake();
+        if (showDebug && !EditorApplication.isPlaying) ikchain.Awake();
     }
 
     void OnSceneGUI() {

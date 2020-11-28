@@ -236,7 +236,7 @@ public class JointHingeEditor : Editor {
 
     public void OnEnable() {
         joint = (JointHinge)target;
-        if (showDebug) joint.Awake();
+        if (showDebug && !EditorApplication.isPlaying) joint.Awake();
     }
 
     public override void OnInspectorGUI() {
@@ -258,7 +258,7 @@ public class JointHingeEditor : Editor {
         EditorDrawing.DrawHorizontalLine(Color.gray);
 
         base.OnInspectorGUI();
-        if (showDebug) joint.Awake();
+        if (showDebug && !EditorApplication.isPlaying) joint.Awake();
 
         if (joint.minAngle > joint.maxAngle) {
             Debug.LogError("Minimum angle of " + joint.name + " not allowed to be larger than maximum angle.");
