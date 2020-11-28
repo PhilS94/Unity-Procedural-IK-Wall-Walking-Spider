@@ -26,8 +26,9 @@ public class JointHinge : MonoBehaviour {
     public bool deactivateJoint = false;
     public bool useRotationLimits = true;
 
+    [Header("Root Reference")]
+    [Tooltip("The root reference is used for the determining the rotation axis if a Root rotation mode is selected.")]
     public Transform root;
-
 
     public enum rotationAxisMode {
         RootX,
@@ -39,6 +40,7 @@ public class JointHinge : MonoBehaviour {
     }
 
     [Header("Rotation Axis and Point")]
+    [Tooltip("Set the rotation axis to a pre defined X Y or Z vector and fine adjust by change of orientation.")]
     public rotationAxisMode rotMode;
     public bool negative = false;
     public Vector3 rotationAxisOrientation;
@@ -58,14 +60,12 @@ public class JointHinge : MonoBehaviour {
 
     private Vector3 rotationAxisLocal;
     private Vector3 perpendicularLocal;
-    private Vector3 rotPointLocal;
-
     private Vector3 defaultOrientationLocal;
     private Vector3 orientationLocal;
     private Vector3 minOrientationLocal;
     private Vector3 maxOrientationLocal;
 
-    //Keeps track of the current state of rotation and is important part of the angle clamping
+    // Keeps track of the current state of rotation and is important part of the angle clamping
     public float currentAngle { get; private set; } = 0;
 
     public void Awake() {
@@ -122,14 +122,6 @@ public class JointHinge : MonoBehaviour {
             maxOrientationLocal = Quaternion.AngleAxis(maxAngle, rotationAxisLocal) * defaultOrientationLocal;
         }
     }
-
-    void Update() {
-        if (minAngle > maxAngle) {
-            Debug.LogError("The minimum hinge angle on " + gameObject.name + " is larger than the maximum hinge angle.");
-            maxAngle = minAngle;
-        }
-    }
-
 
     /*
      * This is the main function called from other classes. It rotates the hinge joint by the given angle with respect to the limits given in this class.
@@ -215,12 +207,17 @@ public class JointHinge : MonoBehaviour {
     public Vector3 getMaxOrientation() {
         return transform.TransformDirection(maxOrientationLocal);
     }
+
     public Vector3 getMidOrientation() {
         return transform.TransformDirection(Quaternion.AngleAxis(0.5f * (maxAngle - minAngle), rotationAxisLocal) * minOrientationLocal);
     }
 
     public float getAngleRange() {
         return maxAngle - minAngle;
+    }
+
+    public float getCurrentAngleRange() {
+        return currentAngle - minAngle;
     }
 }
 
@@ -262,6 +259,11 @@ public class JointHingeEditor : Editor {
 
         base.OnInspectorGUI();
         if (showDebug) joint.Awake();
+
+        if (joint.minAngle > joint.maxAngle) {
+            Debug.LogError("Minimum angle of " + joint.name + " not allowed to be larger than maximum angle.");
+            joint.maxAngle = joint.minAngle;
+        }
     }
 
     void OnSceneGUI() {
@@ -275,13 +277,13 @@ public class JointHingeEditor : Editor {
         Vector3 orientation = joint.getOrientation();
         Vector3 defaultOrientation = joint.getDefaultOrientation();
 
-        //Rotation Axis
+        // Rotation Axis
         if (showRotationAxis) {
             Handles.color = Color.blue;
             Handles.DrawLine(rotPoint, rotPoint + scale * rotationAxis);
         }
 
-        //Rotation Point
+        // Rotation Point
         if (showRotationPoint) {
             Handles.color = Color.green;
             Handles.RadiusHandle(joint.transform.rotation, rotPoint, 0.1f * scale, false);
@@ -291,12 +293,12 @@ public class JointHingeEditor : Editor {
         if (showAngleArc) {
             // Rotation Limit Arc and start orientation
             Handles.color = Color.yellow;
-            Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, joint.maxAngle - joint.minAngle, scale);
+            Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, joint.getAngleRange(), scale);
             Handles.DrawLine(rotPoint, rotPoint + 1.3f * scale * defaultOrientation);
 
             // Rotation Current Arc
             Handles.color = Color.red;
-            Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, joint.currentAngle - joint.minAngle, 0.5f * scale);
+            Handles.DrawSolidArc(rotPoint, rotationAxis, minOrientation, joint.getCurrentAngleRange(), 0.5f * scale);
             Handles.DrawLine(rotPoint, rotPoint + scale * orientation);
         }
 

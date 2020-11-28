@@ -37,8 +37,8 @@ using UnityEditor;
 public abstract class CameraAbstract : MonoBehaviour {
     public Transform observedObject;
 
-    protected Transform camTarget;
-    protected Camera cam;
+    public Transform camTarget { get; protected set; }
+    public Camera cam { get; protected set; }
 
     [Header("Smoothness")]
     public float translationSpeed;
@@ -244,30 +244,9 @@ public abstract class CameraAbstract : MonoBehaviour {
         }
     }
 
-    /* Abstract rotation axis so every class which inherits from this has to define these. */
+    /* Abstract rotation axis: Every class which inherits from this has to define these. */
     public abstract Vector3 getHorizontalRotationAxis();
     public abstract Vector3 getVerticalRotationAxis();
-
-    /* Getters */
-    public Camera getCamera() {
-        return cam;
-    }
-
-    public Transform getCameraTarget() {
-        return camTarget;
-    }
-
-    public Vector3 getCamTargetPosition() {
-        return camTarget.position;
-    }
-
-    public Quaternion getCamTargetRotation() {
-        return camTarget.rotation;
-    }
-
-    public Transform getObservedObject() {
-        return observedObject;
-    }
 
     /* Setters */
     public void setTargetPosition(Vector3 pos) {
@@ -370,19 +349,19 @@ public class CameraAbstractEditor : Editor {
             EditorDrawing.DrawText(minDistance, "Clip\nMin Distance", Color.blue);
 
             // Padding for camera repositioning
-            Vector3 paddingEnd = cam.getCameraTarget().position + dir * cam.clipZoomPaddingFactor * cam.maxCameraDistance;
+            Vector3 paddingEnd = cam.camTarget.position + dir * cam.clipZoomPaddingFactor * cam.maxCameraDistance;
             Handles.color = Color.red;
-            Handles.DrawDottedLine(cam.getCameraTarget().position, paddingEnd, 3);
+            Handles.DrawDottedLine(cam.camTarget.position, paddingEnd, 3);
             EditorDrawing.DrawText(paddingEnd, "Clip\nPadding", Color.red);
         }
 
         //Draw the angle restrictions
         if (showAngleRestrictions) {
-            Vector3 targetRight = cam.getCameraTarget().right;
+            Vector3 targetRight = cam.camTarget.right;
             Vector3 zeroOrientation = cam.getHorizontalRotationAxis();
             Vector3 up = Quaternion.AngleAxis(-cam.camUpperAngleMargin, targetRight) * zeroOrientation;
             Vector3 down = Quaternion.AngleAxis(-cam.camLowerAngleMargin, targetRight) * zeroOrientation;
-            Vector3 currentOrientation = cam.getCameraTarget().position - cam.observedObject.position;
+            Vector3 currentOrientation = cam.camTarget.position - cam.observedObject.position;
 
             Handles.color = Color.yellow;
             Handles.DrawSolidArc(cam.observedObject.position, targetRight, down, Vector3.SignedAngle(down, up, targetRight), 0.5f * debugIconScale);
@@ -393,19 +372,17 @@ public class CameraAbstractEditor : Editor {
 
         //Draw Target Transform
         if (showTarget) {
-            Transform camTarget = cam.getCameraTarget();
-
             Handles.color = Color.magenta;
-            Handles.DrawWireCube(camTarget.position, 0.2f * debugIconScale * Vector3.one);
+            Handles.DrawWireCube(cam.camTarget.position, 0.2f * debugIconScale * Vector3.one);
 
             Handles.color = Color.blue;
-            Handles.DrawLine(camTarget.position, camTarget.position + camTarget.forward);
+            Handles.DrawLine(cam.camTarget.position, cam.camTarget.position + cam.camTarget.forward);
 
             Handles.color = Color.red;
-            Handles.DrawLine(camTarget.position, camTarget.position + camTarget.right);
+            Handles.DrawLine(cam.camTarget.position, cam.camTarget.position + cam.camTarget.right);
 
             Handles.color = Color.green;
-            Handles.DrawLine(camTarget.position, camTarget.position + camTarget.up);
+            Handles.DrawLine(cam.camTarget.position, cam.camTarget.position + cam.camTarget.up);
         }
     }
 }

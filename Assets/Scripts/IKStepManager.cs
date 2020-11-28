@@ -144,7 +144,7 @@ public class IKStepManager : MonoBehaviour {
         int k = 0;
         foreach (var ikStepper in stepQueue.ToArray()) {
             if (ikStepper.allowedToStep()) {
-                ikStepper.getIKChain().unpauseSolving();
+                ikStepper.ikChain.unpauseSolving();
                 ikStepper.step(calculateStepTime(ikStepper));
                 // Remove the stepping leg from the list:
                 waitingForStep[ikStepper.GetInstanceID()] = false;
@@ -167,7 +167,7 @@ public class IKStepManager : MonoBehaviour {
          * For them pause the IK solving while they are waiting.
          */
         foreach (var ikStepper in stepQueue) {
-            ikStepper.getIKChain().pauseSolving();
+            ikStepper.ikChain.pauseSolving();
         }
     }
 
@@ -217,7 +217,7 @@ public class IKStepManager : MonoBehaviour {
     private float calculateStepTime(IKStepper ikStepper) {
         if (dynamicStepTime) {
             float k = stepTimePerVelocity * spider.getScale(); // At velocity=1, this is the steptime
-            float velocityMagnitude = ikStepper.getIKChain().getEndeffectorVelocityPerSecond().magnitude;
+            float velocityMagnitude = ikStepper.ikChain.getEndeffectorVelocityPerSecond().magnitude;
             return (velocityMagnitude == 0) ? maxStepTime : Mathf.Clamp(k / velocityMagnitude, 0, maxStepTime);
         }
         else return maxStepTime;

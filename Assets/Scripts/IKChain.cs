@@ -50,8 +50,10 @@ public class IKChain : MonoBehaviour {
     public TargetMode targetMode;
     public LayerMask debugTargetRayLayer;
 
-    // Assign these if corresponding mode is selected
+    [Tooltip("Assign debug target if a debug target mode is selected.")]
     public Transform debugTarget;
+
+    private float chainLength;
 
     private TargetInfo currentTarget;
     private float error = 0.0f;
@@ -64,6 +66,7 @@ public class IKChain : MonoBehaviour {
 
     public void Awake() {
         Debug.Log("Called Awake " + name + " on IKChain");
+        if (chainLength == 0) initializeChainLength();
         if (targetMode == TargetMode.DebugTarget) debugModeRay = new RayCast(debugTarget.position + 1.0f * Vector3.up, debugTarget.position - 1.0f * Vector3.up, debugTarget, debugTarget);
         lastEndeffectorPos = endEffector.position;
     }
@@ -117,17 +120,19 @@ public class IKChain : MonoBehaviour {
         error = Vector3.Distance(endEffector.position, currentTarget.position);
     }
 
+    public float getChainLength() {
+        if (chainLength == 0) initializeChainLength(); // chainLength can be unintialized if called from Awake of e.g. the IKStepper
+        return chainLength;
+    }
+
     /* Calculates the length of the IK chain. */
-    // Gets called from IKStepper and not from this class .
-    // Should capsule this in this class though. However IKStepper needs the chain length at Awake...
-    public float calculateChainLength() {
-        float chainLength = 0;
+    private void initializeChainLength() {
+        chainLength = 0;
         for (int i = 0; i < joints.Length; i++) {
             Vector3 p = joints[i].getRotationPoint();
             Vector3 q = (i != joints.Length - 1) ? joints[i + 1].getRotationPoint() : endEffector.position;
             chainLength += Vector3.Distance(p, q);
         }
-        return chainLength;
     }
 
     /* Target functions */
@@ -160,10 +165,6 @@ public class IKChain : MonoBehaviour {
     // Getters for important references
     public JointHinge getRootJoint() {
         return joints[0];
-    }
-
-    public Transform getEndEffector() {
-        return endEffector;
     }
 
     public TargetInfo getTarget() {
@@ -206,7 +207,6 @@ public class IKChain : MonoBehaviour {
     public Vector3 getEndeffectorVelocityPerSecond() {
         return endEffectorVelocity;
     }
-
 }
 
 
@@ -277,7 +277,7 @@ public class IKChainEditor : Editor {
     public void DrawSolveTolerance(ref IKChain ikchain, Color col) {
         Handles.color = col;
         Handles.RadiusHandle(ikchain.endEffector.rotation, ikchain.endEffector.position, ikchain.getTolerance(), false);
-        EditorDrawing.DrawText(ikchain.endEffector.position,"Tolerance", col);
+        EditorDrawing.DrawText(ikchain.endEffector.position, "Tolerance", col);
     }
 
     public void DrawMinimumSolveChange(ref IKChain ikchain, Color col) {
@@ -292,7 +292,7 @@ public class IKChainEditor : Editor {
         for (int k = 0; k < ikchain.joints.Length; k++) {
             JointHinge joint = ikchain.joints[k];
             Handles.RadiusHandle(joint.transform.rotation, joint.getRotationPoint(), ikchain.getSingularityRadius(), false);
-            EditorDrawing.DrawText(joint.transform.position, "Singularity\n"+joint.name, col);
+            EditorDrawing.DrawText(joint.transform.position, "Singularity\n" + joint.name, col);
         }
     }
 }

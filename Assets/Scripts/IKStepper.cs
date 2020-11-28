@@ -99,9 +99,9 @@ public class IKStepper : MonoBehaviour {
     public float rayInwardsEndOffset;
 
 
-    private IKChain ikChain;
+    public IKChain ikChain { get; private set; }
 
-    private bool isStepping = false;
+    public bool isStepping { get; private set; } = false;
     private float timeStandingStill;
 
     public float minDistance { get; private set; }
@@ -110,13 +110,13 @@ public class IKStepper : MonoBehaviour {
     RaycastHit hitInfo;
 
     public JointHinge rootJoint { get; private set; }
-    public float chainLength { get; private set; }
+
     public Vector3 defaultPositionLocal { get; private set; }
     private Vector3 lastResortPositionLocal;
     private Vector3 frontalStartPositionLocal;
     public Vector3 prediction { get; private set; }
 
-    //Debug Variables
+    // Debug Variables
     public Vector3 lastEndEffectorPos { get; private set; }
     public Vector3 projPrediction { get; private set; }
     public Vector3 overshootPrediction { get; private set; }
@@ -133,11 +133,8 @@ public class IKStepper : MonoBehaviour {
         timeSinceLastStep = 2 * stepCooldown; // Make sure im allowed to step at start
         timeStandingStill = 0f;
 
-        //Let the chainlength be calculated and set it for future access
-        chainLength = ikChain.calculateChainLength();
-
         //Set the distance which the root joint and the endeffector are allowed to have. If below this distance, stepping is forced.
-        minDistance = 0.2f * chainLength;
+        minDistance = 0.2f * ikChain.getChainLength();
 
         //Set Default Position
         defaultPositionLocal = calculateDefault();
@@ -165,14 +162,14 @@ public class IKStepper : MonoBehaviour {
      * This default position is an important anchor point used for new step point calculation.
      */
     private Vector3 calculateDefault() {
-        float diameter = chainLength - minDistance;
+        float diameter = ikChain.getChainLength() - minDistance;
         Vector3 rootRotAxis = rootJoint.getRotationAxis();
 
         //Be careful with the use of transform.up and rootjoint.getRotationAxis(). In my case they are equivalent with the exception of the right side being inverted.
         //However they can be different and this has to be noticed here. The code below is probably wrong for the general case.
         Vector3 normal = spider.transform.up;
 
-        Vector3 toEnd = ikChain.getEndEffector().position - rootJoint.getRotationPoint();
+        Vector3 toEnd = ikChain.endEffector.position - rootJoint.getRotationPoint();
         toEnd = Vector3.ProjectOnPlane(toEnd, normal).normalized;
 
         Vector3 pivot = spider.getColliderBottomPoint() + Vector3.ProjectOnPlane(rootJoint.getRotationPoint() - spider.transform.position, normal);
@@ -200,6 +197,7 @@ public class IKStepper : MonoBehaviour {
 
         Vector3 defaultPos = getDefault();
         Vector3 normal = spider.transform.up;
+        float chainLength = ikChain.getChainLength();
 
         //Frontal Parameters
         Vector3 frontal = getFrontalStartPosition();
@@ -277,7 +275,7 @@ public class IKStepper : MonoBehaviour {
 
     private void Update() {
         timeSinceLastStep += Time.deltaTime;
-        if (!spider.getIsMoving()) timeStandingStill += Time.deltaTime;
+        if (!spider.isMoving) timeStandingStill += Time.deltaTime;
         else timeStandingStill = 0f;
     }
 
@@ -325,8 +323,8 @@ public class IKStepper : MonoBehaviour {
 
         if (timeSinceLastStep < stepCooldown) return false;
 
-        foreach (var chain in asyncChain) {
-            if (chain.getIsStepping()) {
+        foreach (var ikstepper in asyncChain) {
+            if (ikstepper.isStepping) {
                 return false;
             }
         }
@@ -395,7 +393,7 @@ public class IKStepper : MonoBehaviour {
      * All of this happens on the plane given by the spiders up direction at default position height.
      */
     private Vector3 calculateDesiredPosition() {
-        Vector3 endeffectorPosition = ikChain.getEndEffector().position;
+        Vector3 endeffectorPosition = ikChain.endEffector.position;
         Vector3 defaultPosition = getDefault();
         Vector3 normal = spider.transform.up;
 
@@ -439,7 +437,7 @@ public class IKStepper : MonoBehaviour {
         //If there is no collider in reach there is no need to try to find a surface point, just return default here.
         //This should cut down runtime cost if the spider is not grounded (e.g. in the air).
         //However this does add an extra calculation if grounded, increasing it slighly.
-        if (Physics.OverlapSphere(rootJoint.getRotationPoint(), chainLength, layer, QueryTriggerInteraction.Ignore) == null) {
+        if (Physics.OverlapSphere(rootJoint.getRotationPoint(), ikChain.getChainLength(), layer, QueryTriggerInteraction.Ignore) == null) {
             return getLastResortTarget();
         }
 
@@ -472,14 +470,8 @@ public class IKStepper : MonoBehaviour {
     }
 
     // Getters for important references
-    public IKChain getIKChain() {
-        return ikChain;
-    }
 
     // Getters for important states
-    public bool getIsStepping() {
-        return isStepping;
-    }
 
     public bool allowedTargetManipulationAccess() {
         return ikChain.isTargetExternallyHandled();
@@ -508,8 +500,6 @@ public class IKStepper : MonoBehaviour {
         return spider.transform.TransformPoint(frontalStartPositionLocal);
     }
 }
-
-
 
 #if UNITY_EDITOR
 [CustomEditor(typeof(IKStepper))]
@@ -595,7 +585,7 @@ public class IKStepperEditor : Editor {
     }
 
     public void DrawTarget(ref IKStepper ikstepper, Color col, float scale) {
-        Vector3 pos = ikstepper.getIKChain().getTarget().position;
+        Vector3 pos = ikstepper.ikChain.getTarget().position;
         Handles.color = col;
         Handles.DrawWireCube(pos, scale * Vector3.one);
         EditorDrawing.DrawText(pos, "Target", col);
@@ -633,6 +623,8 @@ public class IKStepperEditor : Editor {
             Vector3 dir = cast.Value.getDirection().normalized;
             Handles.DrawLine(origin, end);
 
+            //If cast is sphere cast add a radius handle...
+
             float t = 5f * scale;
             Quaternion rot = Quaternion.LookRotation(dir);
             Handles.ArrowHandleCap(0, end - t * dir, rot, t, EventType.Repaint);
@@ -648,11 +640,12 @@ public class IKStepperEditor : Editor {
         Vector3 p = ikstepper.spider.transform.InverseTransformPoint(ikstepper.rootJoint.getRotationPoint());
         p.y = ikstepper.defaultPositionLocal.y;
         p = ikstepper.spider.transform.TransformPoint(p);
+        float chainLength = ikstepper.ikChain.getChainLength();
 
         Handles.color = col;
-        Handles.DrawWireArc(p, ikstepper.rootJoint.getRotationAxis(), v, ikstepper.rootJoint.getAngleRange(), ikstepper.chainLength);
-        Handles.DrawLine(p, p + v * ikstepper.chainLength);
-        Handles.DrawLine(p, p + w * ikstepper.chainLength);
+        Handles.DrawWireArc(p, ikstepper.rootJoint.getRotationAxis(), v, ikstepper.rootJoint.getAngleRange(), chainLength);
+        Handles.DrawLine(p, p + v * chainLength);
+        Handles.DrawLine(p, p + w * chainLength);
     }
 }
 #endif

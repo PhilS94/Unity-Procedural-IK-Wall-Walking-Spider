@@ -95,10 +95,9 @@ public class Spider : MonoBehaviour {
     private float downRayRadius;
 
     private Vector3 currentVelocity;
-    private bool isMoving = true;
+    public bool isMoving { get; private set; } = true;
     private bool groundCheckOn = true;
 
-    private Vector3 lastNormal;
     private Vector3 bodyDefaultCentroid;
     private Vector3 bodyCentroid;
 
@@ -155,9 +154,6 @@ public class Spider : MonoBehaviour {
 
         Vector3 slerpNormal = Vector3.Slerp(transform.up, grdInfo.groundNormal, 0.02f * normalAdjustSpeed);
         Quaternion goalrotation = getLookRotation(Vector3.ProjectOnPlane(transform.right, slerpNormal), slerpNormal);
-
-        // Save last Normal for access
-        lastNormal = transform.up;
 
         //Apply the rotation to the spider
         if (Quaternion.Angle(transform.rotation, goalrotation) > Mathf.Epsilon) transform.rotation = goalrotation;
@@ -305,7 +301,7 @@ public class Spider : MonoBehaviour {
         Vector3 newCentroid = Vector3.zero;
         float k = 0;
         for (int i = 0; i < legs.Length; i++) {
-            newCentroid += legs[i].getEndEffector().position;
+            newCentroid += legs[i].endEffector.position;
             k++;
         }
         newCentroid = newCentroid / k;
@@ -337,7 +333,7 @@ public class Spider : MonoBehaviour {
 
         for (int i = 0; i < legs.Length; i++) {
             //normal += legWeight * legs[i].getTarget().normal;
-            toEnd = legs[i].getEndEffector().position - transform.position;
+            toEnd = legs[i].endEffector.position - transform.position;
             currentTangent = Vector3.ProjectOnPlane(toEnd, transform.up);
 
             if (currentTangent == Vector3.zero) continue; // Actually here we would have a 90degree rotation but there is no choice of a tangent.
@@ -353,10 +349,6 @@ public class Spider : MonoBehaviour {
         return transform.lossyScale.y;
     }
 
-    public bool getIsMoving() {
-        return isMoving;
-    }
-
     public Vector3 getCurrentVelocityPerSecond() {
         return currentVelocity / Time.fixedDeltaTime;
     }
@@ -366,10 +358,6 @@ public class Spider : MonoBehaviour {
     }
     public Vector3 getGroundNormal() {
         return grdInfo.groundNormal;
-    }
-
-    public Vector3 getLastNormal() {
-        return lastNormal;
     }
 
     public float getColliderRadius() {
