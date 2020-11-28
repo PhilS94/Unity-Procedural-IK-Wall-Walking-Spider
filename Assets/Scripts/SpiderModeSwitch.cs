@@ -25,11 +25,11 @@ public class SpiderModeSwitch : MonoBehaviour {
     private void Awake() {
         control = GetComponent<SpiderController>();
         npcControl = GetComponent<SpiderNPCController>();
-
-        controlCam = control.smoothCam.cam;
     }
 
     void Start() {
+        controlCam = control.smoothCam.cam;
+
         //Start with spider camera enabled
         if (controlCam.enabled && npcCam.enabled) npcCam.enabled = false;
         if (!controlCam.enabled && !npcCam.enabled) controlCam.enabled = true;
