@@ -300,8 +300,6 @@ public class IKStepManagerEditor : Editor {
 
         serializedObject.Update();
 
-        Undo.RecordObject(manager, "Changes to IKStepManager");
-
         // Spider Reference
         EditorGUILayout.LabelField("Spider Reference", EditorStyles.boldLabel);
 
@@ -322,7 +320,15 @@ public class IKStepManagerEditor : Editor {
                         GUI.enabled = false;
                         EditorGUILayout.ObjectField(ikstepper, typeof(IKStepper), false);
                         GUI.enabled = true;
-                        manager.setGroupOf(ikstepper, (IKStepManager.GaitGroup)EditorGUILayout.EnumPopup(manager.getGroupOf(ikstepper)));
+
+                        EditorGUI.BeginChangeCheck();
+                        IKStepManager.GaitGroup group = (IKStepManager.GaitGroup)EditorGUILayout.EnumPopup(manager.getGroupOf(ikstepper));
+
+                        if (EditorGUI.EndChangeCheck()) {
+                            Undo.RecordObject(manager, "Changes to Gait Groups");
+                            manager.setGroupOf(ikstepper, group);
+                            EditorUtility.SetDirty(manager);
+                        }
                     }
                     EditorGUILayout.EndHorizontal();
                 }
@@ -343,7 +349,7 @@ public class IKStepManagerEditor : Editor {
 
         // StepTime
         EditorGUILayout.LabelField("Step Time", EditorStyles.boldLabel);
-        serializedObject.FindProperty("dynamicStepTime").boolValue = EditorGUILayout.Toggle("Dynamic Step time", manager.dynamicStepTime);
+        serializedObject.FindProperty("dynamicStepTime").boolValue = EditorGUILayout.Toggle("Dynamic Step Time", manager.dynamicStepTime);
         EditorGUI.indentLevel++;
         {
             if (manager.dynamicStepTime) {
