@@ -7,6 +7,10 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
 /*
  * This class holds references to each IKStepper of the legs and manages the stepping of them.
  * So instead of each leg managing its stepping on its own, this class acts as the brain and decides when each leg should step.
@@ -21,6 +25,9 @@ public class IKStepManager : MonoBehaviour {
     public Spider spider;
 
     public enum StepMode { AlternatingTetrapodGait, QueueWait, QueueNoWait }
+    public enum GaitGroup { GroupA, GroupB };
+    public enum GaitStepForcing { NoForcing, ForceGroupIfOneLegSteps, ForceGroupEveryTick }
+
     /*
      * Note the following about the stepping modes:
      * 
@@ -49,42 +56,40 @@ public class IKStepManager : MonoBehaviour {
      */
 
     [Header("Step Mode")]
+
     public StepMode stepMode;
 
     //Order is important here as this is the order stepCheck is performed, giving the first elements more priority in case of a same frame step desire
     [Header("Legs for Queue Modes")]
     public List<IKStepper> ikSteppers;
     private List<IKStepper> stepQueue;
+
     private Dictionary<int, bool> waitingForStep;
 
     [Header("Legs for Gait Mode")]
-    public List<IKStepper> gaitGroupA;
-    public List<IKStepper> gaitGroupB;
-    private List<IKStepper> currentGaitGroup;
+    public Dictionary<int, GaitGroup> gaitGroupOfIKSteppers;
     private float nextSwitchTime;
-
-    [Header("Steptime")]
-    public bool dynamicStepTime = true;
-    public float stepTimePerVelocity;
-    [Range(0, 1.0f)]
-    public float maxStepTime;
-
-    public enum GaitStepForcing { NoForcing, ForceIfOneLegSteps, ForceAlways }
-    [Header("Debug")]
+    private GaitGroup currentGroup;
     public GaitStepForcing gaitStepForcing;
 
-    private void Awake() {
+    [Header("Steptime")]
+
+
+    public bool dynamicStepTime = true;
+    [Range(0.001f, 0.01f)]
+    public float stepTimePerVelocity;
+    [Range(0f, 1f)]
+    public float maximumStepTime;
+    [Range(0f, 1f)]
+    public float fixedStepTime;
+
+    public void Awake() {
+
+        /* IKStepper Initialization */
+        //findAndInitializeIKSteppers();
 
         /* Queue Mode Initialization */
-
         stepQueue = new List<IKStepper>();
-
-        // Remove all inactive IKSteppers
-        int k = 0;
-        foreach (var ikStepper in ikSteppers.ToArray()) {
-            if (!ikStepper.allowedTargetManipulationAccess()) ikSteppers.RemoveAt(k);
-            else k++;
-        }
 
         // Initialize the hash map for step waiting with false
         waitingForStep = new Dictionary<int, bool>();
@@ -93,22 +98,25 @@ public class IKStepManager : MonoBehaviour {
         }
 
         /* Alternating Tetrapod Gait Initialization */
+        //initializeGaitGroups();
+        currentGroup = GaitGroup.GroupA; // Start with Group A 
+        nextSwitchTime = 1f; // Set first timer to step to a second
+    }
 
-        // Remove all inactive IKSteppers from the Groups
-        k = 0;
-        foreach (var ikStepper in gaitGroupA.ToArray()) {
-            if (!ikStepper.allowedTargetManipulationAccess()) gaitGroupA.RemoveAt(k);
-            else k++;
+    public void findAndInitializeIKSteppers() {
+        ikSteppers = new List<IKStepper>();
+        foreach (var ikStepper in GetComponentsInChildren<IKStepper>()) {
+            if (ikStepper.allowedTargetManipulationAccess()) {
+                ikSteppers.Add(ikStepper);
+            }
         }
-        k = 0;
-        foreach (var ikStepper in gaitGroupB.ToArray()) {
-            if (!ikStepper.allowedTargetManipulationAccess()) gaitGroupB.RemoveAt(k);
-            else k++;
-        }
+    }
 
-        // Start with Group A and set switch time to step time
-        currentGaitGroup = gaitGroupA;
-        nextSwitchTime = maxStepTime;
+    public void initializeGaitGroups() {
+        gaitGroupOfIKSteppers = new Dictionary<int, GaitGroup>();
+        foreach (var ikStepper in ikSteppers) {
+            gaitGroupOfIKSteppers.Add(ikStepper.GetInstanceID(), GaitGroup.GroupA);
+        }
     }
 
     private void LateUpdate() {
@@ -183,55 +191,81 @@ public class IKStepManager : MonoBehaviour {
          * Thus, i simply calculate the average step time of the current group and use it for all legs.
          * TODO: Add a random offset to the steptime of each leg to imitate nature more closely and use the max value as the next switch time
          */
-        currentGaitGroup = (currentGaitGroup == gaitGroupA) ? gaitGroupB : gaitGroupA;
-        float stepTime = calculateAverageStepTime(currentGaitGroup);
+        currentGroup = (currentGroup == GaitGroup.GroupA) ? GaitGroup.GroupB : GaitGroup.GroupA;
+        float stepTime = calculateAverageStepTime(currentGroup);
         nextSwitchTime = Time.time + stepTime;
 
         if (printDebugLogs) {
-            string text = ((currentGaitGroup == gaitGroupA) ? "Group: A" : "Group B") + " StepTime: " + stepTime;
+            string text = ((currentGroup == GaitGroup.GroupA) ? "Group: A" : "Group B") + " StepTime: " + stepTime;
             Debug.Log(text);
         }
 
         /* Now perform the stepping for the current gait group.
          * A leg in the gait group will only step if a step is needed.
-         * However, for debug purposes depending on which force mode is selected the other legs can be forced to step anyway.
+         * However, depending on which force mode is selected the other legs can be forced to step anyway.
          */
-        if (gaitStepForcing == GaitStepForcing.ForceAlways) {
-            foreach (var ikStepper in currentGaitGroup) ikStepper.step(stepTime);
+        if (gaitStepForcing == GaitStepForcing.ForceGroupEveryTick) {
+            foreach (var ikStepper in ikSteppers) ikStepper.step(stepTime);
         }
-        else if (gaitStepForcing == GaitStepForcing.ForceIfOneLegSteps) {
+        else if (gaitStepForcing == GaitStepForcing.ForceGroupIfOneLegSteps) {
             bool b = false;
-            foreach (var ikStepper in currentGaitGroup) {
-                b = b || ikStepper.stepCheck();
-                if (b == true) break;
+            foreach (var ikStepper in ikSteppers) {
+                if (getGroupOf(ikStepper) == currentGroup) {
+                    b = b || ikStepper.stepCheck();
+                    if (b == true) break;
+                }
             }
-            if (b == true) foreach (var ikStepper in currentGaitGroup) ikStepper.step(stepTime);
+            if (b == true) {
+                foreach (var ikStepper in ikSteppers) {
+                    if (getGroupOf(ikStepper) == currentGroup) ikStepper.step(stepTime);
+                }
+            }
+        }
+        else if (gaitStepForcing == GaitStepForcing.NoForcing) {
+            foreach (var ikStepper in ikSteppers) {
+                if (getGroupOf(ikStepper) == currentGroup) {
+                    if (ikStepper.stepCheck()) ikStepper.step(stepTime);
+                }
+            }
+        }
+    }
+
+    public GaitGroup getGroupOf(IKStepper ikStepper) {
+        if (gaitGroupOfIKSteppers.TryGetValue(ikStepper.GetInstanceID(), out GaitGroup group)) {
+            return group;
         }
         else {
-            foreach (var ikStepper in currentGaitGroup) {
-                if (ikStepper.stepCheck()) ikStepper.step(stepTime);
-            }
+            Debug.LogError("Could not find Group of " + ikStepper.name + " in Dictionary. Default to GroupA.");
+            return GaitGroup.GroupA;
         }
+    }
+
+    public void setGroupOf(IKStepper ikStepper, GaitGroup group) {
+        if (!gaitGroupOfIKSteppers.ContainsKey(ikStepper.GetInstanceID())) {
+            Debug.LogError("Can not set group of " + ikStepper.name + " since it is not in the Dictionary.");
+            return;
+        }
+        gaitGroupOfIKSteppers[ikStepper.GetInstanceID()] = group;
     }
 
     private float calculateStepTime(IKStepper ikStepper) {
         if (dynamicStepTime) {
             float k = stepTimePerVelocity * spider.getScale(); // At velocity=1, this is the steptime
             float velocityMagnitude = ikStepper.ikChain.getEndeffectorVelocityPerSecond().magnitude;
-            return (velocityMagnitude == 0) ? maxStepTime : Mathf.Clamp(k / velocityMagnitude, 0, maxStepTime);
+            return (velocityMagnitude == 0) ? maximumStepTime : Mathf.Clamp(k / velocityMagnitude, 0, maximumStepTime);
         }
-        else return maxStepTime;
+        else return fixedStepTime;
     }
 
-    private float calculateAverageStepTime(List<IKStepper> ikSteppers) {
+    private float calculateAverageStepTime(GaitGroup group) {
         if (dynamicStepTime) {
             float stepTime = 0;
-            foreach (var ikStepper in ikSteppers) {
-                stepTime += calculateStepTime(ikStepper);
+            foreach (var ikstepper in ikSteppers) {
+                if (getGroupOf(ikstepper) == group) stepTime += calculateStepTime(ikstepper);
             }
             return stepTime / ikSteppers.Count;
         }
-        else return maxStepTime;
+        else return fixedStepTime;
     }
 
     private void printQueue() {
@@ -247,4 +281,83 @@ public class IKStepManager : MonoBehaviour {
         Debug.Log("Queue: " + queueText);
     }
 }
+
+#if UNITY_EDITOR
+[CustomEditor(typeof(IKStepManager))]
+public class IKStepManagerEditor : Editor {
+
+    private IKStepManager manager;
+
+    public void OnEnable() {
+        manager = (IKStepManager)target;
+
+        manager.findAndInitializeIKSteppers();
+        manager.initializeGaitGroups();
+    }
+
+    public override void OnInspectorGUI() {
+        if (manager == null) return;
+
+        serializedObject.Update();
+
+        Undo.RecordObject(manager, "Changes to IKStepManager");
+
+        // Spider Reference
+        EditorGUILayout.LabelField("Spider Reference", EditorStyles.boldLabel);
+
+        serializedObject.FindProperty("spider").objectReferenceValue = (Spider)EditorGUILayout.ObjectField(manager.spider, typeof(Spider), false); //true?
+        EditorGUILayout.Space();
+
+        // Stepping Mode:
+        EditorGUILayout.LabelField("Choose a Stepping mode", EditorStyles.boldLabel);
+        serializedObject.FindProperty("stepMode").enumValueIndex = (int)(IKStepManager.StepMode)EditorGUILayout.EnumPopup("Step Mode", manager.stepMode);
+        EditorGUI.indentLevel++;
+        {
+            // Alternating Tetrapod Gait
+            if (manager.stepMode == IKStepManager.StepMode.AlternatingTetrapodGait) {
+
+                foreach (var ikstepper in manager.ikSteppers) {
+                    EditorGUILayout.BeginHorizontal();
+                    {
+                        GUI.enabled = false;
+                        EditorGUILayout.ObjectField(ikstepper, typeof(IKStepper), false);
+                        GUI.enabled = true;
+                        manager.setGroupOf(ikstepper, (IKStepManager.GaitGroup)EditorGUILayout.EnumPopup(manager.getGroupOf(ikstepper)));
+                    }
+                    EditorGUILayout.EndHorizontal();
+                }
+                serializedObject.FindProperty("gaitStepForcing").enumValueIndex = (int)(IKStepManager.GaitStepForcing)EditorGUILayout.EnumPopup("Force Step on Tick?", manager.gaitStepForcing);
+            }
+
+            // Queue Mode
+            else {
+                GUI.enabled = false;
+                foreach (IKStepper ikstepper in manager.ikSteppers) {
+                    EditorGUILayout.ObjectField(ikstepper, typeof(IKStepper), false);
+                }
+                GUI.enabled = true;
+            }
+        }
+        EditorGUI.indentLevel--;
+        EditorGUILayout.Space();
+
+        // StepTime
+        EditorGUILayout.LabelField("Step Time", EditorStyles.boldLabel);
+        serializedObject.FindProperty("dynamicStepTime").boolValue = EditorGUILayout.Toggle("Dynamic Step time", manager.dynamicStepTime);
+        EditorGUI.indentLevel++;
+        {
+            if (manager.dynamicStepTime) {
+                serializedObject.FindProperty("stepTimePerVelocity").floatValue = EditorGUILayout.Slider("Step Time Per Velocity", manager.stepTimePerVelocity, 0f, 0.01f);
+                serializedObject.FindProperty("maximumStepTime").floatValue = EditorGUILayout.Slider("Maximum Step Time", manager.maximumStepTime, 0f, 1f);
+            }
+            else {
+                serializedObject.FindProperty("fixedStepTime").floatValue = EditorGUILayout.Slider("Fixed Step Time", manager.fixedStepTime, 0f, 1f);
+            }
+        }
+        EditorGUI.indentLevel--;
+
+        serializedObject.ApplyModifiedProperties();
+    }
+}
+#endif
 

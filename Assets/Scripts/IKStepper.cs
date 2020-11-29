@@ -474,6 +474,7 @@ public class IKStepper : MonoBehaviour {
     // Getters for important states
 
     public bool allowedTargetManipulationAccess() {
+        if (ikChain == null) ikChain = GetComponent<IKChain>();
         return ikChain.isTargetExternallyHandled();
     }
 
