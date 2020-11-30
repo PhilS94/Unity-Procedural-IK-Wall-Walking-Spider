@@ -407,7 +407,7 @@ public class SpiderEditor : Editor {
 
     private static bool showDebug = true;
 
-    private static float debugIconScale = 1.0f;
+    private static float debugIconScale;
     private static bool showRaycasts = true;
     private static bool showGravityOffDistance = true;
     private static bool showOrientations = true;
@@ -445,6 +445,8 @@ public class SpiderEditor : Editor {
             EditorGUILayout.ObjectField(spider.legs[i], typeof(IKChain), false);
         }
         GUI.enabled = true;
+
+        EditorDrawing.DrawHorizontalLine(Color.gray);
 
         if (showDebug && !EditorApplication.isPlaying) spider.Awake();
     }

@@ -510,7 +510,7 @@ public class IKStepperEditor : Editor {
 
     private static bool showDebug = true;
 
-    private static float debugIconScale = 5.0f;
+    private static float debugIconScale;
     private static bool showPoints = true;
     private static bool showSteppingProcess = true;
     private static bool showRayCasts = true;

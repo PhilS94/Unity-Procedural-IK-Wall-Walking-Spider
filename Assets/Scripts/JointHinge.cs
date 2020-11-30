@@ -227,7 +227,7 @@ public class JointHingeEditor : Editor {
 
     private JointHinge joint;
 
-    private static float debugIconScale = 5.0f;
+    private static float debugIconScale;
 
     private static bool showDebug = true;
     private static bool showRotationAxis = true;

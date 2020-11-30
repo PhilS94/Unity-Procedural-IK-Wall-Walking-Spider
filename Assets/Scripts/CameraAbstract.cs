@@ -266,7 +266,7 @@ public class CameraAbstractEditor : Editor {
 
     private static bool showDebug = true;
 
-    private static float debugIconScale = 1.0f;
+    private static float debugIconScale;
     private static bool showObstructionRay = true;
     private static bool showClipRay = true;
     private static bool showAngleRestrictions = true;

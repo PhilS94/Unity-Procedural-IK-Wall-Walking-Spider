@@ -20,13 +20,26 @@ using UnityEditor;
 
 [DefaultExecutionOrder(+1)] // Make sure all the stepping logic is called after the IK was solved in each IKChain
 public class IKStepManager : MonoBehaviour {
-    public bool printDebugLogs;
 
-    public Spider spider;
-
-    public enum StepMode { AlternatingTetrapodGait, QueueWait, QueueNoWait }
+    // Enums and Structs
     public enum GaitGroup { GroupA, GroupB };
     public enum GaitStepForcing { NoForcing, ForceGroupIfOneLegSteps, ForceGroupEveryTick }
+
+    [System.Serializable]
+    public struct LegData {
+
+        public LegData(IKStepper m_ikStepper) {
+            ikStepper = m_ikStepper;
+            group = GaitGroup.GroupA;
+            waitingForStep = false;
+        }
+
+        public IKStepper ikStepper;
+        public GaitGroup group;
+        public bool waitingForStep;
+    }
+
+    public enum StepMode { AlternatingTetrapodGait, QueueWait, QueueNoWait }
 
     /*
      * Note the following about the stepping modes:
@@ -55,26 +68,23 @@ public class IKStepManager : MonoBehaviour {
      *                  and the k-th element of this list will be removed.
      */
 
-    [Header("Step Mode")]
+    public bool printDebugLogs;
+    public Spider spider;
 
+    [Header("Step Mode")]
     public StepMode stepMode;
 
     //Order is important here as this is the order stepCheck is performed, giving the first elements more priority in case of a same frame step desire
     [Header("Legs for Queue Modes")]
-    public List<IKStepper> ikSteppers;
-    private List<IKStepper> stepQueue;
-
-    private Dictionary<int, bool> waitingForStep;
+    public LegData[] legs;
+    private List<int> stepQueue;
 
     [Header("Legs for Gait Mode")]
-    public Dictionary<int, GaitGroup> gaitGroupOfIKSteppers;
     private float nextSwitchTime;
     private GaitGroup currentGroup;
     public GaitStepForcing gaitStepForcing;
 
     [Header("Steptime")]
-
-
     public bool dynamicStepTime = true;
     [Range(0.001f, 0.01f)]
     public float stepTimePerVelocity;
@@ -89,34 +99,12 @@ public class IKStepManager : MonoBehaviour {
         //findAndInitializeIKSteppers();
 
         /* Queue Mode Initialization */
-        stepQueue = new List<IKStepper>();
-
-        // Initialize the hash map for step waiting with false
-        waitingForStep = new Dictionary<int, bool>();
-        foreach (var ikStepper in ikSteppers) {
-            waitingForStep.Add(ikStepper.GetInstanceID(), false);
-        }
+        stepQueue = new List<int>();
 
         /* Alternating Tetrapod Gait Initialization */
         //initializeGaitGroups();
         currentGroup = GaitGroup.GroupA; // Start with Group A 
         nextSwitchTime = 1f; // Set first timer to step to a second
-    }
-
-    public void findAndInitializeIKSteppers() {
-        ikSteppers = new List<IKStepper>();
-        foreach (var ikStepper in GetComponentsInChildren<IKStepper>()) {
-            if (ikStepper.allowedTargetManipulationAccess()) {
-                ikSteppers.Add(ikStepper);
-            }
-        }
-    }
-
-    public void initializeGaitGroups() {
-        gaitGroupOfIKSteppers = new Dictionary<int, GaitGroup>();
-        foreach (var ikStepper in ikSteppers) {
-            gaitGroupOfIKSteppers.Add(ikStepper.GetInstanceID(), GaitGroup.GroupA);
-        }
     }
 
     private void LateUpdate() {
@@ -129,16 +117,16 @@ public class IKStepManager : MonoBehaviour {
         /* Perform the step checks for all legs not already waiting to step.
          * If a step is needed, enqueue them.
          */
-        foreach (var ikStepper in ikSteppers) {
+        for (int i = 0; i < legs.Length; i++) {
 
             // Check if Leg isnt already waiting for step.
-            if (waitingForStep[ikStepper.GetInstanceID()] == true) continue;
+            if (legs[i].waitingForStep == true) continue;
 
             //Now perform check if a step is needed and if so enqueue the element
-            if (ikStepper.stepCheck()) {
-                stepQueue.Add(ikStepper);
-                waitingForStep[ikStepper.GetInstanceID()] = true;
-                if (printDebugLogs) Debug.Log(ikStepper.name + " is enqueued to step at queue position " + stepQueue.Count);
+            if (legs[i].ikStepper.stepCheck()) {
+                stepQueue.Add(i);
+                legs[i].waitingForStep = true;
+                if (printDebugLogs) Debug.Log(legs[i].ikStepper.name + " is enqueued to step at queue position " + stepQueue.Count + " with value [" + legs[i].waitingForStep + "]");
             }
         }
 
@@ -149,14 +137,18 @@ public class IKStepManager : MonoBehaviour {
          * If not, we have two cases:   If the current mode selected is the QueueWait mode, then stop the iteration.
          *                              If the current mode selected is the QueueNoWait mode, simply continue with the iteration.
          */
-        int k = 0;
-        foreach (var ikStepper in stepQueue.ToArray()) {
+
+        int removeIndex = 0;
+        int[] temp = stepQueue.ToArray();
+        foreach (int i in temp) {
+            IKStepper ikStepper = legs[i].ikStepper;
             if (ikStepper.allowedToStep()) {
                 ikStepper.ikChain.unpauseSolving();
                 ikStepper.step(calculateStepTime(ikStepper));
+
                 // Remove the stepping leg from the list:
-                waitingForStep[ikStepper.GetInstanceID()] = false;
-                stepQueue.RemoveAt(k);
+                legs[i].waitingForStep = false;
+                stepQueue.RemoveAt(removeIndex);
                 if (printDebugLogs) Debug.Log(ikStepper.name + " was allowed to step and is thus removed.");
             }
             else {
@@ -167,15 +159,15 @@ public class IKStepManager : MonoBehaviour {
                     if (printDebugLogs) Debug.Log("Wait selected, thus stepping ends for this frame.");
                     break;
                 }
-                k++; // Increment k by one here since i did not remove the current element from the list.
+                removeIndex++; // Increment k by one here since i did not remove the current element from the list.
             }
         }
 
         /* Iterate through all the legs that are still in queue, and therefore werent allowed to step.
          * For them pause the IK solving while they are waiting.
          */
-        foreach (var ikStepper in stepQueue) {
-            ikStepper.ikChain.pauseSolving();
+        foreach (int i in stepQueue) {
+            legs[i].ikStepper.ikChain.pauseSolving();
         }
     }
 
@@ -191,6 +183,7 @@ public class IKStepManager : MonoBehaviour {
          * Thus, i simply calculate the average step time of the current group and use it for all legs.
          * TODO: Add a random offset to the steptime of each leg to imitate nature more closely and use the max value as the next switch time
          */
+
         currentGroup = (currentGroup == GaitGroup.GroupA) ? GaitGroup.GroupB : GaitGroup.GroupA;
         float stepTime = calculateAverageStepTime(currentGroup);
         nextSwitchTime = Time.time + stepTime;
@@ -205,47 +198,31 @@ public class IKStepManager : MonoBehaviour {
          * However, depending on which force mode is selected the other legs can be forced to step anyway.
          */
         if (gaitStepForcing == GaitStepForcing.ForceGroupEveryTick) {
-            foreach (var ikStepper in ikSteppers) ikStepper.step(stepTime);
+            foreach (var leg in legs) {
+                if (leg.group == currentGroup) leg.ikStepper.step(stepTime);
+            }
         }
         else if (gaitStepForcing == GaitStepForcing.ForceGroupIfOneLegSteps) {
             bool b = false;
-            foreach (var ikStepper in ikSteppers) {
-                if (getGroupOf(ikStepper) == currentGroup) {
-                    b = b || ikStepper.stepCheck();
+            foreach (var leg in legs) {
+                if (leg.group == currentGroup) {
+                    b = b || leg.ikStepper.stepCheck();
                     if (b == true) break;
                 }
             }
             if (b == true) {
-                foreach (var ikStepper in ikSteppers) {
-                    if (getGroupOf(ikStepper) == currentGroup) ikStepper.step(stepTime);
+                foreach (var leg in legs) {
+                    if (leg.group == currentGroup) leg.ikStepper.step(stepTime);
                 }
             }
         }
         else if (gaitStepForcing == GaitStepForcing.NoForcing) {
-            foreach (var ikStepper in ikSteppers) {
-                if (getGroupOf(ikStepper) == currentGroup) {
-                    if (ikStepper.stepCheck()) ikStepper.step(stepTime);
+            foreach (var leg in legs) {
+                if (leg.group == currentGroup) {
+                    if (leg.ikStepper.stepCheck()) leg.ikStepper.step(stepTime);
                 }
             }
         }
-    }
-
-    public GaitGroup getGroupOf(IKStepper ikStepper) {
-        if (gaitGroupOfIKSteppers.TryGetValue(ikStepper.GetInstanceID(), out GaitGroup group)) {
-            return group;
-        }
-        else {
-            Debug.LogError("Could not find Group of " + ikStepper.name + " in Dictionary. Default to GroupA.");
-            return GaitGroup.GroupA;
-        }
-    }
-
-    public void setGroupOf(IKStepper ikStepper, GaitGroup group) {
-        if (!gaitGroupOfIKSteppers.ContainsKey(ikStepper.GetInstanceID())) {
-            Debug.LogError("Can not set group of " + ikStepper.name + " since it is not in the Dictionary.");
-            return;
-        }
-        gaitGroupOfIKSteppers[ikStepper.GetInstanceID()] = group;
     }
 
     private float calculateStepTime(IKStepper ikStepper) {
@@ -260,10 +237,14 @@ public class IKStepManager : MonoBehaviour {
     private float calculateAverageStepTime(GaitGroup group) {
         if (dynamicStepTime) {
             float stepTime = 0;
-            foreach (var ikstepper in ikSteppers) {
-                if (getGroupOf(ikstepper) == group) stepTime += calculateStepTime(ikstepper);
+            int k = 0;
+            foreach (var leg in legs) {
+                if (leg.group == group) {
+                    stepTime += calculateStepTime(leg.ikStepper);
+                    k++;
+                }
             }
-            return stepTime / ikSteppers.Count;
+            return stepTime / k;
         }
         else return fixedStepTime;
     }
@@ -272,8 +253,8 @@ public class IKStepManager : MonoBehaviour {
         if (stepQueue == null) return;
         string queueText = "[";
         if (stepQueue.Count != 0) {
-            foreach (var ikStepper in stepQueue) {
-                queueText += ikStepper.name + ", ";
+            foreach (int i in stepQueue) {
+                queueText += legs[i].ikStepper.name + ", ";
             }
             queueText = queueText.Substring(0, queueText.Length - 2);
         }
@@ -291,8 +272,17 @@ public class IKStepManagerEditor : Editor {
     public void OnEnable() {
         manager = (IKStepManager)target;
 
-        manager.findAndInitializeIKSteppers();
-        manager.initializeGaitGroups();
+        if (manager.legs == null) findLegsInChildren();
+    }
+
+    private void findLegsInChildren() {
+        List<IKStepManager.LegData> temp = new List<IKStepManager.LegData>();
+        foreach (var ikStepper in manager.GetComponentsInChildren<IKStepper>()) {
+            if (ikStepper.allowedTargetManipulationAccess()) {
+                temp.Add(new IKStepManager.LegData(ikStepper));
+            }
+        }
+        manager.legs = temp.ToArray();
     }
 
     public override void OnInspectorGUI() {
@@ -300,48 +290,58 @@ public class IKStepManagerEditor : Editor {
 
         serializedObject.Update();
 
-        // Spider Reference
-        EditorGUILayout.LabelField("Spider Reference", EditorStyles.boldLabel);
+        EditorDrawing.DrawHorizontalLine(Color.gray);
 
-        serializedObject.FindProperty("spider").objectReferenceValue = (Spider)EditorGUILayout.ObjectField(manager.spider, typeof(Spider), false); //true?
+        //Debug Prints
+        EditorGUILayout.LabelField("Debug", EditorStyles.boldLabel);
+        serializedObject.FindProperty("printDebugLogs").boolValue = (bool)EditorGUILayout.Toggle("Print Debug Logs", manager.printDebugLogs);
+
+        EditorDrawing.DrawHorizontalLine(Color.gray);
+        EditorGUILayout.Space();
+
+        // Spider Reference
+        serializedObject.FindProperty("spider").objectReferenceValue = (Spider)EditorGUILayout.ObjectField(manager.spider, typeof(Spider), true);
         EditorGUILayout.Space();
 
         // Stepping Mode:
         EditorGUILayout.LabelField("Choose a Stepping mode", EditorStyles.boldLabel);
         serializedObject.FindProperty("stepMode").enumValueIndex = (int)(IKStepManager.StepMode)EditorGUILayout.EnumPopup("Step Mode", manager.stepMode);
+
+        EditorGUILayout.Space();
+        if (GUILayout.Button("Reset and Find Legs")) {
+            findLegsInChildren();
+        }
+        EditorGUILayout.Space();
+
         EditorGUI.indentLevel++;
         {
-            // Alternating Tetrapod Gait
-            if (manager.stepMode == IKStepManager.StepMode.AlternatingTetrapodGait) {
+            // Show The Array of LegData depending on step mode
+            SerializedProperty legsArrayProperty = serializedObject.FindProperty("legs");
+            for (int i = 0; i < legsArrayProperty.arraySize; i++) {
+                SerializedProperty singleLegProperty = legsArrayProperty.GetArrayElementAtIndex(i);
 
-                foreach (var ikstepper in manager.ikSteppers) {
+                // Alternating Tetrapod Gait
+                if (manager.stepMode == IKStepManager.StepMode.AlternatingTetrapodGait) {
                     EditorGUILayout.BeginHorizontal();
                     {
                         GUI.enabled = false;
-                        EditorGUILayout.ObjectField(ikstepper, typeof(IKStepper), false);
+                        singleLegProperty.FindPropertyRelative("ikStepper").objectReferenceValue = (IKStepper)EditorGUILayout.ObjectField(manager.legs[i].ikStepper, typeof(IKStepper), true);
                         GUI.enabled = true;
-
-                        EditorGUI.BeginChangeCheck();
-                        IKStepManager.GaitGroup group = (IKStepManager.GaitGroup)EditorGUILayout.EnumPopup(manager.getGroupOf(ikstepper));
-
-                        if (EditorGUI.EndChangeCheck()) {
-                            Undo.RecordObject(manager, "Changes to Gait Groups");
-                            manager.setGroupOf(ikstepper, group);
-                            EditorUtility.SetDirty(manager);
-                        }
+                        singleLegProperty.FindPropertyRelative("group").enumValueIndex = (int)(IKStepManager.StepMode)EditorGUILayout.EnumPopup(manager.legs[i].group);
                     }
                     EditorGUILayout.EndHorizontal();
                 }
-                serializedObject.FindProperty("gaitStepForcing").enumValueIndex = (int)(IKStepManager.GaitStepForcing)EditorGUILayout.EnumPopup("Force Step on Tick?", manager.gaitStepForcing);
-            }
 
-            // Queue Mode
-            else {
-                GUI.enabled = false;
-                foreach (IKStepper ikstepper in manager.ikSteppers) {
-                    EditorGUILayout.ObjectField(ikstepper, typeof(IKStepper), false);
+                // Queue Mode
+                else {
+                    GUI.enabled = false;
+                    singleLegProperty.FindPropertyRelative("ikStepper").objectReferenceValue = (IKStepper)EditorGUILayout.ObjectField(manager.legs[i].ikStepper, typeof(IKStepper), true);
+                    GUI.enabled = true;
                 }
-                GUI.enabled = true;
+            }
+            // Show Step Forcing post loop for tetrapod gait
+            if (manager.stepMode == IKStepManager.StepMode.AlternatingTetrapodGait) {
+                serializedObject.FindProperty("gaitStepForcing").enumValueIndex = (int)(IKStepManager.GaitStepForcing)EditorGUILayout.EnumPopup("Force Step on Tick?", manager.gaitStepForcing);
             }
         }
         EditorGUI.indentLevel--;
