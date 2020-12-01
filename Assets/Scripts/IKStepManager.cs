@@ -22,15 +22,15 @@ using UnityEditor;
 public class IKStepManager : MonoBehaviour {
 
     // Enums and Structs
-    public enum GaitGroup { GroupA, GroupB };
+    public enum GaitGroup { NotAssigned, GroupA, GroupB };
     public enum GaitStepForcing { NoForcing, ForceGroupIfOneLegSteps, ForceGroupEveryTick }
 
     [System.Serializable]
     public struct LegData {
 
-        public LegData(IKStepper m_ikStepper) {
+        public LegData(IKStepper m_ikStepper, GaitGroup m_group = GaitGroup.NotAssigned) {
             ikStepper = m_ikStepper;
-            group = GaitGroup.GroupA;
+            group = m_group;
             waitingForStep = false;
         }
 
@@ -275,10 +275,32 @@ public class IKStepManagerEditor : Editor {
         List<IKStepManager.LegData> temp = new List<IKStepManager.LegData>();
         foreach (var ikStepper in manager.GetComponentsInChildren<IKStepper>()) {
             if (ikStepper.allowedTargetAccess()) {
-                temp.Add(new IKStepManager.LegData(ikStepper));
+                temp.Add(new IKStepManager.LegData(ikStepper, findGaitGroupOf(ikStepper)));
+
             }
         }
         manager.legs = temp.ToArray();
+    }
+
+    public IKStepManager.GaitGroup findGaitGroupOf(IKStepper ikStepper) {
+        for (int i = 0; i < manager.legs.Length; i++) {
+            if (manager.legs[i].ikStepper == ikStepper) return manager.legs[i].group;
+        }
+        return IKStepManager.GaitGroup.NotAssigned;
+    }
+    public void addLeg() {
+        int n = manager.legs.Length;
+        IKStepManager.LegData[] temp = new IKStepManager.LegData[n + 1];
+        for (int i = 0; i < n; i++) { temp[i] = manager.legs[i]; }
+        temp[n] = new IKStepManager.LegData(null);
+        manager.legs = temp;
+    }
+
+    public void removeLeg() {
+        int n = manager.legs.Length;
+        IKStepManager.LegData[] temp = new IKStepManager.LegData[n - 1];
+        for (int i = 0; i < n - 1; i++) { temp[i] = manager.legs[i]; }
+        manager.legs = temp;
     }
 
     public override void OnInspectorGUI() {
@@ -317,9 +339,7 @@ public class IKStepManagerEditor : Editor {
                 if (manager.stepMode == IKStepManager.StepMode.AlternatingTetrapodGait) {
                     EditorGUILayout.BeginHorizontal();
                     {
-                        GUI.enabled = false;
                         singleLegProperty.FindPropertyRelative("ikStepper").objectReferenceValue = (IKStepper)EditorGUILayout.ObjectField(manager.legs[i].ikStepper, typeof(IKStepper), true);
-                        GUI.enabled = true;
                         singleLegProperty.FindPropertyRelative("group").enumValueIndex = (int)(IKStepManager.StepMode)EditorGUILayout.EnumPopup(manager.legs[i].group);
                     }
                     EditorGUILayout.EndHorizontal();
@@ -327,9 +347,7 @@ public class IKStepManagerEditor : Editor {
 
                 // Queue Mode
                 else {
-                    GUI.enabled = false;
                     singleLegProperty.FindPropertyRelative("ikStepper").objectReferenceValue = (IKStepper)EditorGUILayout.ObjectField(manager.legs[i].ikStepper, typeof(IKStepper), true);
-                    GUI.enabled = true;
                 }
             }
             // Show Step Forcing post loop for tetrapod gait
@@ -337,7 +355,15 @@ public class IKStepManagerEditor : Editor {
                 serializedObject.FindProperty("gaitStepForcing").enumValueIndex = (int)(IKStepManager.GaitStepForcing)EditorGUILayout.EnumPopup("Force Step on Tick?", manager.gaitStepForcing);
             }
 
-            // Button for finding and initializing array
+            // Buttons for leg array
+            EditorGUILayout.BeginHorizontal();
+            {
+                EditorGUILayout.LabelField("");
+                if (GUILayout.Button("Add Leg")) addLeg();
+                if (GUILayout.Button("Remove Leg")) removeLeg();
+            }
+            EditorGUILayout.EndHorizontal();
+
             EditorGUILayout.BeginHorizontal();
             {
                 EditorGUILayout.LabelField("");

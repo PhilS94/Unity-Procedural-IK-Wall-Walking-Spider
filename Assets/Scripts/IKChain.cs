@@ -244,14 +244,14 @@ public class IKChainEditor : Editor {
         ikchain.endEffector = transforms[transforms.Length - 1];
     }
 
-    public void addItem() {
+    public void addJoint() {
         int n = ikchain.joints.Length;
         JointHinge[] temp = new JointHinge[n + 1];
         for (int i = 0; i < n; i++) { temp[i] = ikchain.joints[i]; }
         ikchain.joints = temp;
     }
 
-    public void removeItem() {
+    public void removeJoint() {
         int n = ikchain.joints.Length;
         JointHinge[] temp = new JointHinge[n - 1];
         for (int i = 0; i < n - 1; i++) { temp[i] = ikchain.joints[i]; }
@@ -319,8 +319,8 @@ public class IKChainEditor : Editor {
             EditorGUILayout.BeginHorizontal();
             {
                 EditorGUILayout.LabelField("");
-                if (GUILayout.Button("Add Joint")) addItem();
-                if (GUILayout.Button("Remove Joint")) removeItem();
+                if (GUILayout.Button("Add Joint")) addJoint();
+                if (GUILayout.Button("Remove Joint")) removeJoint();
             }
             EditorGUILayout.EndHorizontal();
 
