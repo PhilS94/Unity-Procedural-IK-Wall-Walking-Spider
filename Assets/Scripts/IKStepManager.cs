@@ -356,6 +356,7 @@ public class IKStepManagerEditor : Editor {
             }
 
             // Buttons for leg array
+            GUI.color = new Color(0.7f,0.7f,0.7f);
             EditorGUILayout.BeginHorizontal();
             {
                 EditorGUILayout.LabelField("");
@@ -370,6 +371,7 @@ public class IKStepManagerEditor : Editor {
                 if (GUILayout.Button("Find Automatically")) findLegsInChildren();
             }
             EditorGUILayout.EndHorizontal();
+            GUI.color = Color.white;
         }
         EditorGUI.indentLevel--;
         EditorGUILayout.Space();

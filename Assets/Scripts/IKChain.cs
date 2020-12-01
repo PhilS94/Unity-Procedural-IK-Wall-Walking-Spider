@@ -316,6 +316,7 @@ public class IKChainEditor : Editor {
             serializedObject.FindProperty("endEffector").objectReferenceValue = (Transform)EditorGUILayout.ObjectField("End Effector", ikchain.endEffector, typeof(Transform), true);
 
             // Buttons for Joint array
+            GUI.color = new Color(0.7f, 0.7f, 0.7f);
             EditorGUILayout.BeginHorizontal();
             {
                 EditorGUILayout.LabelField("");
@@ -330,6 +331,7 @@ public class IKChainEditor : Editor {
                 if (GUILayout.Button("Find Automatically")) findJointsInChildren();
             }
             EditorGUILayout.EndHorizontal();
+            GUI.color = Color.white;
         }
         EditorGUI.indentLevel--;
         EditorGUILayout.Space();
