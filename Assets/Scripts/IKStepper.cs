@@ -473,9 +473,9 @@ public class IKStepper : MonoBehaviour {
 
     // Getters for important states
 
-    public bool allowedTargetManipulationAccess() {
+    public bool allowedTargetAccess() {
         if (ikChain == null) ikChain = GetComponent<IKChain>();
-        return ikChain.isTargetExternallyHandled();
+        return ikChain.isTargetHandledByIKStepper();
     }
 
     // Getters for important points
@@ -510,7 +510,7 @@ public class IKStepperEditor : Editor {
 
     private static bool showDebug = true;
 
-    private static float debugIconScale;
+    private static float debugIconScale=3;
     private static bool showPoints = true;
     private static bool showSteppingProcess = true;
     private static bool showRayCasts = true;
@@ -526,19 +526,21 @@ public class IKStepperEditor : Editor {
 
         Undo.RecordObject(ikstepper, "Changes to IKStepper");
 
-        EditorDrawing.DrawHorizontalLine(Color.gray);
+        EditorDrawing.DrawHorizontalLine();
         EditorGUILayout.LabelField("Debug Drawing", EditorStyles.boldLabel);
         showDebug = EditorGUILayout.Toggle("Show Debug Drawings", showDebug);
         if (showDebug) {
             EditorGUI.indentLevel++;
-            debugIconScale = EditorGUILayout.Slider("Drawing Scale", debugIconScale, 1f, 10f);
-            showPoints = EditorGUILayout.Toggle("Draw Points", showPoints);
-            showSteppingProcess = EditorGUILayout.Toggle("Draw Stepping Process", showSteppingProcess);
-            showRayCasts = EditorGUILayout.Toggle("Draw Raycasts", showRayCasts);
-            showDOFArc = EditorGUILayout.Toggle("Draw Degree of Freedom Arc", showDOFArc);
+            {
+                debugIconScale = EditorGUILayout.Slider("Drawing Scale", debugIconScale, 1f, 10f);
+                showPoints = EditorGUILayout.Toggle("Draw Points", showPoints);
+                showSteppingProcess = EditorGUILayout.Toggle("Draw Stepping Process", showSteppingProcess);
+                showRayCasts = EditorGUILayout.Toggle("Draw Raycasts", showRayCasts);
+                showDOFArc = EditorGUILayout.Toggle("Draw Degree of Freedom Arc", showDOFArc);
+            }
             EditorGUI.indentLevel--;
         }
-        EditorDrawing.DrawHorizontalLine(Color.gray);
+        EditorDrawing.DrawHorizontalLine();
 
         base.OnInspectorGUI();
         if (showDebug && !EditorApplication.isPlaying) ikstepper.Awake();

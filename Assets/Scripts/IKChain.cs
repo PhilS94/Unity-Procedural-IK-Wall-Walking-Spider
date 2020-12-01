@@ -13,7 +13,7 @@ using UnityEditor;
 #endif
 
 public enum TargetMode {
-    ExternallyHandled,
+    HandledByIKStepper,
     DebugTarget,
     DebugTargetRay
 }
@@ -67,7 +67,14 @@ public class IKChain : MonoBehaviour {
     public void Awake() {
         Debug.Log("Called Awake " + name + " on IKChain");
         if (chainLength == 0) initializeChainLength();
-        if (targetMode == TargetMode.DebugTarget) debugModeRay = new RayCast(debugTarget.position + 1.0f * Vector3.up, debugTarget.position - 1.0f * Vector3.up, debugTarget, debugTarget);
+
+        if (targetMode == TargetMode.DebugTarget || targetMode == TargetMode.DebugTargetRay) {
+            if (debugTarget == null) {
+                Debug.LogError("Assign a target when using this mode.");
+            }
+        }
+
+        if (targetMode == TargetMode.DebugTargetRay && debugTarget != null) debugModeRay = new RayCast(debugTarget.position + 1.0f * Vector3.up, debugTarget.position - 1.0f * Vector3.up, debugTarget, debugTarget);
         lastEndeffectorPos = endEffector.position;
     }
 
@@ -155,7 +162,7 @@ public class IKChain : MonoBehaviour {
      * Dont allow external target manipulation if the debug modes are used.
      */
     public void setTarget(TargetInfo target) {
-        if (targetMode != TargetMode.ExternallyHandled) {
+        if (targetMode != TargetMode.HandledByIKStepper) {
             Debug.LogWarning("Not allowed to change target of IKChain " + gameObject.name + " since a debug mode is selected.");
             return;
         }
@@ -172,8 +179,8 @@ public class IKChain : MonoBehaviour {
     }
 
     // Getters and Setters for important states
-    public bool isTargetExternallyHandled() {
-        return targetMode == TargetMode.ExternallyHandled;
+    public bool isTargetHandledByIKStepper() {
+        return targetMode == TargetMode.HandledByIKStepper;
     }
     public void pauseSolving() {
         pause = true;
@@ -228,25 +235,145 @@ public class IKChainEditor : Editor {
         if (showDebug && !EditorApplication.isPlaying) ikchain.Awake();
     }
 
+    public void findJointsInChildren() {
+        List<JointHinge> temp = new List<JointHinge>();
+        foreach (var joint in ikchain.GetComponentsInChildren<JointHinge>()) { temp.Add(joint); }
+        ikchain.joints = temp.ToArray();
+
+        Transform[] transforms = ikchain.GetComponentsInChildren<Transform>();
+        ikchain.endEffector = transforms[transforms.Length - 1];
+    }
+
+    public void addItem() {
+        int n = ikchain.joints.Length;
+        JointHinge[] temp = new JointHinge[n + 1];
+        for (int i = 0; i < n; i++) { temp[i] = ikchain.joints[i]; }
+        ikchain.joints = temp;
+    }
+
+    public void removeItem() {
+        int n = ikchain.joints.Length;
+        JointHinge[] temp = new JointHinge[n - 1];
+        for (int i = 0; i < n - 1; i++) { temp[i] = ikchain.joints[i]; }
+        ikchain.joints = temp;
+    }
+
     public override void OnInspectorGUI() {
         if (ikchain == null) return;
 
-        Undo.RecordObject(ikchain, "Changes to IKChain");
+        serializedObject.Update();
 
-        EditorDrawing.DrawHorizontalLine(Color.gray);
-        EditorGUILayout.LabelField("Debug Drawing", EditorStyles.boldLabel);
+        EditorDrawing.DrawMonoScript(ikchain, typeof(IKChain));
+
+        EditorDrawing.DrawHorizontalLine();
+
+        //Debug
+        EditorGUILayout.LabelField("Debug", EditorStyles.boldLabel);
         showDebug = EditorGUILayout.Toggle("Show Debug Drawings", showDebug);
         if (showDebug) {
             EditorGUI.indentLevel++;
-            showChain = EditorGUILayout.Toggle("Draw IK Chain", showChain);
-            showSolveTolerance = EditorGUILayout.Toggle("Draw IK Solve Tolerance", showSolveTolerance);
-            showMinimumSolveChange = EditorGUILayout.Toggle("Draw Minimum Solve Change Breakcondition", showMinimumSolveChange);
-            showSingularityRadius = EditorGUILayout.Toggle("Draw Singularity Radius", showSingularityRadius);
+            {
+                showChain = EditorGUILayout.Toggle("Draw IK Chain", showChain);
+                showSolveTolerance = EditorGUILayout.Toggle("Draw IK Solve Tolerance", showSolveTolerance);
+                showMinimumSolveChange = EditorGUILayout.Toggle("Draw Minimum Solve Change Breakcondition", showMinimumSolveChange);
+                showSingularityRadius = EditorGUILayout.Toggle("Draw Singularity Radius", showSingularityRadius);
+            }
             EditorGUI.indentLevel--;
         }
-        EditorDrawing.DrawHorizontalLine(Color.gray);
+        EditorGUILayout.Space();
+        serializedObject.FindProperty("printDebugLogs").boolValue = EditorGUILayout.Toggle("Print Debug Logs", ikchain.printDebugLogs);
 
-        base.OnInspectorGUI();
+        EditorDrawing.DrawHorizontalLine();
+
+        // The IK Chain
+        EditorGUILayout.LabelField("The IK Chain", EditorStyles.boldLabel);
+
+        // The Array Joints
+        EditorGUILayout.BeginHorizontal();
+        {
+            EditorGUILayout.LabelField("Joints");
+            EditorGUILayout.LabelField("Weights");
+        }
+        EditorGUILayout.EndHorizontal();
+        EditorGUI.indentLevel++;
+        {
+            SerializedProperty jointsProperty = serializedObject.FindProperty("joints");
+            for (int i = 0; i < jointsProperty.arraySize; i++) {
+                SerializedProperty singleJointProperty = jointsProperty.GetArrayElementAtIndex(i);
+
+                EditorGUILayout.BeginHorizontal();
+                {
+                    singleJointProperty.objectReferenceValue = (JointHinge)EditorGUILayout.ObjectField(ikchain.joints[i], typeof(JointHinge), true);
+                    GUI.enabled = false;
+                    if (ikchain.joints[i] != null) EditorGUILayout.FloatField(ikchain.joints[i].weight);
+                    else EditorGUILayout.TextField("-");
+                    GUI.enabled = true;
+                }
+                EditorGUILayout.EndHorizontal();
+            }
+
+            // Endeffector
+            serializedObject.FindProperty("endEffector").objectReferenceValue = (Transform)EditorGUILayout.ObjectField("End Effector", ikchain.endEffector, typeof(Transform), true);
+
+            // Buttons for Joint array
+            EditorGUILayout.BeginHorizontal();
+            {
+                EditorGUILayout.LabelField("");
+                if (GUILayout.Button("Add Joint")) addItem();
+                if (GUILayout.Button("Remove Joint")) removeItem();
+            }
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.BeginHorizontal();
+            {
+                EditorGUILayout.LabelField("");
+                if (GUILayout.Button("Find Automatically")) findJointsInChildren();
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+        EditorGUI.indentLevel--;
+        EditorGUILayout.Space();
+
+        // The Solving Algorithm
+        EditorGUILayout.LabelField("IK Solving Algorithm", EditorStyles.boldLabel);
+
+        serializedObject.FindProperty("deactivateSolving").boolValue = EditorGUILayout.Toggle("Deactivate Solving?", ikchain.deactivateSolving);
+
+        if (!ikchain.deactivateSolving) {
+            EditorGUI.indentLevel++;
+            {
+                serializedObject.FindProperty("ikSolveMethod").enumValueIndex = (int)(IKChain.IKSolveMethod)EditorGUILayout.EnumPopup("Solving Algorithm", ikchain.ikSolveMethod);
+                EditorGUI.indentLevel++;
+                {
+                    serializedObject.FindProperty("tolerance").floatValue = EditorGUILayout.Slider("Solve Tolerance", ikchain.tolerance, 0.1f, 10f);
+                    serializedObject.FindProperty("minChangePerIteration").floatValue = EditorGUILayout.Slider("Minimum Change Per Iteration Break Condition", ikchain.minChangePerIteration, 0.01f, 1f);
+                    serializedObject.FindProperty("singularityRadius").floatValue = EditorGUILayout.Slider("Singularity Radius of Joints", ikchain.singularityRadius, 1f, 100f);
+                    serializedObject.FindProperty("adjustLastJointToNormal").boolValue = EditorGUILayout.Toggle("Adjust Last Segment to Ground (Foot) ?", ikchain.adjustLastJointToNormal);
+                }
+                EditorGUI.indentLevel--;
+            }
+            EditorGUI.indentLevel--;
+        }
+        EditorGUILayout.Space();
+
+        // The Target to Solve for
+        EditorGUILayout.LabelField("Target To Solve For", EditorStyles.boldLabel);
+        serializedObject.FindProperty("targetMode").enumValueIndex = (int)(TargetMode)EditorGUILayout.EnumPopup("Select the Target Mode", ikchain.targetMode);
+        EditorGUI.indentLevel++;
+        {
+            if (ikchain.targetMode == TargetMode.DebugTarget || ikchain.targetMode == TargetMode.DebugTargetRay) {
+                serializedObject.FindProperty("debugTarget").objectReferenceValue = (Transform)EditorGUILayout.ObjectField("Debug Target", ikchain.debugTarget, typeof(Transform), true);
+            }
+
+            if (ikchain.targetMode == TargetMode.DebugTargetRay) {
+                serializedObject.FindProperty("debugTargetRayLayer").intValue = EditorGUILayout.LayerField("Layer of Ray", ikchain.debugTargetRayLayer);
+            }
+        }
+        EditorGUI.indentLevel--;
+
+        // Apply Changes
+        serializedObject.ApplyModifiedProperties();
+
         if (showDebug && !EditorApplication.isPlaying) ikchain.Awake();
     }
 
@@ -269,9 +396,14 @@ public class IKChainEditor : Editor {
     public void DrawChain(ref IKChain ikchain, Color col) {
         Handles.color = col;
         for (int k = 0; k < ikchain.joints.Length - 1; k++) {
-            Handles.DrawLine(ikchain.joints[k].getRotationPoint(), ikchain.joints[k + 1].getRotationPoint());
+            JointHinge a = ikchain.joints[k];
+            JointHinge b = ikchain.joints[k + 1];
+
+            if (a == null || b == null) continue;
+            Handles.DrawLine(a.getRotationPoint(), b.getRotationPoint());
         }
-        Handles.DrawLine(ikchain.joints[ikchain.joints.Length - 1].getRotationPoint(), ikchain.endEffector.position);
+        JointHinge c = ikchain.joints[ikchain.joints.Length - 1];
+        if (c != null) Handles.DrawLine(c.getRotationPoint(), ikchain.endEffector.position);
     }
 
     public void DrawSolveTolerance(ref IKChain ikchain, Color col) {
@@ -291,6 +423,8 @@ public class IKChainEditor : Editor {
         Handles.color = col;
         for (int k = 0; k < ikchain.joints.Length; k++) {
             JointHinge joint = ikchain.joints[k];
+            if (joint == null) continue;
+
             Handles.RadiusHandle(joint.transform.rotation, joint.getRotationPoint(), ikchain.getSingularityRadius(), false);
             EditorDrawing.DrawText(joint.transform.position, "Singularity\n" + joint.name, col);
         }

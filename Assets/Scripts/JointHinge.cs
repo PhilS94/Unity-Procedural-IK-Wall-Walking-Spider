@@ -230,7 +230,7 @@ public class JointHingeEditor : Editor {
 
     private JointHinge joint;
 
-    private static float debugIconScale;
+    private static float debugIconScale = 5;
 
     private static bool showDebug = true;
     private static bool showRotationAxis = true;
@@ -247,18 +247,24 @@ public class JointHingeEditor : Editor {
 
         serializedObject.Update();
 
-        EditorDrawing.DrawHorizontalLine(Color.gray);
+        EditorDrawing.DrawMonoScript(joint, typeof(JointHinge));
+
+        EditorDrawing.DrawHorizontalLine();
+
+        //Debug
         EditorGUILayout.LabelField("Debug Drawing", EditorStyles.boldLabel);
         showDebug = EditorGUILayout.Toggle("Show Debug Drawings", showDebug);
         if (showDebug) {
             EditorGUI.indentLevel++;
-            debugIconScale = EditorGUILayout.Slider("Drawing Scale", debugIconScale, 1f, 10f);
-            showRotationAxis = EditorGUILayout.Toggle("Draw Rotation Axis", showRotationAxis);
-            showRotationPoint = EditorGUILayout.Toggle("Draw Rotation Point", showRotationPoint);
-            showAngleArc = EditorGUILayout.Toggle("Draw Joint Restricton Arc", showAngleArc);
+            {
+                debugIconScale = EditorGUILayout.Slider("Drawing Scale", debugIconScale, 1f, 10f);
+                showRotationAxis = EditorGUILayout.Toggle("Draw Rotation Axis", showRotationAxis);
+                showRotationPoint = EditorGUILayout.Toggle("Draw Rotation Point", showRotationPoint);
+                showAngleArc = EditorGUILayout.Toggle("Draw Joint Restricton Arc", showAngleArc);
+            }
             EditorGUI.indentLevel--;
         }
-        EditorDrawing.DrawHorizontalLine(Color.gray);
+        EditorDrawing.DrawHorizontalLine();
 
         //General
         EditorGUILayout.LabelField("General", EditorStyles.boldLabel);
@@ -279,7 +285,7 @@ public class JointHingeEditor : Editor {
                 EditorGUI.indentLevel++;
                 {
                     if (joint.rotMode == JointHinge.rotationAxisMode.RootX || joint.rotMode == JointHinge.rotationAxisMode.RootY || joint.rotMode == JointHinge.rotationAxisMode.RootZ) {
-                        serializedObject.FindProperty("root").objectReferenceValue = (Transform)EditorGUILayout.ObjectField("Root",joint.root, typeof(Transform), true);
+                        serializedObject.FindProperty("root").objectReferenceValue = (Transform)EditorGUILayout.ObjectField("Root", joint.root, typeof(Transform), true);
                     }
                     serializedObject.FindProperty("rotationAxisOrientation").vector3Value = EditorGUILayout.Vector3Field("Rotation Axis Adjustment", joint.rotationAxisOrientation);
                     serializedObject.FindProperty("rotationPointOffset").vector3Value = EditorGUILayout.Vector3Field("Rotation Point Offset", joint.rotationPointOffset);
@@ -321,6 +327,8 @@ public class JointHingeEditor : Editor {
             }
             EditorGUI.indentLevel--;
         }
+
+        // Apply Changes
         serializedObject.ApplyModifiedProperties();
 
         if (showDebug && !EditorApplication.isPlaying) joint.Awake();

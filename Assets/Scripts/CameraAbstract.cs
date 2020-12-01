@@ -286,7 +286,7 @@ public class CameraAbstractEditor : Editor {
 
         Undo.RecordObject(cam, "Changes to Camera");
 
-        EditorDrawing.DrawHorizontalLine(Color.gray);
+        EditorDrawing.DrawHorizontalLine();
         EditorGUILayout.LabelField("Debug Drawing", EditorStyles.boldLabel);
         showDebug = EditorGUILayout.Toggle("Show Debug Drawings", showDebug);
         if (showDebug) {
@@ -298,7 +298,7 @@ public class CameraAbstractEditor : Editor {
             showTarget = EditorGUILayout.Toggle("Draw Target", showTarget);
             EditorGUI.indentLevel--;
         }
-        EditorDrawing.DrawHorizontalLine(Color.gray);
+        EditorDrawing.DrawHorizontalLine();
 
         base.OnInspectorGUI();
         if (showDebug && !EditorApplication.isPlaying) {

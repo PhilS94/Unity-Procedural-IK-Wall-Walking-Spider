@@ -407,7 +407,7 @@ public class SpiderEditor : Editor {
 
     private static bool showDebug = true;
 
-    private static float debugIconScale;
+    private static float debugIconScale= 0.05f;
     private static bool showRaycasts = true;
     private static bool showGravityOffDistance = true;
     private static bool showOrientations = true;
@@ -433,11 +433,11 @@ public class SpiderEditor : Editor {
             showCentroid = EditorGUILayout.Toggle("Draw Centroid", showCentroid);
             EditorGUI.indentLevel--;
         }
-        EditorDrawing.DrawHorizontalLine(Color.gray);
+        EditorDrawing.DrawHorizontalLine();
 
         base.OnInspectorGUI();
 
-        EditorDrawing.DrawHorizontalLine(Color.gray);
+        EditorDrawing.DrawHorizontalLine();
 
         EditorGUILayout.LabelField("Found IK Legs", EditorStyles.boldLabel);
         GUI.enabled = false;
@@ -446,7 +446,7 @@ public class SpiderEditor : Editor {
         }
         GUI.enabled = true;
 
-        EditorDrawing.DrawHorizontalLine(Color.gray);
+        EditorDrawing.DrawHorizontalLine();
 
         if (showDebug && !EditorApplication.isPlaying) spider.Awake();
     }

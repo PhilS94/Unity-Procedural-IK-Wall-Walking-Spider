@@ -274,7 +274,7 @@ public class IKStepManagerEditor : Editor {
     private void findLegsInChildren() {
         List<IKStepManager.LegData> temp = new List<IKStepManager.LegData>();
         foreach (var ikStepper in manager.GetComponentsInChildren<IKStepper>()) {
-            if (ikStepper.allowedTargetManipulationAccess()) {
+            if (ikStepper.allowedTargetAccess()) {
                 temp.Add(new IKStepManager.LegData(ikStepper));
             }
         }
@@ -284,34 +284,31 @@ public class IKStepManagerEditor : Editor {
     public override void OnInspectorGUI() {
         if (manager == null) return;
 
+
+        EditorDrawing.DrawMonoScript(manager, typeof(IKStepManager));
+
         serializedObject.Update();
 
-        EditorDrawing.DrawHorizontalLine(Color.gray);
+        EditorDrawing.DrawHorizontalLine();
 
         //Debug Prints
         EditorGUILayout.LabelField("Debug", EditorStyles.boldLabel);
         serializedObject.FindProperty("printDebugLogs").boolValue = (bool)EditorGUILayout.Toggle("Print Debug Logs", manager.printDebugLogs);
 
-        EditorDrawing.DrawHorizontalLine(Color.gray);
-        EditorGUILayout.Space();
+        EditorDrawing.DrawHorizontalLine();
 
-        // Spider Reference
-        serializedObject.FindProperty("spider").objectReferenceValue = (Spider)EditorGUILayout.ObjectField(manager.spider, typeof(Spider), true);
+        // Spider Reference (Only Used for scaling of velocity)
+        serializedObject.FindProperty("spider").objectReferenceValue = (Spider)EditorGUILayout.ObjectField("Spider", manager.spider, typeof(Spider), true);
         EditorGUILayout.Space();
 
         // Stepping Mode:
         EditorGUILayout.LabelField("Choose a Stepping mode", EditorStyles.boldLabel);
         serializedObject.FindProperty("stepMode").enumValueIndex = (int)(IKStepManager.StepMode)EditorGUILayout.EnumPopup("Step Mode", manager.stepMode);
-
-        EditorGUILayout.Space();
-        if (GUILayout.Button("Reset and Find Legs")) {
-            findLegsInChildren();
-        }
         EditorGUILayout.Space();
 
+        // The Array of LegData
         EditorGUI.indentLevel++;
         {
-            // Show The Array of LegData depending on step mode
             SerializedProperty legsArrayProperty = serializedObject.FindProperty("legs");
             for (int i = 0; i < legsArrayProperty.arraySize; i++) {
                 SerializedProperty singleLegProperty = legsArrayProperty.GetArrayElementAtIndex(i);
@@ -339,6 +336,14 @@ public class IKStepManagerEditor : Editor {
             if (manager.stepMode == IKStepManager.StepMode.AlternatingTetrapodGait) {
                 serializedObject.FindProperty("gaitStepForcing").enumValueIndex = (int)(IKStepManager.GaitStepForcing)EditorGUILayout.EnumPopup("Force Step on Tick?", manager.gaitStepForcing);
             }
+
+            // Button for finding and initializing array
+            EditorGUILayout.BeginHorizontal();
+            {
+                EditorGUILayout.LabelField("");
+                if (GUILayout.Button("Find Automatically")) findLegsInChildren();
+            }
+            EditorGUILayout.EndHorizontal();
         }
         EditorGUI.indentLevel--;
         EditorGUILayout.Space();
@@ -358,6 +363,7 @@ public class IKStepManagerEditor : Editor {
         }
         EditorGUI.indentLevel--;
 
+        // Apply Changes
         serializedObject.ApplyModifiedProperties();
     }
 }
