@@ -95,14 +95,10 @@ public class IKStepManager : MonoBehaviour {
 
     public void Awake() {
 
-        /* IKStepper Initialization */
-        //findAndInitializeIKSteppers();
-
         /* Queue Mode Initialization */
         stepQueue = new List<int>();
 
         /* Alternating Tetrapod Gait Initialization */
-        //initializeGaitGroups();
         currentGroup = GaitGroup.GroupA; // Start with Group A 
         nextSwitchTime = 1f; // Set first timer to step to a second
     }

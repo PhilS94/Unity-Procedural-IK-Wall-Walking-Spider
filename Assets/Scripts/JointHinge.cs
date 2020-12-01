@@ -21,8 +21,7 @@ using UnityEditor;
 
 public class JointHinge : MonoBehaviour {
 
-
-    [Header("Debug")]
+    [Header("General")]
     public bool deactivateJoint = false;
     public bool useRotationLimits = true;
 
@@ -66,7 +65,7 @@ public class JointHinge : MonoBehaviour {
     private Vector3 maxOrientationLocal;
 
     // Keeps track of the current state of rotation and is important part of the angle clamping
-    public float currentAngle { get; private set; } = 0;
+    private float currentAngle = 0;
 
     public void Awake() {
         Debug.Log("Called Awake " + name + " on JointHinge");
@@ -123,12 +122,8 @@ public class JointHinge : MonoBehaviour {
         }
     }
 
-    /*
-     * This is the main function called from other classes. It rotates the hinge joint by the given angle with respect to the limits given in this class.
-     */
-    public void applyRotation(float angle) {
-        if (deactivateJoint) return;
-
+    //Clamps the angle to (-180,180]
+    public void clampAngle(ref float angle) {
         angle = angle % 360;
 
         if (angle == -180) angle = 180;
@@ -136,7 +131,15 @@ public class JointHinge : MonoBehaviour {
         if (angle > 180) angle -= 360;
 
         if (angle < -180) angle += 360;
+    }
 
+    /*
+     * This is the main function called from other classes. It rotates the hinge joint by the given angle with respect to the limits given in this class.
+     */
+    public void applyRotation(float angle) {
+        if (deactivateJoint) return;
+
+        clampAngle(ref angle);
         //Now angle is of the form (-180,180]
 
         Vector3 rotationAxis = getRotationAxis();
@@ -242,7 +245,7 @@ public class JointHingeEditor : Editor {
     public override void OnInspectorGUI() {
         if (joint == null) return;
 
-        Undo.RecordObject(joint, "Changes to JointHinge");
+        serializedObject.Update();
 
         EditorDrawing.DrawHorizontalLine(Color.gray);
         EditorGUILayout.LabelField("Debug Drawing", EditorStyles.boldLabel);
@@ -257,13 +260,70 @@ public class JointHingeEditor : Editor {
         }
         EditorDrawing.DrawHorizontalLine(Color.gray);
 
-        base.OnInspectorGUI();
-        if (showDebug && !EditorApplication.isPlaying) joint.Awake();
+        //General
+        EditorGUILayout.LabelField("General", EditorStyles.boldLabel);
+        serializedObject.FindProperty("deactivateJoint").boolValue = EditorGUILayout.Toggle("Deactivate Joint?", joint.deactivateJoint);
+        EditorGUILayout.Space();
 
-        if (joint.minAngle > joint.maxAngle) {
-            Debug.LogError("Minimum angle of " + joint.name + " not allowed to be larger than maximum angle.");
-            joint.maxAngle = joint.minAngle;
+        if (!joint.deactivateJoint) {
+            EditorGUI.indentLevel++;
+            {
+                // Rotation Axis
+                EditorGUILayout.LabelField("Rotation Axis", EditorStyles.boldLabel);
+                EditorGUILayout.BeginHorizontal();
+                {
+                    serializedObject.FindProperty("rotMode").enumValueIndex = (int)(JointHinge.rotationAxisMode)EditorGUILayout.EnumPopup("Rotation Axis", joint.rotMode);
+                    serializedObject.FindProperty("negative").boolValue = EditorGUILayout.Toggle("Negative?", joint.negative);
+                }
+                EditorGUILayout.EndHorizontal();
+                EditorGUI.indentLevel++;
+                {
+                    if (joint.rotMode == JointHinge.rotationAxisMode.RootX || joint.rotMode == JointHinge.rotationAxisMode.RootY || joint.rotMode == JointHinge.rotationAxisMode.RootZ) {
+                        serializedObject.FindProperty("root").objectReferenceValue = (Transform)EditorGUILayout.ObjectField("Root",joint.root, typeof(Transform), true);
+                    }
+                    serializedObject.FindProperty("rotationAxisOrientation").vector3Value = EditorGUILayout.Vector3Field("Rotation Axis Adjustment", joint.rotationAxisOrientation);
+                    serializedObject.FindProperty("rotationPointOffset").vector3Value = EditorGUILayout.Vector3Field("Rotation Point Offset", joint.rotationPointOffset);
+                }
+                EditorGUI.indentLevel--;
+                EditorGUILayout.Space();
+
+                //Joint Restrictions
+                EditorGUILayout.LabelField("Joint Restrictions", EditorStyles.boldLabel);
+                serializedObject.FindProperty("useRotationLimits").boolValue = EditorGUILayout.Toggle("Use Rotation Limits?", joint.useRotationLimits);
+                if (joint.useRotationLimits) {
+                    EditorGUI.indentLevel++;
+                    {
+                        serializedObject.FindProperty("startOrientation").floatValue = EditorGUILayout.Slider("Start Orientation", joint.startOrientation, -180, 180);
+                        float min = joint.minAngle;
+                        float max = joint.maxAngle;
+
+                        EditorGUIUtility.labelWidth = 1;
+                        EditorGUILayout.BeginHorizontal();
+                        {
+                            EditorGUILayout.LabelField("Angles");
+                            min = EditorGUILayout.FloatField(min);
+                            EditorGUILayout.MinMaxSlider(ref min, ref max, -90, 90);
+                            max = EditorGUILayout.FloatField(max);
+                        }
+                        EditorGUILayout.EndHorizontal();
+                        EditorGUIUtility.labelWidth = 0;
+
+                        serializedObject.FindProperty("minAngle").floatValue = min;
+                        serializedObject.FindProperty("maxAngle").floatValue = max;
+                    }
+                    EditorGUI.indentLevel--;
+                }
+                EditorGUILayout.Space();
+
+                //Weigth
+                EditorGUILayout.LabelField("Joint Solving", EditorStyles.boldLabel);
+                serializedObject.FindProperty("weight").floatValue = (float)EditorGUILayout.Slider("Joint Weight", joint.weight, 0, 1);
+            }
+            EditorGUI.indentLevel--;
         }
+        serializedObject.ApplyModifiedProperties();
+
+        if (showDebug && !EditorApplication.isPlaying) joint.Awake();
     }
 
     void OnSceneGUI() {
