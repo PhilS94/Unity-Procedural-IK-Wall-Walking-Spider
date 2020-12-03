@@ -298,6 +298,7 @@ public class IKStepManagerEditor : Editor {
 
     public void removeLeg() {
         int n = manager.legs.Length;
+        if (n == 0) return;
         IKStepManager.LegData[] temp = new IKStepManager.LegData[n - 1];
         for (int i = 0; i < n - 1; i++) { temp[i] = manager.legs[i]; }
         manager.legs = temp;
@@ -356,22 +357,20 @@ public class IKStepManagerEditor : Editor {
             }
 
             // Buttons for leg array
-            GUI.color = new Color(0.7f,0.7f,0.7f);
             EditorGUILayout.BeginHorizontal();
             {
                 EditorGUILayout.LabelField("");
-                if (GUILayout.Button("Add Leg")) addLeg();
-                if (GUILayout.Button("Remove Leg")) removeLeg();
+                if (EditorDrawing.DrawButton("Add Leg")) addLeg();
+                if (EditorDrawing.DrawButton("Remove Leg")) removeLeg();
             }
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
             {
                 EditorGUILayout.LabelField("");
-                if (GUILayout.Button("Find Automatically")) findLegsInChildren();
+                if (EditorDrawing.DrawButton("Find Automatically")) findLegsInChildren();
             }
             EditorGUILayout.EndHorizontal();
-            GUI.color = Color.white;
         }
         EditorGUI.indentLevel--;
         EditorGUILayout.Space();

@@ -253,6 +253,7 @@ public class IKChainEditor : Editor {
 
     public void removeJoint() {
         int n = ikchain.joints.Length;
+        if (n == 0) return;
         JointHinge[] temp = new JointHinge[n - 1];
         for (int i = 0; i < n - 1; i++) { temp[i] = ikchain.joints[i]; }
         ikchain.joints = temp;
@@ -316,22 +317,20 @@ public class IKChainEditor : Editor {
             serializedObject.FindProperty("endEffector").objectReferenceValue = (Transform)EditorGUILayout.ObjectField("End Effector", ikchain.endEffector, typeof(Transform), true);
 
             // Buttons for Joint array
-            GUI.color = new Color(0.7f, 0.7f, 0.7f);
             EditorGUILayout.BeginHorizontal();
             {
                 EditorGUILayout.LabelField("");
-                if (GUILayout.Button("Add Joint")) addJoint();
-                if (GUILayout.Button("Remove Joint")) removeJoint();
+                if (EditorDrawing.DrawButton("Add Joint")) addJoint();
+                if (EditorDrawing.DrawButton("Remove Joint")) removeJoint();
             }
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
             {
                 EditorGUILayout.LabelField("");
-                if (GUILayout.Button("Find Automatically")) findJointsInChildren();
+                if (EditorDrawing.DrawButton("Find Automatically")) findJointsInChildren();
             }
             EditorGUILayout.EndHorizontal();
-            GUI.color = Color.white;
         }
         EditorGUI.indentLevel--;
         EditorGUILayout.Space();

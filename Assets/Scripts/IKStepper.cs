@@ -38,7 +38,7 @@ public class IKStepper : MonoBehaviour {
     public LayerMask stepLayer;
 
     [Header("Leg Synchronicity")]
-    public IKStepper[] asyncChain;
+    public IKStepper[] asyncLegs;
 
     [Header("Step Timing")]
     [Range(0.0f, 5.0f)]
@@ -104,6 +104,8 @@ public class IKStepper : MonoBehaviour {
     public bool isStepping { get; private set; } = false;
     private float timeStandingStill;
 
+    [Range(0, 1)]
+    public float minDistanceFactor = 0.2f;
     public float minDistance { get; private set; }
 
     public Dictionary<string, Cast> casts { get; private set; }
@@ -134,7 +136,7 @@ public class IKStepper : MonoBehaviour {
         timeStandingStill = 0f;
 
         //Set the distance which the root joint and the endeffector are allowed to have. If below this distance, stepping is forced.
-        minDistance = 0.2f * ikChain.getChainLength();
+        minDistance = minDistanceFactor * ikChain.getChainLength();
 
         //Set Default Position
         defaultPositionLocal = calculateDefault();
@@ -323,7 +325,7 @@ public class IKStepper : MonoBehaviour {
 
         if (timeSinceLastStep < stepCooldown) return false;
 
-        foreach (var ikstepper in asyncChain) {
+        foreach (var ikstepper in asyncLegs) {
             if (ikstepper.isStepping) {
                 return false;
             }
@@ -510,7 +512,7 @@ public class IKStepperEditor : Editor {
 
     private static bool showDebug = true;
 
-    private static float debugIconScale=3;
+    private static float debugIconScale = 3;
     private static bool showPoints = true;
     private static bool showSteppingProcess = true;
     private static bool showRayCasts = true;
@@ -521,13 +523,64 @@ public class IKStepperEditor : Editor {
         if (showDebug && !EditorApplication.isPlaying) ikstepper.Awake();
     }
 
+    // Naming Convention of Leg: Has to end with e.g. L1, R4, L2, .... (e.g. Leg_L1 or Leg_R4)
+    // L stands for Left leg
+    // R stands for right leg
+    // Numbers increase in direction of back legs (Lowest are front legs, highest are back legs)
+    // Only works for numbers in single digits (up to 9)
+
+    public void findAsyncLegs() {
+        List<IKStepper> temp = new List<IKStepper>();
+
+        // e.g. "Leg_L4"
+        char side1 = ikstepper.name[ikstepper.name.Length - 2]; // L
+        char number1 = ikstepper.name[ikstepper.name.Length - 1]; // 4
+
+        foreach (var p_ikStepper in ikstepper.spider.GetComponentsInChildren<IKStepper>()) {
+            if (p_ikStepper == ikstepper) continue;
+
+            // e.g. "Leg_R2"
+            char side2 = p_ikStepper.name[p_ikStepper.name.Length - 2]; // R
+            char number2 = p_ikStepper.name[p_ikStepper.name.Length - 1]; // 2
+
+            //Is this an opposite leg?
+            if (side1 != side2 && number1 == number2) {
+                temp.Add(p_ikStepper);
+            }
+
+            //Is other leg in front of this class's leg?
+            if (side1 == side2 && number1 == number2 + 1) {
+                temp.Add(p_ikStepper);
+            }
+        }
+        ikstepper.asyncLegs = temp.ToArray();
+    }
+
+    public void addAsyncLeg() {
+        int n = ikstepper.asyncLegs.Length;
+        IKStepper[] temp = new IKStepper[n + 1];
+        for (int i = 0; i < n; i++) { temp[i] = ikstepper.asyncLegs[i]; }
+        ikstepper.asyncLegs = temp;
+    }
+
+    public void removeAsyncLeg() {
+        int n = ikstepper.asyncLegs.Length;
+        if (n == 0) return;
+        IKStepper[] temp = new IKStepper[n - 1];
+        for (int i = 0; i < n - 1; i++) { temp[i] = ikstepper.asyncLegs[i]; }
+        ikstepper.asyncLegs = temp;
+    }
+
     public override void OnInspectorGUI() {
         if (ikstepper == null) return;
 
-        Undo.RecordObject(ikstepper, "Changes to IKStepper");
+        serializedObject.Update();
+
+        EditorDrawing.DrawMonoScript(ikstepper, typeof(IKStepper));
 
         EditorDrawing.DrawHorizontalLine();
-        EditorGUILayout.LabelField("Debug Drawing", EditorStyles.boldLabel);
+
+        EditorGUILayout.LabelField("Debug", EditorStyles.boldLabel);
         showDebug = EditorGUILayout.Toggle("Show Debug Drawings", showDebug);
         if (showDebug) {
             EditorGUI.indentLevel++;
@@ -539,10 +592,132 @@ public class IKStepperEditor : Editor {
                 showDOFArc = EditorGUILayout.Toggle("Draw Degree of Freedom Arc", showDOFArc);
             }
             EditorGUI.indentLevel--;
+            EditorGUILayout.Space();
+
+            serializedObject.FindProperty("printDebugLogs").boolValue = EditorGUILayout.Toggle("Print Debug Logs", ikstepper.printDebugLogs);
+            serializedObject.FindProperty("pauseOnStep").boolValue = EditorGUILayout.Toggle("Pause Editor On Step", ikstepper.pauseOnStep);
         }
         EditorDrawing.DrawHorizontalLine();
 
-        base.OnInspectorGUI();
+        //Leg Asynchronicity
+        EditorGUILayout.LabelField("Leg Asynchronicity", EditorStyles.boldLabel);
+        EditorGUILayout.Space();
+        EditorGUI.indentLevel++;
+        {
+            SerializedProperty asyncLegsProperty = serializedObject.FindProperty("asyncLegs");
+            for (int i = 0; i < asyncLegsProperty.arraySize; i++) {
+                SerializedProperty singleLegProperty = asyncLegsProperty.GetArrayElementAtIndex(i);
+                singleLegProperty.objectReferenceValue = (IKStepper)EditorGUILayout.ObjectField(ikstepper.asyncLegs[i], typeof(IKStepper), true);
+            }
+
+            // Buttons for asynch legs array
+            EditorGUILayout.BeginHorizontal();
+            {
+                EditorGUILayout.LabelField("");
+                if (EditorDrawing.DrawButton("Add Leg")) addAsyncLeg();
+                if (EditorDrawing.DrawButton("Remove Leg")) removeAsyncLeg();
+            }
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.BeginHorizontal();
+            {
+                //EditorGUILayout.LabelField("");
+                //if (EditorDrawing.DrawButton("Find Automatically")) findAsyncLegs();
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+        EditorGUI.indentLevel--;
+        EditorDrawing.DrawHorizontalLine();
+
+        //Step Process
+        EditorGUILayout.LabelField("Stepping", EditorStyles.boldLabel);
+        EditorGUILayout.Space();
+        EditorGUI.indentLevel++;
+        {
+            //Min distance
+            EditorGUILayout.LabelField("Step Restriction", EditorStyles.boldLabel);
+            serializedObject.FindProperty("minDistanceFactor").floatValue = EditorGUILayout.Slider("Minimum Distance to Root", ikstepper.minDistanceFactor, 0, 1);
+            EditorGUILayout.Space();
+
+            //Step Cooldown and Force Still
+            EditorGUILayout.LabelField("Step Timing", EditorStyles.boldLabel);
+            serializedObject.FindProperty("stepCooldown").floatValue = EditorGUILayout.Slider("Step Cooldown Time", ikstepper.stepCooldown, 0, 1);
+            serializedObject.FindProperty("stopSteppingAfterSecondsStill").floatValue = EditorGUILayout.Slider("Stop Stepping After X Seconds Still", ikstepper.stopSteppingAfterSecondsStill, 0, 2);
+            EditorGUILayout.Space();
+
+            //Step Animation Curve
+            EditorGUILayout.LabelField("Step Animation", EditorStyles.boldLabel);
+            serializedObject.FindProperty("stepHeight").floatValue = EditorGUILayout.Slider("Step Height", ikstepper.stepHeight, 0, 10);
+            serializedObject.FindProperty("stepAnimation").animationCurveValue = EditorGUILayout.CurveField("Animation Curve", ikstepper.stepAnimation);
+            EditorGUILayout.Space();
+
+            //Coordinates of Anchor position and overshoot multiplier
+            EditorGUILayout.LabelField("Anchor Position", EditorStyles.boldLabel);
+            serializedObject.FindProperty("defaultOffsetLength").floatValue = EditorGUILayout.Slider("Anchor Length (X)", ikstepper.defaultOffsetLength, 0, 1);
+            serializedObject.FindProperty("defaultOffsetHeight").floatValue = EditorGUILayout.Slider("Anchor Height (Y)", ikstepper.defaultOffsetHeight, 0, 1);
+            serializedObject.FindProperty("defaultOffsetStride").floatValue = EditorGUILayout.Slider("Anchor Stride (Z)", ikstepper.defaultOffsetStride, 0, 1);
+
+            serializedObject.FindProperty("defaultOvershootMultiplier").floatValue = EditorGUILayout.Slider("Overshoot Multiplier", ikstepper.defaultOvershootMultiplier, 1, 2);
+            EditorGUILayout.Space();
+
+            //Last Resort position
+            EditorGUILayout.LabelField("Last Resort Target Position", EditorStyles.boldLabel);
+            serializedObject.FindProperty("lastResortHeight").floatValue = EditorGUILayout.Slider("Last Resort Offset Height", ikstepper.lastResortHeight, 0, 1);
+        }
+        EditorGUI.indentLevel--;
+        EditorDrawing.DrawHorizontalLine();
+
+
+        //RayCasting
+        EditorGUILayout.LabelField("Raycasting System", EditorStyles.boldLabel);
+        EditorGUILayout.Space();
+        EditorGUI.indentLevel++;
+        {
+            serializedObject.FindProperty("castMode").enumValueIndex = (int)(CastMode)EditorGUILayout.EnumPopup("Cast Mode", ikstepper.castMode);
+            EditorGUILayout.Space();
+
+            EditorGUI.indentLevel++;
+            {
+                //Radius if applicable
+                if (ikstepper.castMode == CastMode.SphereCast) {
+                    serializedObject.FindProperty("radius").floatValue = EditorGUILayout.FloatField("Sphere Radius", ikstepper.radius);
+                    EditorGUILayout.Space();
+                }
+
+                //FrontalRay
+                EditorGUILayout.LabelField("Frontal Ray", EditorStyles.boldLabel);
+                serializedObject.FindProperty("rayFrontalHeight").floatValue = EditorGUILayout.Slider("Frontal Height", ikstepper.rayFrontalHeight, 0, 1);
+                serializedObject.FindProperty("rayFrontalLength").floatValue = EditorGUILayout.Slider("Frontal Length", ikstepper.rayFrontalLength, 0, 1);
+                serializedObject.FindProperty("rayFrontalOriginOffset").floatValue = EditorGUILayout.Slider("Frontal Origin Offset", ikstepper.rayFrontalOriginOffset, 0, 1);
+                EditorGUILayout.Space();
+
+                //Outwards Ray
+                EditorGUILayout.LabelField("Outwards Ray", EditorStyles.boldLabel);
+                serializedObject.FindProperty("rayTopFocalPoint").vector3Value = EditorGUILayout.Vector3Field("Outwards Focal Point", ikstepper.rayTopFocalPoint);
+                serializedObject.FindProperty("rayOutwardsOriginOffset").floatValue = EditorGUILayout.Slider("Outwards Origin Offset", ikstepper.rayOutwardsOriginOffset, 0, 1);
+                serializedObject.FindProperty("rayOutwardsEndOffset").floatValue = EditorGUILayout.Slider("Outwards End Offset", ikstepper.rayOutwardsEndOffset, 0, 1);
+                EditorGUILayout.Space();
+
+                //Downwards Ray
+                EditorGUILayout.LabelField("Downwards Ray", EditorStyles.boldLabel);
+                serializedObject.FindProperty("downRayHeight").floatValue = EditorGUILayout.Slider("Downwards Height", ikstepper.downRayHeight, 0, 1);
+                serializedObject.FindProperty("downRayDepth").floatValue = EditorGUILayout.Slider("Downwards Depth", ikstepper.downRayDepth, 0, 1);
+                EditorGUILayout.Space();
+
+                //Inwards Rays
+                EditorGUILayout.LabelField("Inwards Ray", EditorStyles.boldLabel);
+                serializedObject.FindProperty("rayBottomFocalPoint").vector3Value = EditorGUILayout.Vector3Field("Inwards Focal Point", ikstepper.rayBottomFocalPoint);
+                serializedObject.FindProperty("rayInwardsEndOffset").floatValue = EditorGUILayout.Slider("Inwards End Offset", ikstepper.rayInwardsEndOffset, 0, 1);
+                EditorGUILayout.Space();
+
+            }
+            EditorGUI.indentLevel--;
+        }
+        EditorGUI.indentLevel--;
+
+        //Apply Changes
+        serializedObject.ApplyModifiedProperties();
+
         if (showDebug && !EditorApplication.isPlaying) ikstepper.Awake();
     }
 
@@ -644,11 +819,20 @@ public class IKStepperEditor : Editor {
         p.y = ikstepper.defaultPositionLocal.y;
         p = ikstepper.spider.transform.TransformPoint(p);
         float chainLength = ikstepper.ikChain.getChainLength();
+        float minDistance = ikstepper.minDistance;
 
         Handles.color = col;
         Handles.DrawWireArc(p, ikstepper.spider.transform.up, v, ikstepper.rootJoint.getAngleRange(), chainLength);
-        Handles.DrawLine(p, p + v * chainLength);
-        Handles.DrawLine(p, p + w * chainLength);
+        Handles.DrawWireArc(p, ikstepper.spider.transform.up, v, ikstepper.rootJoint.getAngleRange(), minDistance);
+
+        Vector3 v1 = p + v * minDistance;
+        Vector3 w1 = p + w * minDistance;
+        Vector3 v2 = p + v * chainLength;
+        Vector3 w2 = p + w * chainLength;
+        Handles.DrawDottedLine(p, v1, 2);
+        Handles.DrawDottedLine(p, w1, 2);
+        Handles.DrawLine(v1, v2);
+        Handles.DrawLine(w1, w2);
     }
 }
 #endif

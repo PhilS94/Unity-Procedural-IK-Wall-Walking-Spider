@@ -2,8 +2,7 @@
 using UnityEditor;
 using UnityEngine;
 
-public static class EditorDrawing
-{
+public static class EditorDrawing {
     public static void DrawHorizontalLine(Color color, int thickness = 1, int padding = 10) {
         Rect r = EditorGUILayout.GetControlRect(GUILayout.Height(padding + thickness));
         r.height = thickness;
@@ -18,7 +17,7 @@ public static class EditorDrawing
         DrawHorizontalLine(Color.gray);
     }
 
-    public static void DrawText(Vector3 pos, string text, Color col,bool emphasize=false) {
+    public static void DrawText(Vector3 pos, string text, Color col, bool emphasize = false) {
         GUIStyle style = new GUIStyle();
         style.normal.textColor = col;
         style.alignment = TextAnchor.MiddleCenter;
@@ -27,6 +26,14 @@ public static class EditorDrawing
             style.normal.background = Texture2D.whiteTexture;
         }
         Handles.Label(pos, text, style);
+    }
+
+    public static bool DrawButton(string text) {
+        Color originalColor = GUI.color;
+        GUI.color = new Color(153f / 255, 168f / 255, 189f / 255);
+        bool b = GUILayout.Button(text);
+        GUI.color = originalColor;
+        return b;
     }
 
     public static void DrawMonoScript(MonoBehaviour behaviour, System.Type className) {
