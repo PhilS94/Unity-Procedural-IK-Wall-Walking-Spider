@@ -30,7 +30,6 @@ public class IKSolver : MonoBehaviour {
 
     private static int maxIterations = 10;
     private static float weight = 1.0f;
-    private static float footAngleToNormal = 20.0f; // 0 means parallel to ground (Orthogonal to plane normal)
 
     /*
      * Solves the IK Problem of the chain with given target using the CCD algorithm.
@@ -40,9 +39,10 @@ public class IKSolver : MonoBehaviour {
      * @param tolerance: The solving will stop once the error, that is the distance between target and endeffector is below the tolerance
      * @param minimumChangePerIteration: If an iteration of the solving decreases the error by an amount below this value, the solver will give up.
      * @param hasFoot: If set to true, the last joint will adjust to the normal given by the target. 
+     * @param footAngle: The foot angle if hasFoot is selected
      * @param printDebugLogs: If set to true, debug logs will be printed into Unity console
      */
-    public static void solveChainCCD(ref JointHinge[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, float singularityRadius=0 ,bool hasFoot = false, bool printDebugLogs = false) {
+    public static void solveChainCCD(ref JointHinge[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, float singularityRadius = 0, bool hasFoot = false, float footAngle = 20f, bool printDebugLogs = false) {
 
         int iteration = 0;
         float error = Vector3.Distance(target.position, endEffector.position);
@@ -55,7 +55,7 @@ public class IKSolver : MonoBehaviour {
             for (int i = 0; i < joints.Length; i++) {
                 //This line ensures that the we start with the last joint, but then chronologically, e.g. k= 4 0 1 2 3
                 int k = mod((i - 1), joints.Length);
-                solveJointCCD(ref joints[k], ref endEffector, ref target, singularityRadius, hasFoot && k == joints.Length - 1);
+                solveJointCCD(ref joints[k], ref endEffector, ref target, singularityRadius, hasFoot && k == joints.Length - 1, footAngle);
             }
             iteration++;
 
@@ -75,7 +75,7 @@ public class IKSolver : MonoBehaviour {
     }
 
     // Solves the specific joint for the CCD solver
-    private static void solveJointCCD(ref JointHinge joint, ref Transform endEffector, ref TargetInfo target, float singularityRadius, bool adjustToTargetNormal) {
+    private static void solveJointCCD(ref JointHinge joint, ref Transform endEffector, ref TargetInfo target, float singularityRadius, bool adjustToTargetNormal, float footAngle) {
         Vector3 rotPoint = joint.getRotationPoint();
         Vector3 rotAxis = joint.getRotationAxis();
         Vector3 toEnd = Vector3.ProjectOnPlane((endEffector.position - rotPoint), rotAxis);
@@ -90,7 +90,7 @@ public class IKSolver : MonoBehaviour {
 
         //This is a special case, where i want the foot, that is the last joint of the chain to adjust to the normal it hit
         if (adjustToTargetNormal) {
-            angle = footAngleToNormal + 90.0f - Vector3.SignedAngle(Vector3.ProjectOnPlane(target.normal, rotAxis), toEnd, rotAxis);
+            angle = footAngle + 90.0f - Vector3.SignedAngle(Vector3.ProjectOnPlane(target.normal, rotAxis), toEnd, rotAxis);
         }
         else {
             angle = weight * joint.getWeight() * Vector3.SignedAngle(toEnd, toTarget, rotAxis);
@@ -103,7 +103,7 @@ public class IKSolver : MonoBehaviour {
      * It exists due to debug reasons and it allows me to go through the iterations steps frame by frame and pause the editor.
      * This coroutine will be deleted once i dont need the frame by frame debugging anymore.
      */
-    public static IEnumerator solveChainCCDFrameByFrame(JointHinge[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, float singularityRadius=0, bool hasFoot = false, bool printDebugLogs = false) {
+    public static IEnumerator solveChainCCDFrameByFrame(JointHinge[] joints, Transform endEffector, TargetInfo target, float tolerance, float minimumChangePerIteration = 0, float singularityRadius = 0, bool hasFoot = false, float footAngle = 20f, bool printDebugLogs = false) {
 
         int iteration = 0;
         float error = Vector3.Distance(target.position, endEffector.position);
@@ -137,7 +137,7 @@ public class IKSolver : MonoBehaviour {
                 Debug.Break();
                 yield return null;
 
-                solveJointCCD(ref joints[k], ref endEffector, ref target, singularityRadius, hasFoot && k == joints.Length - 1);
+                solveJointCCD(ref joints[k], ref endEffector, ref target, singularityRadius, hasFoot && k == joints.Length - 1, footAngle);
 
                 // start: Not clean but for now just initialize variables again and draw stuff here
                 toEnd = Vector3.ProjectOnPlane((endEffector.position - rotPoint), rotAxis);

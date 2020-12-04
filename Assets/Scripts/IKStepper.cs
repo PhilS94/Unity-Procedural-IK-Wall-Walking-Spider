@@ -553,7 +553,7 @@ public class IKStepperEditor : Editor {
                 temp.Add(p_ikStepper);
             }
         }
-        ikstepper.asyncLegs = temp.ToArray();
+        ikstepper.asyncLegs = temp.ToArray(); //Dont set this directly, rather use serialized object otherwise inspector wont save the changes
     }
 
     public void addAsyncLeg() {

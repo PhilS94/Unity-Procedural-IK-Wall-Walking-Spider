@@ -45,6 +45,8 @@ public class IKChain : MonoBehaviour {
     public JointHinge[] joints;
     public Transform endEffector;
     public bool adjustLastJointToNormal;
+    [Range(0, 90)]
+    public float footAngle;
 
     [Header("Target Mode")]
     public TargetMode targetMode;
@@ -117,10 +119,10 @@ public class IKChain : MonoBehaviour {
     private void solve() {
 
         if (ikSolveMethod == IKSolveMethod.CCD) {
-            IKSolver.solveChainCCD(ref joints, endEffector, currentTarget, getTolerance(), getMinimumChangePerIterationOfSolving(), getSingularityRadius(), adjustLastJointToNormal, printDebugLogs);
+            IKSolver.solveChainCCD(ref joints, endEffector, currentTarget, getTolerance(), getMinimumChangePerIterationOfSolving(), getSingularityRadius(), adjustLastJointToNormal, footAngle, printDebugLogs);
         }
         else if (ikSolveMethod == IKSolveMethod.CCDFrameByFrame) {
-            StartCoroutine(IKSolver.solveChainCCDFrameByFrame(joints, endEffector, currentTarget, getTolerance(), getMinimumChangePerIterationOfSolving(), getSingularityRadius(), adjustLastJointToNormal, printDebugLogs));
+            StartCoroutine(IKSolver.solveChainCCDFrameByFrame(joints, endEffector, currentTarget, getTolerance(), getMinimumChangePerIterationOfSolving(), getSingularityRadius(), adjustLastJointToNormal, footAngle, printDebugLogs));
             deactivateSolving = true;
             //Important here is that the coroutine has to update the error after it is done. Not implemented here yet!
         }
@@ -220,7 +222,7 @@ public class IKChain : MonoBehaviour {
 #if UNITY_EDITOR
 [CustomEditor(typeof(IKChain))]
 public class IKChainEditor : Editor {
-
+ 
     private IKChain ikchain;
 
     private static bool showDebug = true;
@@ -350,6 +352,13 @@ public class IKChainEditor : Editor {
                     serializedObject.FindProperty("minChangePerIteration").floatValue = EditorGUILayout.Slider("Minimum Change Per Iteration Break Condition", ikchain.minChangePerIteration, 0.01f, 1f);
                     serializedObject.FindProperty("singularityRadius").floatValue = EditorGUILayout.Slider("Singularity Radius of Joints", ikchain.singularityRadius, 1f, 100f);
                     serializedObject.FindProperty("adjustLastJointToNormal").boolValue = EditorGUILayout.Toggle("Adjust Last Segment to Ground (Foot) ?", ikchain.adjustLastJointToNormal);
+                    if (ikchain.adjustLastJointToNormal) {
+                        EditorGUI.indentLevel++;
+                        {
+                            serializedObject.FindProperty("footAngle").floatValue = EditorGUILayout.Slider("Angle of Foot", ikchain.footAngle, 0, 90);
+                        }
+                        EditorGUI.indentLevel--;
+                    }
                 }
                 EditorGUI.indentLevel--;
             }
