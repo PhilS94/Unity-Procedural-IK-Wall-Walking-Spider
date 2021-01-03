@@ -8,8 +8,6 @@ public class SpiderMasterWindow : EditorWindow {
     IKStepper[] ikSteppers;
     IKChain[] ikChains;
 
-    private AnimationCurve animCurve;
-
     [MenuItem("Window/Spider Master Window")]
     static void Init() {
         // Get existing open window or if none, make a new one:
@@ -26,39 +24,72 @@ public class SpiderMasterWindow : EditorWindow {
         }
     }
     void OnGUI() {
+        EditorGUILayout.LabelField("Spider Master Window", EditorStyles.boldLabel);
+        EditorGUILayout.Space();
+
+        if (spider == null) spider = FindObjectOfType<Spider>();
         spider = (Spider)EditorGUILayout.ObjectField("Pick Spider", spider, typeof(Spider), true);
+        EditorGUILayout.Space();
 
         if (spider != null) {
-            if (EditorDrawing.DrawButton("Find IKSteppers")) findArrays();
-
-            EditorGUILayout.LabelField("Found Scripts:", EditorStyles.boldLabel);
-            EditorGUILayout.Space();
+            if (ikChains == null && ikSteppers == null) findArrays();
 
             //Show IKSteppers
             GUI.enabled = false;
+            float fieldWidthTemp = EditorGUIUtility.fieldWidth;
+            float labelWidthTemp = EditorGUIUtility.labelWidth;
+
             EditorGUILayout.BeginVertical();
             {
                 //Row1
                 EditorGUILayout.BeginHorizontal();
                 {
-                    EditorGUILayout.LabelField("Name", EditorStyles.boldLabel);
-                    EditorGUILayout.LabelField("IK Chains", EditorStyles.boldLabel);
-                    EditorGUILayout.LabelField("IK Steppers", EditorStyles.boldLabel);
+                    EditorGUIUtility.labelWidth = 100;
+                    EditorGUILayout.LabelField("Leg", EditorStyles.boldLabel);
+                    EditorGUILayout.LabelField("IK Chain", EditorStyles.boldLabel);
+                    EditorGUILayout.LabelField("IK Stepper", EditorStyles.boldLabel);
+                    EditorGUILayout.LabelField("Joints", EditorStyles.boldLabel);
                 }
                 EditorGUILayout.EndHorizontal();
+
+
+                EditorGUIUtility.labelWidth = 55;
+                EditorGUIUtility.fieldWidth = 100;
 
                 //Row2+
                 for (int i = 0; i < count; i++) {
                     EditorGUILayout.BeginHorizontal();
                     {
-                        EditorGUILayout.LabelField(ikChains[i].name);
-                        EditorGUILayout.ObjectField(ikChains[i], typeof(IKChain), false);
-                        EditorGUILayout.ObjectField(ikSteppers[i], typeof(IKStepper), false);
+                        IKChain chain = ikChains[i];
+                        IKStepper ikStepper = ikSteppers[i];
+                        EditorGUILayout.LabelField(chain.name);
+                        EditorGUILayout.ObjectField(chain, typeof(IKChain), false);
+                        EditorGUILayout.ObjectField(ikStepper, typeof(IKStepper), false);
+
+                        EditorGUILayout.PrefixLabel(":");
+                        EditorGUILayout.Space();
+
+
+                        for (int j = 0; j < chain.joints.Length; j++) {
+                            JointHinge joint = chain.joints[j];
+                            EditorGUILayout.ObjectField(joint, typeof(JointHinge), false);
+                            EditorGUILayout.PrefixLabel("[" + joint.weight.ToString() + "]  ->");
+                        }
+                        EditorGUILayout.ObjectField(chain.endEffector, typeof(Transform), false);
                     }
                     EditorGUILayout.EndHorizontal();
                 }
             }
+            EditorGUIUtility.labelWidth = labelWidthTemp;
+            EditorGUIUtility.fieldWidth = fieldWidthTemp;
             GUI.enabled = true;
         }
+        EditorGUILayout.Space();
+
+        EditorGUILayout.BeginHorizontal();
+        {
+            if (EditorDrawing.DrawButton("Find IKChains, IKSteppers and JointHinges")) findArrays();
+        }
+        EditorGUILayout.EndHorizontal();
     }
 }
