@@ -17,7 +17,7 @@ If you like this project and/or find it useful, please leave a **Star** on this 
   - NPC mode (Random movement together with observing camera)
   
 ## Showcase
-[![Watch Showcase](media/SpiderShowcaseVimeoPreview.png)](https://vimeo.com/448093489)
+[![Watch Showcase](media/SpiderShowcaseYoutubePreview.png)](https://www.youtube.com/watch?v=4Ff9XeACUH4)
 
 ## What people say
 > *"This spider was an important ingredient for my game. It wouldn't be as successful without it!"*
