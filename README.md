@@ -3,7 +3,12 @@
 [![](https://img.shields.io/github/forks/phils94/Unity-Procedural-IK-Wall-Walking-Spider.svg?style=for-the-badge)]()
 [![](https://img.shields.io/github/languages/top/phils94/Unity-Procedural-IK-Wall-Walking-Spider.svg?style=for-the-badge)]()
 <img src="media/unitylogo.png" align="right" height="50px"></br></br>
-  
+
+  > [!NOTE]
+> This repository is no longer updated.
+> The updated, improved and supported version is now available on the [Unity Asset Store](https://assetstore.unity.com/packages/slug/267789) instead.
+> This repository is kept public for experimentation and learning purposes but note that the version on the Unity Asset Store has significant changes and improvements over this repository and handles licensing.
+
 A Unity Engine Project in which a controllable wall-walking spider uses inverse kinematics (IK) to position its legs to its surroundings in a smart fashion, such that is moves realistically.
 The user can freely control the spider, which is able to walk on any surface: walls, corners, ceilings, ... you name it!
 While moving, the legs dynamically position themselves to the surroundings without the use of any animations, that is all the movement is procedural.
@@ -80,13 +85,11 @@ Lastly, the spiders body elevates and rotates in correspondence to the legs heig
 3. Open the scene "TestRoom" 
 4. Press play and enjoy
 
-## Credits
-Special thanks to [![](https://img.shields.io/badge/-Daniel_Harrison-yellow)](http://www.harrisondaniel.com) for creating the spider model used in this project.
-
 ## License
-For licensing, contact me at: [mail@PhilippSchofield.com](mailto:mail@PhilippSchofield.com)
+Licensing is now handled through the [Unity Asset Store](https://assetstore.unity.com/packages/slug/267789) (see note at the top).
 
-**It is prohibited to sublicense and/or sell copies of this project in stores such as the Unity Asset Store!**
+It is prohibited to sublicense and/or sell copies of this project!
+
 
 © Philipp Schofield 
 
